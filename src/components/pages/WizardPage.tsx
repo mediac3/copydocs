@@ -350,6 +350,27 @@ export default function WizardPage() {
     }
   }, [user, template, docId, answers])
 
+  /* ---- live preview ---- */
+  const replaceVariables = useCallback(
+    (content: string, final = false) => {
+      let result = content
+      const allFields = wizardConfig?.steps.flatMap((s) => s.fields) || []
+      for (const field of allFields) {
+        const placeholder = `{{${field.key}}}`
+        const value = answers[field.key]
+        if (value !== undefined && value !== '') {
+          result = result.replaceAll(placeholder, String(value))
+        }
+      }
+      if (final) {
+        // Replace remaining placeholders with empty string
+        result = result.replace(/\{\{[^}]+\}\}/g, '')
+      }
+      return result
+    },
+    [answers, wizardConfig]
+  )
+
   /* ---- generate document ---- */
   const generateDocument = useCallback(async () => {
     if (!user || !template) return
@@ -399,7 +420,7 @@ export default function WizardPage() {
     } finally {
       setGenerating(false)
     }
-  }, [user, template, docId, answers, setCurrentPage])
+  }, [user, template, docId, answers, setCurrentPage, replaceVariables])
 
   /* ---- visitor: send WhatsApp ---- */
   const handleVisitorSubmit = useCallback(() => {
@@ -456,27 +477,6 @@ export default function WizardPage() {
       toast.info('El contenido del documento está protegido')
     }
   }, [isVisitor])
-
-  /* ---- live preview ---- */
-  const replaceVariables = useCallback(
-    (content: string, final = false) => {
-      let result = content
-      const allFields = wizardConfig?.steps.flatMap((s) => s.fields) || []
-      for (const field of allFields) {
-        const placeholder = `{{${field.key}}}`
-        const value = answers[field.key]
-        if (value !== undefined && value !== '') {
-          result = result.replaceAll(placeholder, String(value))
-        }
-      }
-      if (final) {
-        // Replace remaining placeholders with empty string
-        result = result.replace(/\{\{[^}]+\}\}/g, '')
-      }
-      return result
-    },
-    [answers, wizardConfig]
-  )
 
   const previewContent = useMemo(() => {
     if (!template) return ''
