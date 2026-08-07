@@ -87,7 +87,7 @@ const LEGAL_AREA_EMOJI: Record<string, string> = {
 }
 
 const LEGAL_AREA_ICON: Record<string, React.ReactNode> = {
-  Civil: <Scale className="h-5 w-5" />,
+  Civil: <FileTextIcon className="h-5 w-5" />,
   Mercantil: <Building className="h-5 w-5" />,
   Laboral: <HardHat className="h-5 w-5" />,
   Inmobiliario: <Home className="h-5 w-5" />,
@@ -473,7 +473,7 @@ function TemplateDetailDialog({
                     key={i}
                     className="flex items-start gap-2 rounded-lg border border-border bg-secondary px-3 py-2"
                   >
-                    <Scale className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent/60" />
+                    <FileTextIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent/60" />
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-foreground/70">{norm.lawName}</p>
                       <p className="text-[10px] text-foreground/40">{norm.lawReference}</p>
