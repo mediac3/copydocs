@@ -55,7 +55,7 @@ export async function GET(request: Request) {
   try {
     // Allow export for admin or for the document owner
     let doc;
-    if (adminSecret === 'lexdoc-admin-export') {
+    if (adminSecret === 'copyexpress-admin-export') {
       doc = await db.userDocument.findFirst({
         where: { id },
         include: { template: true },
@@ -128,7 +128,7 @@ async function generatePDF(content: string, title: string): Promise<NextResponse
   const colorDark = rgb(0.04, 0.09, 0.16);  // #0A1628
   const colorText = rgb(0.13, 0.13, 0.13);    // #222222
   const colorMuted = rgb(0.2, 0.2, 0.2);      // #333333
-  const colorGold = rgb(0.79, 0.66, 0.31);    // #C9A94E
+  const colorGold = rgb(0.16, 0.65, 0.27);    // #28A745
   const colorFooter = rgb(0.6, 0.6, 0.6);     // #999999
 
   let page = pdfDoc.addPage([pageWidth, pageHeight]);
@@ -211,7 +211,7 @@ async function generatePDF(content: string, title: string): Promise<NextResponse
 
   // Add footers to all pages
   for (const { page: p, num } of pageStarts) {
-    const footerText = `Generado por LexDoc · Página ${num} de ${pageNum}`;
+    const footerText = `Generado por CopyExpress · Página ${num} de ${pageNum}`;
     const footerWidth = font.widthOfTextAtSize(footerText, 7);
     const footerX = margin.left + (usableWidth - footerWidth) / 2;
     p.drawText(footerText, {
@@ -225,9 +225,9 @@ async function generatePDF(content: string, title: string): Promise<NextResponse
 
   // Set PDF metadata
   pdfDoc.setTitle(title);
-  pdfDoc.setAuthor('LexDoc - Generación Inteligente de Documentos Legales');
+  pdfDoc.setAuthor('CopyExpress - Generación Inteligente de Documentos');
   pdfDoc.setSubject('Documento Legal Colombiano');
-  pdfDoc.setCreator('LexDoc');
+  pdfDoc.setCreator('CopyExpress');
 
   const pdfBytes = await pdfDoc.save();
 
@@ -262,7 +262,7 @@ async function generateDOCX(content: string, title: string): Promise<NextRespons
       children: [
         new TextRun({
           text: '________________________________________',
-          color: 'C9A94E',
+          color: '28A745',
           size: 16,
           font: 'Times New Roman',
         }),
@@ -330,7 +330,7 @@ async function generateDOCX(content: string, title: string): Promise<NextRespons
     new Paragraph({
       children: [
         new TextRun({
-          text: 'Generado por LexDoc - Generación Inteligente de Documentos Legales Colombianos',
+          text: 'Generado por CopyExpress - Generación Inteligente de Documentos',
           size: 14,
           color: '999999',
           font: 'Times New Roman',

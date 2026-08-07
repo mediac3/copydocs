@@ -821,7 +821,7 @@ export default function AdminPage() {
             Panel de Administración
           </h1>
           <p className="mt-1 text-sm text-white/50">
-            Gestiona plantillas, cláusulas, usuarios y más en LexDoc.
+            Gestiona plantillas, cláusulas, usuarios y más en CopyExpress.
           </p>
         </div>
 

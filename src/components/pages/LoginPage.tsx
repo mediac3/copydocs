@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Scale, Eye, EyeOff, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { FileText, Eye, EyeOff, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage({ onBack }: { onBack?: () => void }) {
@@ -63,10 +63,10 @@ export default function LoginPage({ onBack }: { onBack?: () => void }) {
       <div className="w-full max-w-md relative z-10 animate-fade-in-up">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 mb-4">
-            <Scale className="w-8 h-8 text-primary" />
+            <FileText className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">LexDoc</h1>
-          <p className="text-muted-foreground mt-2">Generación inteligente de documentos legales colombianos</p>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">CopyExpress</h1>
+          <p className="text-muted-foreground mt-2">Generación inteligente de documentos</p>
         </div>
 
         <Card className="bg-card/80 backdrop-blur-xl border-border shadow-2xl">

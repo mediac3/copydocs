@@ -248,7 +248,7 @@ export default function DashboardPage() {
             Panel de Control
           </h1>
           <p className="mt-1 text-sm text-white/50">
-            Bienvenido{user?.name ? `, ${user.name.split(' ')[0]}` : ''} — resumen de tu actividad en LexDoc.
+            Bienvenido{user?.name ? `, ${user.name.split(' ')[0]}` : ''} — resumen de tu actividad en CopyExpress.
           </p>
         </div>
 

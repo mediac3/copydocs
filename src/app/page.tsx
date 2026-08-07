@@ -3,6 +3,7 @@
 import { useAppStore } from '@/store/app-store';
 import LoginPage from '@/components/pages/LoginPage';
 import AppLayout from '@/components/AppLayout';
+import AssistantChat from '@/components/AssistantChat';
 import dynamic from 'next/dynamic';
 
 const DashboardPage = dynamic(() => import('@/components/pages/DashboardPage'), { ssr: false });
@@ -31,7 +32,12 @@ export default function Home() {
           default: return <CatalogPage />;
         }
       };
-      return renderPage();
+      return (
+        <>
+          {renderPage()}
+          <AssistantChat />
+        </>
+      );
     }
     return <LoginPage onBack={hideLoginPage} />;
   }

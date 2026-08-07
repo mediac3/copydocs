@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   LayoutDashboard, FileText, Library, FileStack, Users, Settings, Coins,
-  ChevronLeft, ChevronRight, LogOut, Scale, Shield, Menu, X, Sun, Moon, Palette
+  ChevronLeft, ChevronRight, LogOut, Shield, Menu, X, Sun, Moon, Palette
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
@@ -72,11 +72,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}>
           <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
             <button onClick={toggleFocusMode} className="flex items-center gap-2.5 group">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 group-hover:shadow-[0_0_12px_rgba(201,169,78,0.4)] transition-shadow">
-                <Scale className="w-4.5 h-4.5 text-primary-foreground" />
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 group-hover:shadow-[0_0_12px_rgba(40,167,69,0.3)] transition-shadow">
+                <FileText className="w-4.5 h-4.5 text-primary-foreground" />
               </div>
               {sidebarOpen && (
-                <span className="text-sidebar-primary font-bold text-lg tracking-tight animate-fade-in-right">LexDoc</span>
+                <span className="text-sidebar-primary font-bold text-lg tracking-tight animate-fade-in-right">CopyExpress</span>
               )}
             </button>
           </div>
@@ -150,9 +150,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
             <button onClick={toggleFocusMode} className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Scale className="w-4.5 h-4.5 text-primary-foreground" />
+                <FileText className="w-4.5 h-4.5 text-primary-foreground" />
               </div>
-              <span className="text-sidebar-primary font-bold text-lg">LexDoc</span>
+              <span className="text-sidebar-primary font-bold text-lg">CopyExpress</span>
             </button>
             <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)} className="text-sidebar-foreground hover:text-white">
               <X className="w-5 h-5" />
@@ -193,7 +193,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </Button>
               <div>
                 <h2 className="text-sm font-semibold text-foreground">
-                  {navItems.find(n => n.page === currentPage)?.label || 'LexDoc'}
+                  {navItems.find(n => n.page === currentPage)?.label || 'CopyExpress'}
                 </h2>
                 <p className="text-xs text-muted-foreground hidden sm:block">
                   {user?.role === 'admin' ? 'Panel de Administración' : 'Generación de documentos legales colombianos'}
@@ -204,15 +204,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" onClick={() => {
-                    const t = theme || 'warm'
-                    if (t === 'warm') setTheme('dark')
-                    else if (t === 'dark') setTheme('light')
-                    else setTheme('warm')
+                    const t = theme || 'light'
+                    if (t === 'light') setTheme('dark')
+                    else if (t === 'dark') setTheme('warm')
+                    else setTheme('light')
                   }} className="text-muted-foreground hover:text-foreground">
-                    {(theme || 'warm') === 'dark' ? <Sun className="w-4.5 h-4.5" /> : (theme || 'warm') === 'light' ? <Palette className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+                    {(theme || 'light') === 'dark' ? <Sun className="w-4.5 h-4.5" /> : (theme || 'light') === 'warm' ? <Palette className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent><p>{(theme || 'warm') === 'warm' ? 'Tema oscuro' : (theme || 'warm') === 'dark' ? 'Tema claro' : 'Tema cálido'}</p></TooltipContent>
+                <TooltipContent><p>{(theme || 'light') === 'light' ? 'Tema oscuro' : (theme || 'light') === 'dark' ? 'Tema cálido' : 'Tema claro'}</p></TooltipContent>
               </Tooltip>
               <Separator orientation="vertical" className="h-6 mx-1" />
               <div className="flex items-center gap-2">
