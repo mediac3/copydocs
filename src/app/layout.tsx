@@ -33,7 +33,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <ThemeProvider attribute="class" defaultTheme="warm" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="warm" themes={["light", "dark", "warm"]} enableSystem disableTransitionOnChange>
           {children}
           <Toaster position="bottom-right" richColors closeButton />
         </ThemeProvider>

@@ -204,14 +204,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon" onClick={() => {
-                    if (theme === 'warm') setTheme('dark')
-                    else if (theme === 'dark') setTheme('light')
+                    const t = theme || 'warm'
+                    if (t === 'warm') setTheme('dark')
+                    else if (t === 'dark') setTheme('light')
                     else setTheme('warm')
                   }} className="text-muted-foreground hover:text-foreground">
-                    {theme === 'dark' ? <Sun className="w-4.5 h-4.5" /> : theme === 'light' ? <Palette className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+                    {(theme || 'warm') === 'dark' ? <Sun className="w-4.5 h-4.5" /> : (theme || 'warm') === 'light' ? <Palette className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent><p>{theme === 'warm' ? 'Tema oscuro' : theme === 'dark' ? 'Tema claro' : 'Tema cálido'}</p></TooltipContent>
+                <TooltipContent><p>{(theme || 'warm') === 'warm' ? 'Tema oscuro' : (theme || 'warm') === 'dark' ? 'Tema claro' : 'Tema cálido'}</p></TooltipContent>
               </Tooltip>
               <Separator orientation="vertical" className="h-6 mx-1" />
               <div className="flex items-center gap-2">

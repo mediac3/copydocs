@@ -1,0 +1,1800 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useEffect, useState, useCallback } from 'react'
+     4→     4→import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+     5→     5→import {
+     6→     6→  Users,
+     7→     7→  FileText,
+     8→     8→  BookOpen,
+     9→     9→  Layout,
+    10→    10→  Settings,
+    11→    11→  Coins,
+    12→    12→  MessageSquare,
+    13→    13→  Check,
+    14→    14→  X,
+    15→    15→  Edit,
+    16→    16→  Trash2,
+    17→    17→  Plus,
+    18→    18→  BarChart3,
+    19→    19→  TrendingUp,
+    20→    20→  Eye,
+    21→    21→  MoreVertical,
+    22→    22→  AlertCircle,
+    23→    23→  Download,
+    24→    24→} from 'lucide-react'
+    25→    25→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    26→    26→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    27→    27→import { Button } from '@/components/ui/button'
+    28→    28→import { Badge } from '@/components/ui/badge'
+    29→    29→import {
+    30→    30→  Table,
+    31→    31→  TableBody,
+    32→    32→  TableCell,
+    33→    33→  TableHead,
+    34→    34→  TableHeader,
+    35→    35→  TableRow,
+    36→    36→} from '@/components/ui/table'
+    37→    37→import {
+    38→    38→  Dialog,
+    39→    39→  DialogContent,
+    40→    40→  DialogHeader,
+    41→    41→  DialogTitle,
+    42→    42→  DialogFooter,
+    43→    43→} from '@/components/ui/dialog'
+    44→    44→import { Input } from '@/components/ui/input'
+    45→    45→import { Label } from '@/components/ui/label'
+    46→    46→import { Textarea } from '@/components/ui/textarea'
+    47→    47→import {
+    48→    48→  Select,
+    49→    49→  SelectTrigger,
+    50→    50→  SelectValue,
+    51→    51→  SelectContent,
+    52→    52→  SelectItem,
+    53→    53→} from '@/components/ui/select'
+    54→    54→import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
+    55→    55→import {
+    56→    56→  DropdownMenu,
+    57→    57→  DropdownMenuContent,
+    58→    58→  DropdownMenuItem,
+    59→    59→  DropdownMenuTrigger,
+    60→    60→} from '@/components/ui/dropdown-menu'
+    61→    61→import { toast } from 'sonner'
+    62→    62→import { useAppStore } from '@/store/app-store'
+    63→    63→
+    64→    64→/* -------------------------------------------------------------------------- */
+    65→    65→/*  Types                                                                    */
+    66→    66→/* -------------------------------------------------------------------------- */
+    67→    67→
+    68→    68→interface AdminStats {
+    69→    69→  totalUsers: number
+    70→    70→  totalDocuments: number
+    71→    71→  activeTemplates: number
+    72→    72→  totalRevenue: number
+    73→    73→  documentsByMonth: Array<{ month: string; count: number }>
+    74→    74→  topTemplates: Array<{ id: string; name: string; category: string; count: number }>
+    75→    75→}
+    76→    76→
+    77→    77→interface Template {
+    78→    78→  id: string
+    79→    79→  name: string
+    80→    80→  category: string
+    81→    81→  legalArea: string
+    82→    82→  status: 'borrador' | 'en_revision' | 'publicado' | 'desactivado'
+    83→    83→  price: number
+    84→    84→  documentCount: number
+    85→    85→  description?: string
+    86→    86→  audience?: string
+    87→    87→  baseContent?: string
+    88→    88→}
+    89→    89→
+    90→    90→interface Clause {
+    91→    91→  id: string
+    92→    92→  title: string
+    93→    93→  content: string
+    94→    94→  legalArea: string
+    95→    95→}
+    96→    96→
+    97→    97→interface AdminUser {
+    98→    98→  id: string
+    99→    99→  name: string
+   100→   100→  username: string
+   101→   101→  email: string
+   102→   102→  role: string
+   103→   103→  status: string
+   104→   104→  subscription: string
+   105→   105→  documentCount: number
+   106→   106→  lastAccess: string
+   107→   107→}
+   108→   108→
+   109→   109→interface DocumentRequest {
+   110→   110→  id: string
+   111→   111→  title: string
+   112→   112→  description: string
+   113→   113→  user: string
+   114→   114→  date: string
+   115→   115→  status: 'pendiente' | 'aprobada' | 'rechazada' | 'en_desarrollo'
+   116→   116→  notes?: string
+   117→   117→}
+   118→   118→
+   119→   119→interface VisitorDocument {
+   120→   120→  id: string
+   121→   121→  title: string
+   122→   122→  visitorPhone: string | null
+   123→   123→  visitorName: string | null
+   124→   124→  status: string
+   125→   125→  createdAt: string
+   126→   126→  template?: { name: string; category: string }
+   127→   127→}
+   128→   128→
+   129→   129→interface CreditUser {
+   130→   130→  id: string
+   131→   131→  name: string
+   132→   132→  username: string
+   133→   133→  email: string
+   134→   134→  phone: string
+   135→   135→  status: string
+   136→   136→  credits: number
+   137→   137→}
+   138→   138→
+   139→   139→interface CreditTransaction {
+   140→   140→  id: string
+   141→   141→  amount: number
+   142→   142→  type: string
+   143→   143→  description: string | null
+   144→   144→  createdAt: string
+   145→   145→}
+   146→   146→
+   147→   147→interface NewTemplateForm {
+   148→   148→  name: string
+   149→   149→  description: string
+   150→   150→  category: string
+   151→   151→  legalArea: string
+   152→   152→  audience: string
+   153→   153→  price: string
+   154→   154→  baseContent: string
+   155→   155→  status: string
+   156→   156→}
+   157→   157→
+   158→   158→interface NewClauseForm {
+   159→   159→  title: string
+   160→   160→  content: string
+   161→   161→  legalArea: string
+   162→   162→}
+   163→   163→
+   164→   164→/* -------------------------------------------------------------------------- */
+   165→   165→/*  Helpers                                                                  */
+   166→   166→/* -------------------------------------------------------------------------- */
+   167→   167→
+   168→   168→function formatCurrency(value: number): string {
+   169→   169→  return new Intl.NumberFormat('es-CO', {
+   170→   170→    style: 'currency',
+   171→   171→    currency: 'COP',
+   172→   172→    minimumFractionDigits: 0,
+   173→   173→  }).format(value)
+   174→   174→}
+   175→   175→
+   176→   176→function formatDate(dateStr: string): string {
+   177→   177→  return new Date(dateStr).toLocaleDateString('es-CO', {
+   178→   178→    day: '2-digit',
+   179→   179→    month: 'short',
+   180→   180→    year: 'numeric',
+   181→   181→  })
+   182→   182→}
+   183→   183→
+   184→   184→function formatDateTime(dateStr: string): string {
+   185→   185→  return new Date(dateStr).toLocaleDateString('es-CO', {
+   186→   186→    day: '2-digit',
+   187→   187→    month: 'short',
+   188→   188→    year: 'numeric',
+   189→   189→    hour: '2-digit',
+   190→   190→    minute: '2-digit',
+   191→   191→  })
+   192→   192→}
+   193→   193→
+   194→   194→/* -------------------------------------------------------------------------- */
+   195→   195→/*  Status Badges                                                            */
+   196→   196→/* -------------------------------------------------------------------------- */
+   197→   197→
+   198→   198→const TEMPLATE_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+   199→   199→  borrador: { label: 'Borrador', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
+   200→   200→  en_revision: { label: 'En revisión', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
+   201→   201→  publicado: { label: 'Publicado', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
+   202→   202→  desactivado: { label: 'Desactivado', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
+   203→   203→}
+   204→   204→
+   205→   205→const REQUEST_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+   206→   206→  pendiente: { label: 'Pendiente', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
+   207→   207→  aprobada: { label: 'Aprobada', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
+   208→   208→  rechazada: { label: 'Rechazada', className: 'bg-red-500/15 text-red-400 border-red-500/25' },
+   209→   209→  en_desarrollo: { label: 'En desarrollo', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
+   210→   210→}
+   211→   211→
+   212→   212→const ROLE_BADGE_CONFIG: Record<string, string> = {
+   213→   213→  admin: 'bg-[#C9A94E]/15 text-[#C9A94E] border-[#C9A94E]/25',
+   214→   214→  user: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+   215→   215→  editor: 'bg-purple-500/15 text-purple-400 border-purple-500/25',
+   216→   216→}
+   217→   217→
+   218→   218→const USER_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+   219→   219→  active: { label: 'Activo', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
+   220→   220→  suspended: { label: 'Suspendido', className: 'bg-red-500/15 text-red-400 border-red-500/25' },
+   221→   221→  inactive: { label: 'Inactivo', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
+   222→   222→}
+   223→   223→
+   224→   224→function StatusBadge({ status, config }: { status: string; config: Record<string, { label: string; className: string }> }) {
+   225→   225→  const c = config[status] || { label: status, className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' }
+   226→   226→  return (
+   227→   227→    <Badge variant="outline" className={`${c.className} hover:${c.className}`}>
+   228→   228→      {c.label}
+   229→   229→    </Badge>
+   230→   230→  )
+   231→   231→}
+   232→   232→
+   233→   233→/* -------------------------------------------------------------------------- */
+   234→   234→/*  Chart Tooltip                                                            */
+   235→   235→/* -------------------------------------------------------------------------- */
+   236→   236→
+   237→   237→function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
+   238→   238→  if (!active || !payload?.length) return null
+   239→   239→  return (
+   240→   240→    <div className="rounded-lg border border-[#C9A94E]/20 bg-[#0A1628]/95 px-3 py-2 shadow-xl backdrop-blur-sm">
+   241→   241→      <p className="mb-1 text-xs font-semibold text-white/80 capitalize">{label}</p>
+   242→   242→      {payload.map((p, i) => (
+   243→   243→        <div key={i} className="flex items-center gap-2 text-xs">
+   244→   244→          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
+   245→   245→          <span className="text-white/60">{p.name}:</span>
+   246→   246→          <span className="font-medium text-white">{p.value}</span>
+   247→   247→        </div>
+   248→   248→      ))}
+   249→   249→    </div>
+   250→   250→  )
+   251→   251→}
+   252→   252→
+   253→   253→/* -------------------------------------------------------------------------- */
+   254→   254→/*  Empty state                                                              */
+   255→   255→/* -------------------------------------------------------------------------- */
+   256→   256→
+   257→   257→function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message: string }) {
+   258→   258→  return (
+   259→   259→    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+   260→   260→      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/5">
+   261→   261→        <Icon className="h-6 w-6 text-white/25" />
+   262→   262→      </div>
+   263→   263→      <p className="text-sm text-white/40">{message}</p>
+   264→   264→    </div>
+   265→   265→  )
+   266→   266→}
+   267→   267→
+   268→   268→/* -------------------------------------------------------------------------- */
+   269→   269→/*  Stat Card                                                                */
+   270→   270→/* -------------------------------------------------------------------------- */
+   271→   271→
+   272→   272→function AdminStatCard({ label, value, icon, accentBg, accentText, accentBorder, sub }: {
+   273→   273→  label: string
+   274→   274→  value: string | number
+   275→   275→  icon: React.ReactNode
+   276→   276→  accentBg: string
+   277→   277→  accentText: string
+   278→   278→  accentBorder: string
+   279→   279→  sub?: string
+   280→   280→}) {
+   281→   281→  return (
+   282→   282→    <Card className={`border ${accentBorder} bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5`}>
+   283→   283→      <CardContent className="flex items-center gap-4 p-5">
+   284→   284→        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${accentBg} ${accentText}`}>
+   285→   285→          {icon}
+   286→   286→        </div>
+   287→   287→        <div className="min-w-0 flex-1">
+   288→   288→          <p className="text-2xl font-bold tabular-nums text-white">{value}</p>
+   289→   289→          <p className="truncate text-xs text-white/50">{label}</p>
+   290→   290→        </div>
+   291→   291→        {sub && <p className="text-xs text-white/30">{sub}</p>}
+   292→   292→      </CardContent>
+   293→   293→    </Card>
+   294→   294→  )
+   295→   295→}
+   296→   296→
+   297→   297→/* -------------------------------------------------------------------------- */
+   298→   298→/*  AdminPage                                                                */
+   299→   299→/* -------------------------------------------------------------------------- */
+   300→   300→
+   301→   301→export default function AdminPage() {
+   302→   302→  const { user } = useAppStore()
+   303→   303→  const [activeTab, setActiveTab] = useState('resumen')
+   304→   304→
+   305→   305→  /* ---- Resumen state ---- */
+   306→   306→  const [stats, setStats] = useState<AdminStats | null>(null)
+   307→   307→  const [loadingStats, setLoadingStats] = useState(true)
+   308→   308→
+   309→   309→  /* ---- Templates state ---- */
+   310→   310→  const [templates, setTemplates] = useState<Template[]>([])
+   311→   311→  const [loadingTemplates, setLoadingTemplates] = useState(true)
+   312→   312→  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+   313→   313→  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
+   314→   314→  const [templateForm, setTemplateForm] = useState<NewTemplateForm>({
+   315→   315→    name: '', description: '', category: '', legalArea: '', audience: '',
+   316→   316→    price: '', baseContent: '', status: 'borrador',
+   317→   317→  })
+   318→   318→  const [savingTemplate, setSavingTemplate] = useState(false)
+   319→   319→
+   320→   320→  /* ---- Clauses state ---- */
+   321→   321→  const [clauses, setClauses] = useState<Clause[]>([])
+   322→   322→  const [loadingClauses, setLoadingClauses] = useState(true)
+   323→   323→  const [clauseDialogOpen, setClauseDialogOpen] = useState(false)
+   324→   324→  const [editingClause, setEditingClause] = useState<Clause | null>(null)
+   325→   325→  const [clauseForm, setClauseForm] = useState<NewClauseForm>({ title: '', content: '', legalArea: '' })
+   326→   326→  const [savingClause, setSavingClause] = useState(false)
+   327→   327→  const [deleteClauseId, setDeleteClauseId] = useState<string | null>(null)
+   328→   328→
+   329→   329→  /* ---- Users state ---- */
+   330→   330→  const [users, setUsers] = useState<AdminUser[]>([])
+   331→   331→  const [loadingUsers, setLoadingUsers] = useState(true)
+   332→   332→
+   333→   333→  /* ---- Requests state ---- */
+   334→   334→  const [requests, setRequests] = useState<DocumentRequest[]>([])
+   335→   335→  const [loadingRequests, setLoadingRequests] = useState(true)
+   336→   336→  const [requestNotesId, setRequestNotesId] = useState<string | null>(null)
+   337→   337→  const [requestNotes, setRequestNotes] = useState('')
+   338→   338→
+   339→   339→  /* ---- Visitor documents state ---- */
+   340→   340→  const [visitorDocs, setVisitorDocs] = useState<VisitorDocument[]>([])
+   341→   341→  const [loadingVisitorDocs, setLoadingVisitorDocs] = useState(true)
+   342→   342→
+   343→   343→  /* ---- Credits state ---- */
+   344→   344→  const [creditUsers, setCreditUsers] = useState<CreditUser[]>([])
+   345→   345→  const [loadingCreditUsers, setLoadingCreditUsers] = useState(true)
+   346→   346→  const [selectedCreditUser, setSelectedCreditUser] = useState<CreditUser | null>(null)
+   347→   347→  const [creditTransactions, setCreditTransactions] = useState<CreditTransaction[]>([])
+   348→   348→  const [loadingCreditTx, setLoadingCreditTx] = useState(false)
+   349→   349→  const [addCreditsAmount, setAddCreditsAmount] = useState('')
+   350→   350→  const [addCreditsDesc, setAddCreditsDesc] = useState('')
+   351→   351→  const [addingCredits, setAddingCredits] = useState(false)
+   352→   352→  const [creditDialogOpen, setCreditDialogOpen] = useState(false)
+   353→   353→
+   354→   354→  /* ---- Auth header helper ---- */
+   355→   355→  const authHeaders = useCallback(() => ({
+   356→   356→    'Content-Type': 'application/json',
+   357→   357→    'x-user-id': user?.id || '',
+   358→   358→  }), [user?.id])
+   359→   359→
+   360→   360→  /* ========================================================================== */
+   361→   361→  /*  DATA FETCHING                                                             */
+   362→   362→  /* ========================================================================== */
+   363→   363→
+   364→   364→  const fetchStats = useCallback(async () => {
+   365→   365→    setLoadingStats(true)
+   366→   366→    try {
+   367→   367→      const res = await fetch('/api/admin', { headers: authHeaders() })
+   368→   368→      if (res.ok) {
+   369→   369→        const data = await res.json()
+   370→   370→        setStats({
+   371→   371→          totalUsers: data.totalUsers ?? 0,
+   372→   372→          totalDocuments: data.totalDocuments ?? 0,
+   373→   373→          activeTemplates: data.activeTemplates ?? 0,
+   374→   374→          totalRevenue: data.totalRevenue ?? 0,
+   375→   375→          documentsByMonth: data.documentsByMonth ?? [],
+   376→   376→          topTemplates: data.topTemplates ?? [],
+   377→   377→        })
+   378→   378→      }
+   379→   379→    } catch {
+   380→   380→      // keep null state on error
+   381→   381→    } finally {
+   382→   382→      setLoadingStats(false)
+   383→   383→    }
+   384→   384→  }, [authHeaders])
+   385→   385→
+   386→   386→  const fetchTemplates = useCallback(async () => {
+   387→   387→    setLoadingTemplates(true)
+   388→   388→    try {
+   389→   389→      const res = await fetch('/api/admin/templates', { headers: authHeaders() })
+   390→   390→      if (res.ok) {
+   391→   391→        const data = await res.json()
+   392→   392→        setTemplates(Array.isArray(data) ? data : data.templates || [])
+   393→   393→      }
+   394→   394→    } catch {
+   395→   395→      // keep empty on error
+   396→   396→    } finally {
+   397→   397→      setLoadingTemplates(false)
+   398→   398→    }
+   399→   399→  }, [authHeaders])
+   400→   400→
+   401→   401→  const fetchClauses = useCallback(async () => {
+   402→   402→    setLoadingClauses(true)
+   403→   403→    try {
+   404→   404→      const res = await fetch('/api/admin/clauses', { headers: authHeaders() })
+   405→   405→      if (res.ok) {
+   406→   406→        const data = await res.json()
+   407→   407→        setClauses(Array.isArray(data) ? data : data.clauses || [])
+   408→   408→      }
+   409→   409→    } catch {
+   410→   410→      // keep empty on error
+   411→   411→    } finally {
+   412→   412→      setLoadingClauses(false)
+   413→   413→    }
+   414→   414→  }, [authHeaders])
+   415→   415→
+   416→   416→  const fetchUsers = useCallback(async () => {
+   417→   417→    setLoadingUsers(true)
+   418→   418→    try {
+   419→   419→      const res = await fetch('/api/admin/users', { headers: authHeaders() })
+   420→   420→      if (res.ok) {
+   421→   421→        const data = await res.json()
+   422→   422→        setUsers(Array.isArray(data) ? data : data.users || [])
+   423→   423→      }
+   424→   424→    } catch {
+   425→   425→      // keep empty on error
+   426→   426→    } finally {
+   427→   427→      setLoadingUsers(false)
+   428→   428→    }
+   429→   429→  }, [authHeaders])
+   430→   430→
+   431→   431→  const fetchRequests = useCallback(async () => {
+   432→   432→    setLoadingRequests(true)
+   433→   433→    try {
+   434→   434→      const res = await fetch('/api/admin/requests', { headers: authHeaders() })
+   435→   435→      if (res.ok) {
+   436→   436→        const data = await res.json()
+   437→   437→        setRequests(Array.isArray(data) ? data : data.requests || [])
+   438→   438→      }
+   439→   439→    } catch {
+   440→   440→      // keep empty on error
+   441→   441→    } finally {
+   442→   442→      setLoadingRequests(false)
+   443→   443→    }
+   444→   444→  }, [authHeaders])
+   445→   445→
+   446→   446→  const fetchVisitorDocs = useCallback(async () => {
+   447→   447→    setLoadingVisitorDocs(true)
+   448→   448→    try {
+   449→   449→      const res = await fetch('/api/documents/visitor-list')
+   450→   450→      if (res.ok) {
+   451→   451→        const data = await res.json()
+   452→   452→        setVisitorDocs(Array.isArray(data) ? data : data.documents || [])
+   453→   453→      }
+   454→   454→    } catch {
+   455→   455→      // keep empty on error
+   456→   456→    } finally {
+   457→   457→      setLoadingVisitorDocs(false)
+   458→   458→    }
+   459→   459→  }, [])
+   460→   460→
+   461→   461→  const handleExportVisitor = useCallback(async (docId: string, format: 'pdf' | 'docx') => {
+   462→   462→    try {
+   463→   463→      const res = await fetch(`/api/documents/export?id=${docId}&format=${format}`, {
+   464→   464→        headers: { 'x-admin-export': 'lexdoc-admin-export' },
+   465→   465→      })
+   466→   466→      if (!res.ok) {
+   467→   467→        toast.error('Error al exportar')
+   468→   468→        return
+   469→   469→      }
+   470→   470→      const blob = await res.blob()
+   471→   471→      const url = URL.createObjectURL(blob)
+   472→   472→      const a = document.createElement('a')
+   473→   473→      a.href = url
+   474→   474→      a.download = `documento.${format}`
+   475→   475→      a.click()
+   476→   476→      URL.revokeObjectURL(url)
+   477→   477→    } catch {
+   478→   478→      toast.error('Error al exportar')
+   479→   479→    }
+   480→   480→  }, [])
+   481→   481→
+   482→   482→  const fetchCreditUsers = useCallback(async () => {
+   483→   483→    setLoadingCreditUsers(true)
+   484→   484→    try {
+   485→   485→      const res = await fetch('/api/admin/credits', { headers: authHeaders() })
+   486→   486→      if (res.ok) {
+   487→   487→        const data = await res.json()
+   488→   488→        setCreditUsers(data.users || [])
+   489→   489→      }
+   490→   490→    } catch {
+   491→   491→      // keep empty on error
+   492→   492→    } finally {
+   493→   493→      setLoadingCreditUsers(false)
+   494→   494→    }
+   495→   495→  }, [authHeaders])
+   496→   496→
+   497→   497→  const fetchCreditTransactions = useCallback(async (userId: string) => {
+   498→   498→    setLoadingCreditTx(true)
+   499→   499→    try {
+   500→   500→      const res = await fetch(`/api/admin/credits?userId=${userId}`, { headers: authHeaders() })
+   501→   501→      if (res.ok) {
+   502→   502→        const data = await res.json()
+   503→   503→        setCreditTransactions(data.transactions || [])
+   504→   504→      }
+   505→   505→    } catch {
+   506→   506→      // keep empty on error
+   507→   507→    } finally {
+   508→   508→      setLoadingCreditTx(false)
+   509→   509→    }
+   510→   510→  }, [authHeaders])
+   511→   511→
+   512→   512→  useEffect(() => {
+   513→   513→    fetchStats()
+   514→   514→  }, [fetchStats])
+   515→   515→
+   516→   516→  useEffect(() => {
+   517→   517→    if (activeTab === 'plantillas') fetchTemplates()
+   518→   518→  }, [activeTab, fetchTemplates])
+   519→   519→
+   520→   520→  useEffect(() => {
+   521→   521→    if (activeTab === 'clausulas') fetchClauses()
+   522→   522→  }, [activeTab, fetchClauses])
+   523→   523→
+   524→   524→  useEffect(() => {
+   525→   525→    if (activeTab === 'usuarios') fetchUsers()
+   526→   526→  }, [activeTab, fetchUsers])
+   527→   527→
+   528→   528→  useEffect(() => {
+   529→   529→    if (activeTab === 'solicitudes') { fetchRequests(); fetchVisitorDocs() }
+   530→   530→  }, [activeTab, fetchRequests, fetchVisitorDocs])
+   531→   531→
+   532→   532→  useEffect(() => {
+   533→   533→    if (activeTab === 'precios') fetchCreditUsers()
+   534→   534→  }, [activeTab, fetchCreditUsers])
+   535→   535→
+   536→   536→  /* ========================================================================== */
+   537→   537→  /*  ACTION HANDLERS                                                           */
+   538→   538→  /* ========================================================================== */
+   539→   539→
+   540→   540→  /* ---- Template actions ---- */
+   541→   541→  const handleOpenTemplateDialog = (template?: Template) => {
+   542→   542→    if (template) {
+   543→   543→      setEditingTemplate(template)
+   544→   544→      setTemplateForm({
+   545→   545→        name: template.name,
+   546→   546→        description: template.description || '',
+   547→   547→        category: template.category,
+   548→   548→        legalArea: template.legalArea,
+   549→   549→        audience: template.audience || '',
+   550→   550→        price: String(template.price),
+   551→   551→        baseContent: template.baseContent || '',
+   552→   552→        status: template.status,
+   553→   553→      })
+   554→   554→    } else {
+   555→   555→      setEditingTemplate(null)
+   556→   556→      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', status: 'borrador' })
+   557→   557→    }
+   558→   558→    setTemplateDialogOpen(true)
+   559→   559→  }
+   560→   560→
+   561→   561→  const handleSaveTemplate = async () => {
+   562→   562→    if (!templateForm.name.trim()) {
+   563→   563→      toast.error('El nombre es obligatorio')
+   564→   564→      return
+   565→   565→    }
+   566→   566→    setSavingTemplate(true)
+   567→   567→    try {
+   568→   568→      const payload = {
+   569→   569→        action: editingTemplate ? 'update_template_status' : 'create_template',
+   570→   570→        templateId: editingTemplate?.id,
+   571→   571→        ...templateForm,
+   572→   572→        price: Number(templateForm.price) || 0,
+   573→   573→      }
+   574→   574→      const res = await fetch('/api/admin', {
+   575→   575→        method: 'POST',
+   576→   576→        headers: authHeaders(),
+   577→   577→        body: JSON.stringify(payload),
+   578→   578→      })
+   579→   579→      if (res.ok) {
+   580→   580→        toast.success(editingTemplate ? 'Plantilla actualizada' : 'Plantilla creada')
+   581→   581→        setTemplateDialogOpen(false)
+   582→   582→        fetchTemplates()
+   583→   583→      } else {
+   584→   584→        toast.error('Error al guardar la plantilla')
+   585→   585→      }
+   586→   586→    } catch {
+   587→   587→      toast.error('Error de conexión')
+   588→   588→    } finally {
+   589→   589→      setSavingTemplate(false)
+   590→   590→    }
+   591→   591→  }
+   592→   592→
+   593→   593→  const handleUpdateTemplateStatus = async (templateId: string, newStatus: string) => {
+   594→   594→    try {
+   595→   595→      const res = await fetch('/api/admin', {
+   596→   596→        method: 'POST',
+   597→   597→        headers: authHeaders(),
+   598→   598→        body: JSON.stringify({ action: 'update_template_status', templateId, status: newStatus }),
+   599→   599→      })
+   600→   600→      if (res.ok) {
+   601→   601→        toast.success(`Estado cambiado a ${TEMPLATE_STATUS_CONFIG[newStatus]?.label || newStatus}`)
+   602→   602→        fetchTemplates()
+   603→   603→      } else {
+   604→   604→        toast.error('Error al cambiar estado')
+   605→   605→      }
+   606→   606→    } catch {
+   607→   607→      toast.error('Error de conexión')
+   608→   608→    }
+   609→   609→  }
+   610→   610→
+   611→   611→  /* ---- Clause actions ---- */
+   612→   612→  const handleOpenClauseDialog = (clause?: Clause) => {
+   613→   613→    if (clause) {
+   614→   614→      setEditingClause(clause)
+   615→   615→      setClauseForm({ title: clause.title, content: clause.content, legalArea: clause.legalArea })
+   616→   616→    } else {
+   617→   617→      setEditingClause(null)
+   618→   618→      setClauseForm({ title: '', content: '', legalArea: '' })
+   619→   619→    }
+   620→   620→    setClauseDialogOpen(true)
+   621→   621→  }
+   622→   622→
+   623→   623→  const handleSaveClause = async () => {
+   624→   624→    if (!clauseForm.title.trim() || !clauseForm.content.trim()) {
+   625→   625→      toast.error('Título y contenido son obligatorios')
+   626→   626→      return
+   627→   627→    }
+   628→   628→    setSavingClause(true)
+   629→   629→    try {
+   630→   630→      const payload = {
+   631→   631→        ...clauseForm,
+   632→   632→        clauseId: editingClause?.id,
+   633→   633→      }
+   634→   634→      const res = await fetch('/api/admin/clauses', {
+   635→   635→        method: 'POST',
+   636→   636→        headers: authHeaders(),
+   637→   637→        body: JSON.stringify(payload),
+   638→   638→      })
+   639→   639→      if (res.ok) {
+   640→   640→        toast.success(editingClause ? 'Cláusula actualizada' : 'Cláusula creada')
+   641→   641→        setClauseDialogOpen(false)
+   642→   642→        fetchClauses()
+   643→   643→      } else {
+   644→   644→        toast.error('Error al guardar la cláusula')
+   645→   645→      }
+   646→   646→    } catch {
+   647→   647→      toast.error('Error de conexión')
+   648→   648→    } finally {
+   649→   649→      setSavingClause(false)
+   650→   650→    }
+   651→   651→  }
+   652→   652→
+   653→   653→  const handleDeleteClause = async () => {
+   654→   654→    if (!deleteClauseId) return
+   655→   655→    try {
+   656→   656→      const res = await fetch('/api/admin/clauses', {
+   657→   657→        method: 'POST',
+   658→   658→        headers: authHeaders(),
+   659→   659→        body: JSON.stringify({ action: 'delete_clause', clauseId: deleteClauseId }),
+   660→   660→      })
+   661→   661→      if (res.ok) {
+   662→   662→        toast.success('Cláusula eliminada')
+   663→   663→        setDeleteClauseId(null)
+   664→   664→        fetchClauses()
+   665→   665→      } else {
+   666→   666→        toast.error('Error al eliminar la cláusula')
+   667→   667→      }
+   668→   668→    } catch {
+   669→   669→      toast.error('Error de conexión')
+   670→   670→    }
+   671→   671→  }
+   672→   672→
+   673→   673→  /* ---- User actions ---- */
+   674→   674→  const handleUpdateUserStatus = async (userId: string, newStatus: string) => {
+   675→   675→    try {
+   676→   676→      const res = await fetch('/api/admin', {
+   677→   677→        method: 'POST',
+   678→   678→        headers: authHeaders(),
+   679→   679→        body: JSON.stringify({ action: 'update_user_status', userId, status: newStatus }),
+   680→   680→      })
+   681→   681→      if (res.ok) {
+   682→   682→        toast.success(`Usuario ${newStatus === 'active' ? 'activado' : 'suspendido'}`)
+   683→   683→        fetchUsers()
+   684→   684→      } else {
+   685→   685→        toast.error('Error al actualizar usuario')
+   686→   686→      }
+   687→   687→    } catch {
+   688→   688→      toast.error('Error de conexión')
+   689→   689→    }
+   690→   690→  }
+   691→   691→
+   692→   692→  const handleChangeUserRole = async (userId: string, newRole: string) => {
+   693→   693→    try {
+   694→   694→      const res = await fetch('/api/admin', {
+   695→   695→        method: 'POST',
+   696→   696→        headers: authHeaders(),
+   697→   697→        body: JSON.stringify({ action: 'update_user_status', userId, role: newRole }),
+   698→   698→      })
+   699→   699→      if (res.ok) {
+   700→   700→        toast.success('Rol actualizado')
+   701→   701→        fetchUsers()
+   702→   702→      } else {
+   703→   703→        toast.error('Error al cambiar rol')
+   704→   704→      }
+   705→   705→    } catch {
+   706→   706→      toast.error('Error de conexión')
+   707→   707→    }
+   708→   708→  }
+   709→   709→
+   710→   710→  /* ---- Request actions ---- */
+   711→   711→  const handleRequestAction = async (requestId: string, action: 'aprobada' | 'rechazada' | 'en_desarrollo', notes?: string) => {
+   712→   712→    try {
+   713→   713→      const res = await fetch('/api/admin', {
+   714→   714→        method: 'POST',
+   715→   715→        headers: authHeaders(),
+   716→   716→        body: JSON.stringify({ action: 'handle_request', requestId, status: action, notes }),
+   717→   717→      })
+   718→   718→      if (res.ok) {
+   719→   719→        toast.success(`Solicitud marcada como ${REQUEST_STATUS_CONFIG[action]?.label || action}`)
+   720→   720→        setRequestNotesId(null)
+   721→   721→        setRequestNotes('')
+   722→   722→        fetchRequests()
+   723→   723→      } else {
+   724→   724→        toast.error('Error al procesar solicitud')
+   725→   725→      }
+   726→   726→    } catch {
+   727→   727→      toast.error('Error de conexión')
+   728→   728→    }
+   729→   729→  }
+   730→   730→
+   731→   731→  /* ---- Credit actions ---- */
+   732→   732→  const handleOpenCreditDialog = (user: CreditUser) => {
+   733→   733→    setSelectedCreditUser(user)
+   734→   734→    setAddCreditsAmount('')
+   735→   735→    setAddCreditsDesc('')
+   736→   736→    setCreditDialogOpen(true)
+   737→   737→  }
+   738→   738→
+   739→   739→  const handleViewCreditHistory = (user: CreditUser) => {
+   740→   740→    setSelectedCreditUser(user)
+   741→   741→    fetchCreditTransactions(user.id)
+   742→   742→  }
+   743→   743→
+   744→   744→  const handleAddCredits = async () => {
+   745→   745→    if (!selectedCreditUser || !addCreditsAmount || Number(addCreditsAmount) <= 0) {
+   746→   746→      toast.error('Ingresa una cantidad válida')
+   747→   747→      return
+   748→   748→    }
+   749→   749→    setAddingCredits(true)
+   750→   750→    try {
+   751→   751→      const res = await fetch('/api/admin/credits', {
+   752→   752→        method: 'POST',
+   753→   753→        headers: authHeaders(),
+   754→   754→        body: JSON.stringify({
+   755→   755→          userId: selectedCreditUser.id,
+   756→   756→          amount: Number(addCreditsAmount),
+   757→   757→          description: addCreditsDesc || undefined,
+   758→   758→        }),
+   759→   759→      })
+   760→   760→      if (res.ok) {
+   761→   761→        const data = await res.json()
+   762→   762→        toast.success(data.message || 'Créditos agregados')
+   763→   763→        setCreditDialogOpen(false)
+   764→   764→        fetchCreditUsers()
+   765→   765→        if (selectedCreditUser) fetchCreditTransactions(selectedCreditUser.id)
+   766→   766→      } else {
+   767→   767→        toast.error('Error al agregar créditos')
+   768→   768→      }
+   769→   769→    } catch {
+   770→   770→      toast.error('Error de conexión')
+   771→   771→    } finally {
+   772→   772→      setAddingCredits(false)
+   773→   773→    }
+   774→   774→  }
+   775→   775→
+   776→   776→  /* ========================================================================== */
+   777→   777→  /*  SKELETON LOADER                                                           */
+   778→   778→  /* ========================================================================== */
+   779→   779→
+   780→   780→  function TableSkeleton({ rows = 5, cols = 6 }: { rows?: number; cols?: number }) {
+   781→   781→    return (
+   782→   782→      <div className="space-y-3 p-4">
+   783→   783→        {Array.from({ length: rows }).map((_, r) => (
+   784→   784→          <div key={r} className="flex gap-4">
+   785→   785→            {Array.from({ length: cols }).map((_, c) => (
+   786→   786→              <div
+   787→   787→                key={c}
+   788→   788→                className="h-5 flex-1 animate-pulse rounded bg-white/[0.04]"
+   789→   789→              />
+   790→   790→            ))}
+   791→   791→          </div>
+   792→   792→        ))}
+   793→   793→      </div>
+   794→   794→    )
+   795→   795→  }
+   796→   796→
+   797→   797→  /* ========================================================================== */
+   798→   798→  /*  NAV TABS CONFIG                                                          */
+   799→   799→  /* ========================================================================== */
+   800→   800→
+   801→   801→  const adminTabs = [
+   802→   802→    { value: 'resumen', label: 'Resumen', icon: BarChart3 },
+   803→   803→    { value: 'plantillas', label: 'Plantillas', icon: Layout },
+   804→   804→    { value: 'clausulas', label: 'Cláusulas', icon: BookOpen },
+   805→   805→    { value: 'usuarios', label: 'Usuarios', icon: Users },
+   806→   806→    { value: 'solicitudes', label: 'Solicitudes', icon: MessageSquare },
+   807→   807→    { value: 'precios', label: 'Créditos', icon: Coins },
+   808→   808→  ]
+   809→   809→
+   810→   810→  /* ========================================================================== */
+   811→   811→  /*  RENDER                                                                   */
+   812→   812→  /* ========================================================================== */
+   813→   813→
+   814→   814→  return (
+   815→   815→    <main className="min-h-screen bg-[#0A1628]">
+   816→   816→      <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+   817→   817→        {/* ---------- Header ---------- */}
+   818→   818→        <div className="mb-8">
+   819→   819→          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+   820→   820→            Panel de Administración
+   821→   821→          </h1>
+   822→   822→          <p className="mt-1 text-sm text-white/50">
+   823→   823→            Gestiona plantillas, cláusulas, usuarios y más en LexDoc.
+   824→   824→          </p>
+   825→   825→        </div>
+   826→   826→
+   827→   827→        {/* ---------- Tabs Layout ---------- */}
+   828→   828→        <div className="flex flex-col gap-6 lg:flex-row">
+   829→   829→          {/* Vertical nav on lg, horizontal on mobile */}
+   830→   830→          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex w-full flex-col lg:flex-row">
+   831→   831→            <TabsList className="mb-4 flex h-auto w-full flex-row flex-wrap gap-1 bg-[#0F1D32]/80 p-1 lg:mb-0 lg:w-56 lg:flex-col lg:flex-nowrap lg:overflow-y-auto lg:rounded-xl lg:border lg:border-white/5">
+   832→   832→              {adminTabs.map((tab) => (
+   833→   833→                <TabsTrigger
+   834→   834→                  key={tab.value}
+   835→   835→                  value={tab.value}
+   836→   836→                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white/50 data-[state=active]:bg-[#C9A94E]/10 data-[state=active]:text-[#C9A94E] lg:w-full justify-start"
+   837→   837→                >
+   838→   838→                  <tab.icon className="h-4 w-4 shrink-0" />
+   839→   839→                  <span className="hidden sm:inline">{tab.label}</span>
+   840→   840→                </TabsTrigger>
+   841→   841→              ))}
+   842→   842→            </TabsList>
+   843→   843→
+   844→   844→            {/* ============================================================ */}
+   845→   845→            {/*  1. RESUMEN                                                  */}
+   846→   846→            {/* ============================================================ */}
+   847→   847→            <TabsContent value="resumen" className="mt-0 flex-1 lg:ml-6">
+   848→   848→              <div className="space-y-6">
+   849→   849→                {/* Stat Cards */}
+   850→   850→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+   851→   851→                  <AdminStatCard
+   852→   852→                    label="Total usuarios"
+   853→   853→                    value={loadingStats ? '…' : (stats?.totalUsers ?? 0)}
+   854→   854→                    icon={<Users className="h-5 w-5" />}
+   855→   855→                    accentBg="bg-blue-500/15"
+   856→   856→                    accentText="text-blue-400"
+   857→   857→                    accentBorder="border-blue-500/20"
+   858→   858→                  />
+   859→   859→                  <AdminStatCard
+   860→   860→                    label="Total documentos"
+   861→   861→                    value={loadingStats ? '…' : (stats?.totalDocuments ?? 0)}
+   862→   862→                    icon={<FileText className="h-5 w-5" />}
+   863→   863→                    accentBg="bg-[#C9A94E]/15"
+   864→   864→                    accentText="text-[#C9A94E]"
+   865→   865→                    accentBorder="border-[#C9A94E]/20"
+   866→   866→                  />
+   867→   867→                  <AdminStatCard
+   868→   868→                    label="Plantillas activas"
+   869→   869→                    value={loadingStats ? '…' : (stats?.activeTemplates ?? 0)}
+   870→   870→                    icon={<Layout className="h-5 w-5" />}
+   871→   871→                    accentBg="bg-green-500/15"
+   872→   872→                    accentText="text-green-400"
+   873→   873→                    accentBorder="border-green-500/20"
+   874→   874→                  />
+   875→   875→                  <AdminStatCard
+   876→   876→                    label="Ingresos totales"
+   877→   877→                    value={loadingStats ? '…' : formatCurrency(stats?.totalRevenue ?? 0)}
+   878→   878→                    icon={<CreditCard className="h-5 w-5" />}
+   879→   879→                    accentBg="bg-purple-500/15"
+   880→   880→                    accentText="text-purple-400"
+   881→   881→                    accentBorder="border-purple-500/20"
+   882→   882→                  />
+   883→   883→                </div>
+   884→   884→
+   885→   885→                {/* Chart */}
+   886→   886→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   887→   887→                  <CardHeader className="pb-2">
+   888→   888→                    <CardTitle className="text-base font-semibold text-white">
+   889→   889→                      Generación de documentos
+   890→   890→                    </CardTitle>
+   891→   891→                  </CardHeader>
+   892→   892→                  <CardContent className="pt-0">
+   893→   893→                    {loadingStats ? (
+   894→   894→                      <div className="flex h-[320px] items-center justify-center">
+   895→   895→                        <div className="h-64 w-full animate-pulse rounded-lg bg-white/[0.04]" />
+   896→   896→                      </div>
+   897→   897→                    ) : (stats?.documentsByMonth?.length ?? 0) > 0 ? (
+   898→   898→                      <div className="h-[320px] w-full">
+   899→   899→                        <ResponsiveContainer width="100%" height="100%">
+   900→   900→                          <BarChart data={stats!.documentsByMonth} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
+   901→   901→                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+   902→   902→                            <XAxis
+   903→   903→                              dataKey="month"
+   904→   904→                              tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+   905→   905→                              axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+   906→   906→                              tickLine={false}
+   907→   907→                            />
+   908→   908→                            <YAxis
+   909→   909→                              tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+   910→   910→                              axisLine={false}
+   911→   911→                              tickLine={false}
+   912→   912→                              allowDecimals={false}
+   913→   913→                            />
+   914→   914→                            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(201,169,78,0.06)' }} />
+   915→   915→                            <Bar dataKey="count" name="Documentos" fill="#C9A94E" radius={[4, 4, 0, 0]} maxBarSize={48} />
+   916→   916→                          </BarChart>
+   917→   917→                        </ResponsiveContainer>
+   918→   918→                      </div>
+   919→   919→                    ) : (
+   920→   920→                      <EmptyState icon={BarChart3} message="No hay datos de generación disponibles" />
+   921→   921→                    )}
+   922→   922→                  </CardContent>
+   923→   923→                </Card>
+   924→   924→
+   925→   925→                {/* Top 5 Templates */}
+   926→   926→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   927→   927→                  <CardHeader className="pb-3">
+   928→   928→                    <CardTitle className="text-base font-semibold text-white">
+   929→   929→                      Top 5 plantillas más usadas
+   930→   930→                    </CardTitle>
+   931→   931→                  </CardHeader>
+   932→   932→                  <CardContent className="pt-0">
+   933→   933→                    {loadingStats ? (
+   934→   934→                      <TableSkeleton rows={5} cols={3} />
+   935→   935→                    ) : (stats?.topTemplates?.length ?? 0) > 0 ? (
+   936→   936→                      <Table>
+   937→   937→                        <TableHeader>
+   938→   938→                          <TableRow className="border-white/5 hover:bg-transparent">
+   939→   939→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">#</TableHead>
+   940→   940→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+   941→   941→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Categoría</TableHead>
+   942→   942→                            <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Documentos</TableHead>
+   943→   943→                          </TableRow>
+   944→   944→                        </TableHeader>
+   945→   945→                        <TableBody className="divide-y divide-white/5">
+   946→   946→                          {stats!.topTemplates.slice(0, 5).map((tpl, idx) => (
+   947→   947→                            <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+   948→   948→                              <TableCell className="font-medium text-[#C9A94E]">{idx + 1}</TableCell>
+   949→   949→                              <TableCell className="font-medium text-white/80">{tpl.name}</TableCell>
+   950→   950→                              <TableCell className="text-white/40">{tpl.category}</TableCell>
+   951→   951→                              <TableCell className="text-right">
+   952→   952→                                <span className="flex items-center justify-end gap-1.5 font-medium text-white/70">
+   953→   953→                                  <TrendingUp className="h-3.5 w-3.5 text-[#C9A94E]/70" />
+   954→   954→                                  {tpl.count}
+   955→   955→                                </span>
+   956→   956→                              </TableCell>
+   957→   957→                            </TableRow>
+   958→   958→                          ))}
+   959→   959→                        </TableBody>
+   960→   960→                      </Table>
+   961→   961→                    ) : (
+   962→   962→                      <EmptyState icon={Layout} message="No hay datos de plantillas disponibles" />
+   963→   963→                    )}
+   964→   964→                  </CardContent>
+   965→   965→                </Card>
+   966→   966→              </div>
+   967→   967→            </TabsContent>
+   968→   968→
+   969→   969→            {/* ============================================================ */}
+   970→   970→            {/*  2. GESTIÓN DE PLANTILLAS                                    */}
+   971→   971→            {/* ============================================================ */}
+   972→   972→            <TabsContent value="plantillas" className="mt-0 flex-1 lg:ml-6">
+   973→   973→              <div className="space-y-6">
+   974→   974→                <div className="flex items-center justify-between">
+   975→   975→                  <div>
+   976→   976→                    <h2 className="text-lg font-semibold text-white">Gestión de Plantillas</h2>
+   977→   977→                    <p className="text-xs text-white/40">Administra todas las plantillas del sistema</p>
+   978→   978→                  </div>
+   979→   979→                  <Button
+   980→   980→                    onClick={() => handleOpenTemplateDialog()}
+   981→   981→                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+   982→   982→                  >
+   983→   983→                    <Plus className="mr-2 h-4 w-4" />
+   984→   984→                    Crear Plantilla
+   985→   985→                  </Button>
+   986→   986→                </div>
+   987→   987→
+   988→   988→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   989→   989→                  <CardContent className="p-0">
+   990→   990→                    {loadingTemplates ? (
+   991→   991→                      <TableSkeleton rows={6} cols={7} />
+   992→   992→                    ) : templates.length > 0 ? (
+   993→   993→                      <div className="overflow-x-auto">
+   994→   994→                        <Table>
+   995→   995→                          <TableHeader>
+   996→   996→                            <TableRow className="border-white/5 hover:bg-transparent">
+   997→   997→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+   998→   998→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Categoría</TableHead>
+   999→   999→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Área Legal</TableHead>
+  1000→  1000→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  1001→  1001→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Precio</TableHead>
+  1002→  1002→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Docs</TableHead>
+  1003→  1003→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  1004→  1004→                            </TableRow>
+  1005→  1005→                          </TableHeader>
+  1006→  1006→                          <TableBody className="divide-y divide-white/5">
+  1007→  1007→                            {templates.map((tpl) => (
+  1008→  1008→                              <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+  1009→  1009→                                <TableCell className="max-w-[200px] truncate font-medium text-white/80">{tpl.name}</TableCell>
+  1010→  1010→                                <TableCell className="hidden text-white/40 md:table-cell">{tpl.category}</TableCell>
+  1011→  1011→                                <TableCell className="hidden text-white/40 lg:table-cell">{tpl.legalArea}</TableCell>
+  1012→  1012→                                <TableCell>
+  1013→  1013→                                  <DropdownMenu>
+  1014→  1014→                                    <DropdownMenuTrigger asChild>
+  1015→  1015→                                      <button className="cursor-pointer">
+  1016→  1016→                                        <StatusBadge status={tpl.status} config={TEMPLATE_STATUS_CONFIG} />
+  1017→  1017→                                      </button>
+  1018→  1018→                                    </DropdownMenuTrigger>
+  1019→  1019→                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+  1020→  1020→                                      {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+  1021→  1021→                                        <DropdownMenuItem
+  1022→  1022→                                          key={key}
+  1023→  1023→                                          onClick={() => handleUpdateTemplateStatus(tpl.id, key)}
+  1024→  1024→                                          disabled={key === tpl.status}
+  1025→  1025→                                          className="focus:bg-white/5 focus:text-white"
+  1026→  1026→                                        >
+  1027→  1027→                                          {val.label}
+  1028→  1028→                                        </DropdownMenuItem>
+  1029→  1029→                                      ))}
+  1030→  1030→                                    </DropdownMenuContent>
+  1031→  1031→                                  </DropdownMenu>
+  1032→  1032→                                </TableCell>
+  1033→  1033→                                <TableCell className="text-right font-medium text-white/70">{formatCurrency(tpl.price)}</TableCell>
+  1034→  1034→                                <TableCell className="hidden text-right text-white/40 sm:table-cell">{tpl.documentCount}</TableCell>
+  1035→  1035→                                <TableCell className="text-right">
+  1036→  1036→                                  <div className="flex items-center justify-end gap-1">
+  1037→  1037→                                    <Button
+  1038→  1038→                                      variant="ghost"
+  1039→  1039→                                      size="icon"
+  1040→  1040→                                      className="h-8 w-8 text-white/40 hover:text-[#C9A94E] hover:bg-[#C9A94E]/10"
+  1041→  1041→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+  1042→  1042→                                    >
+  1043→  1043→                                      <Eye className="h-4 w-4" />
+  1044→  1044→                                    </Button>
+  1045→  1045→                                    <Button
+  1046→  1046→                                      variant="ghost"
+  1047→  1047→                                      size="icon"
+  1048→  1048→                                      className="h-8 w-8 text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+  1049→  1049→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+  1050→  1050→                                    >
+  1051→  1051→                                      <Edit className="h-4 w-4" />
+  1052→  1052→                                    </Button>
+  1053→  1053→                                  </div>
+  1054→  1054→                                </TableCell>
+  1055→  1055→                              </TableRow>
+  1056→  1056→                            ))}
+  1057→  1057→                          </TableBody>
+  1058→  1058→                        </Table>
+  1059→  1059→                      </div>
+  1060→  1060→                    ) : (
+  1061→  1061→                      <EmptyState icon={Layout} message="No hay plantillas registradas" />
+  1062→  1062→                    )}
+  1063→  1063→                  </CardContent>
+  1064→  1064→                </Card>
+  1065→  1065→              </div>
+  1066→  1066→
+  1067→  1067→              {/* Create/Edit Template Dialog */}
+  1068→  1068→              <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+  1069→  1069→                <DialogContent className="max-h-[90vh] overflow-y-auto border-white/10 bg-[#0F1D32] sm:max-w-2xl">
+  1070→  1070→                  <DialogHeader>
+  1071→  1071→                    <DialogTitle className="text-white">
+  1072→  1072→                      {editingTemplate ? 'Editar Plantilla' : 'Crear Plantilla'}
+  1073→  1073→                    </DialogTitle>
+  1074→  1074→                  </DialogHeader>
+  1075→  1075→                  <div className="grid gap-4 py-4">
+  1076→  1076→                    <div className="grid gap-2">
+  1077→  1077→                      <Label className="text-white/70">Nombre *</Label>
+  1078→  1078→                      <Input
+  1079→  1079→                        value={templateForm.name}
+  1080→  1080→                        onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+  1081→  1081→                        placeholder="Nombre de la plantilla"
+  1082→  1082→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1083→  1083→                      />
+  1084→  1084→                    </div>
+  1085→  1085→                    <div className="grid gap-2">
+  1086→  1086→                      <Label className="text-white/70">Descripción</Label>
+  1087→  1087→                      <Textarea
+  1088→  1088→                        value={templateForm.description}
+  1089→  1089→                        onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))}
+  1090→  1090→                        placeholder="Descripción de la plantilla"
+  1091→  1091→                        rows={3}
+  1092→  1092→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1093→  1093→                      />
+  1094→  1094→                    </div>
+  1095→  1095→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  1096→  1096→                      <div className="grid gap-2">
+  1097→  1097→                        <Label className="text-white/70">Categoría</Label>
+  1098→  1098→                        <Input
+  1099→  1099→                          value={templateForm.category}
+  1100→  1100→                          onChange={(e) => setTemplateForm((f) => ({ ...f, category: e.target.value }))}
+  1101→  1101→                          placeholder="Ej: Contratos"
+  1102→  1102→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1103→  1103→                        />
+  1104→  1104→                      </div>
+  1105→  1105→                      <div className="grid gap-2">
+  1106→  1106→                        <Label className="text-white/70">Área Legal</Label>
+  1107→  1107→                        <Input
+  1108→  1108→                          value={templateForm.legalArea}
+  1109→  1109→                          onChange={(e) => setTemplateForm((f) => ({ ...f, legalArea: e.target.value }))}
+  1110→  1110→                          placeholder="Ej: Derecho Civil"
+  1111→  1111→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1112→  1112→                        />
+  1113→  1113→                      </div>
+  1114→  1114→                    </div>
+  1115→  1115→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+  1116→  1116→                      <div className="grid gap-2">
+  1117→  1117→                        <Label className="text-white/70">Audiencia</Label>
+  1118→  1118→                        <Input
+  1119→  1119→                          value={templateForm.audience}
+  1120→  1120→                          onChange={(e) => setTemplateForm((f) => ({ ...f, audience: e.target.value }))}
+  1121→  1121→                          placeholder="Ej: Empresas"
+  1122→  1122→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1123→  1123→                        />
+  1124→  1124→                      </div>
+  1125→  1125→                      <div className="grid gap-2">
+  1126→  1126→                        <Label className="text-white/70">Precio (COP)</Label>
+  1127→  1127→                        <Input
+  1128→  1128→                          type="number"
+  1129→  1129→                          value={templateForm.price}
+  1130→  1130→                          onChange={(e) => setTemplateForm((f) => ({ ...f, price: e.target.value }))}
+  1131→  1131→                          placeholder="0"
+  1132→  1132→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1133→  1133→                        />
+  1134→  1134→                      </div>
+  1135→  1135→                      <div className="grid gap-2">
+  1136→  1136→                        <Label className="text-white/70">Estado</Label>
+  1137→  1137→                        <Select
+  1138→  1138→                          value={templateForm.status}
+  1139→  1139→                          onValueChange={(v) => setTemplateForm((f) => ({ ...f, status: v }))}
+  1140→  1140→                        >
+  1141→  1141→                          <SelectTrigger className="border-white/10 bg-white/5 text-white">
+  1142→  1142→                            <SelectValue />
+  1143→  1143→                          </SelectTrigger>
+  1144→  1144→                          <SelectContent className="border-white/10 bg-[#0F1D32]">
+  1145→  1145→                            {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+  1146→  1146→                              <SelectItem key={key} value={key} className="text-white focus:bg-white/5 focus:text-white">
+  1147→  1147→                                {val.label}
+  1148→  1148→                              </SelectItem>
+  1149→  1149→                            ))}
+  1150→  1150→                          </SelectContent>
+  1151→  1151→                        </Select>
+  1152→  1152→                      </div>
+  1153→  1153→                    </div>
+  1154→  1154→                    <div className="grid gap-2">
+  1155→  1155→                      <Label className="text-white/70">Contenido Base</Label>
+  1156→  1156→                      <Textarea
+  1157→  1157→                        value={templateForm.baseContent}
+  1158→  1158→                        onChange={(e) => setTemplateForm((f) => ({ ...f, baseContent: e.target.value }))}
+  1159→  1159→                        placeholder="Contenido base de la plantilla..."
+  1160→  1160→                        rows={8}
+  1161→  1161→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1162→  1162→                      />
+  1163→  1163→                    </div>
+  1164→  1164→                  </div>
+  1165→  1165→                  <DialogFooter>
+  1166→  1166→                    <Button
+  1167→  1167→                      variant="ghost"
+  1168→  1168→                      onClick={() => setTemplateDialogOpen(false)}
+  1169→  1169→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  1170→  1170→                    >
+  1171→  1171→                      Cancelar
+  1172→  1172→                    </Button>
+  1173→  1173→                    <Button
+  1174→  1174→                      onClick={handleSaveTemplate}
+  1175→  1175→                      disabled={savingTemplate}
+  1176→  1176→                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1177→  1177→                    >
+  1178→  1178→                      {savingTemplate ? 'Guardando...' : 'Guardar'}
+  1179→  1179→                    </Button>
+  1180→  1180→                  </DialogFooter>
+  1181→  1181→                </DialogContent>
+  1182→  1182→              </Dialog>
+  1183→  1183→            </TabsContent>
+  1184→  1184→
+  1185→  1185→            {/* ============================================================ */}
+  1186→  1186→            {/*  3. BIBLIOTECA DE CLÁUSULAS                                  */}
+  1187→  1187→            {/* ============================================================ */}
+  1188→  1188→            <TabsContent value="clausulas" className="mt-0 flex-1 lg:ml-6">
+  1189→  1189→              <div className="space-y-6">
+  1190→  1190→                <div className="flex items-center justify-between">
+  1191→  1191→                  <div>
+  1192→  1192→                    <h2 className="text-lg font-semibold text-white">Biblioteca de Cláusulas</h2>
+  1193→  1193→                    <p className="text-xs text-white/40">Gestiona las cláusulas legales disponibles</p>
+  1194→  1194→                  </div>
+  1195→  1195→                  <Button
+  1196→  1196→                    onClick={() => handleOpenClauseDialog()}
+  1197→  1197→                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1198→  1198→                  >
+  1199→  1199→                    <Plus className="mr-2 h-4 w-4" />
+  1200→  1200→                    Nueva Cláusula
+  1201→  1201→                  </Button>
+  1202→  1202→                </div>
+  1203→  1203→
+  1204→  1204→                {loadingClauses ? (
+  1205→  1205→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1206→  1206→                    {Array.from({ length: 6 }).map((_, i) => (
+  1207→  1207→                      <div key={i} className="h-40 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+  1208→  1208→                    ))}
+  1209→  1209→                  </div>
+  1210→  1210→                ) : clauses.length > 0 ? (
+  1211→  1211→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+  1212→  1212→                    {clauses.map((clause) => (
+  1213→  1213→                      <Card key={clause.id} className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5">
+  1214→  1214→                        <CardHeader className="pb-2">
+  1215→  1215→                          <div className="flex items-start justify-between gap-2">
+  1216→  1216→                            <CardTitle className="text-sm font-semibold text-white line-clamp-1">{clause.title}</CardTitle>
+  1217→  1217→                            <Badge variant="outline" className="shrink-0 border-[#C9A94E]/20 bg-[#C9A94E]/10 text-[#C9A94E] text-[10px]">
+  1218→  1218→                              {clause.legalArea}
+  1219→  1219→                            </Badge>
+  1220→  1220→                          </div>
+  1221→  1221→                        </CardHeader>
+  1222→  1222→                        <CardContent className="pt-0">
+  1223→  1223→                          <p className="line-clamp-3 text-xs leading-relaxed text-white/40">{clause.content}</p>
+  1224→  1224→                          <div className="mt-4 flex items-center gap-1">
+  1225→  1225→                            <Button
+  1226→  1226→                              variant="ghost"
+  1227→  1227→                              size="sm"
+  1228→  1228→                              className="h-7 text-xs text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+  1229→  1229→                              onClick={() => handleOpenClauseDialog(clause)}
+  1230→  1230→                            >
+  1231→  1231→                              <Edit className="mr-1 h-3 w-3" />
+  1232→  1232→                              Editar
+  1233→  1233→                            </Button>
+  1234→  1234→                            <Button
+  1235→  1235→                              variant="ghost"
+  1236→  1236→                              size="sm"
+  1237→  1237→                              className="h-7 text-xs text-white/40 hover:text-red-400 hover:bg-red-400/10"
+  1238→  1238→                              onClick={() => setDeleteClauseId(clause.id)}
+  1239→  1239→                            >
+  1240→  1240→                              <Trash2 className="mr-1 h-3 w-3" />
+  1241→  1241→                              Eliminar
+  1242→  1242→                            </Button>
+  1243→  1243→                          </div>
+  1244→  1244→                        </CardContent>
+  1245→  1245→                      </Card>
+  1246→  1246→                    ))}
+  1247→  1247→                  </div>
+  1248→  1248→                ) : (
+  1249→  1249→                  <EmptyState icon={BookOpen} message="No hay cláusulas registradas" />
+  1250→  1250→                )}
+  1251→  1251→              </div>
+  1252→  1252→
+  1253→  1253→              {/* Create/Edit Clause Dialog */}
+  1254→  1254→              <Dialog open={clauseDialogOpen} onOpenChange={setClauseDialogOpen}>
+  1255→  1255→                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-lg">
+  1256→  1256→                  <DialogHeader>
+  1257→  1257→                    <DialogTitle className="text-white">
+  1258→  1258→                      {editingClause ? 'Editar Cláusula' : 'Nueva Cláusula'}
+  1259→  1259→                    </DialogTitle>
+  1260→  1260→                  </DialogHeader>
+  1261→  1261→                  <div className="grid gap-4 py-4">
+  1262→  1262→                    <div className="grid gap-2">
+  1263→  1263→                      <Label className="text-white/70">Título *</Label>
+  1264→  1264→                      <Input
+  1265→  1265→                        value={clauseForm.title}
+  1266→  1266→                        onChange={(e) => setClauseForm((f) => ({ ...f, title: e.target.value }))}
+  1267→  1267→                        placeholder="Título de la cláusula"
+  1268→  1268→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1269→  1269→                      />
+  1270→  1270→                    </div>
+  1271→  1271→                    <div className="grid gap-2">
+  1272→  1272→                      <Label className="text-white/70">Área Legal</Label>
+  1273→  1273→                      <Input
+  1274→  1274→                        value={clauseForm.legalArea}
+  1275→  1275→                        onChange={(e) => setClauseForm((f) => ({ ...f, legalArea: e.target.value }))}
+  1276→  1276→                        placeholder="Ej: Derecho Laboral"
+  1277→  1277→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1278→  1278→                      />
+  1279→  1279→                    </div>
+  1280→  1280→                    <div className="grid gap-2">
+  1281→  1281→                      <Label className="text-white/70">Contenido *</Label>
+  1282→  1282→                      <Textarea
+  1283→  1283→                        value={clauseForm.content}
+  1284→  1284→                        onChange={(e) => setClauseForm((f) => ({ ...f, content: e.target.value }))}
+  1285→  1285→                        placeholder="Texto de la cláusula..."
+  1286→  1286→                        rows={8}
+  1287→  1287→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1288→  1288→                      />
+  1289→  1289→                    </div>
+  1290→  1290→                  </div>
+  1291→  1291→                  <DialogFooter>
+  1292→  1292→                    <Button
+  1293→  1293→                      variant="ghost"
+  1294→  1294→                      onClick={() => setClauseDialogOpen(false)}
+  1295→  1295→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  1296→  1296→                    >
+  1297→  1297→                      Cancelar
+  1298→  1298→                    </Button>
+  1299→  1299→                    <Button
+  1300→  1300→                      onClick={handleSaveClause}
+  1301→  1301→                      disabled={savingClause}
+  1302→  1302→                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1303→  1303→                    >
+  1304→  1304→                      {savingClause ? 'Guardando...' : 'Guardar'}
+  1305→  1305→                    </Button>
+  1306→  1306→                  </DialogFooter>
+  1307→  1307→                </DialogContent>
+  1308→  1308→              </Dialog>
+  1309→  1309→
+  1310→  1310→              {/* Delete Clause Confirmation */}
+  1311→  1311→              <AlertDialog open={!!deleteClauseId} onOpenChange={(open) => !open && setDeleteClauseId(null)}>
+  1312→  1312→                <AlertDialogContent className="border-white/10 bg-[#0F1D32]">
+  1313→  1313→                  <AlertDialogHeader>
+  1314→  1314→                    <AlertDialogTitle className="text-white">¿Eliminar cláusula?</AlertDialogTitle>
+  1315→  1315→                    <AlertDialogDescription className="text-white/50">
+  1316→  1316→                      Esta acción no se puede deshacer. La cláusula será eliminada permanentemente.
+  1317→  1317→                    </AlertDialogDescription>
+  1318→  1318→                  </AlertDialogHeader>
+  1319→  1319→                  <AlertDialogFooter>
+  1320→  1320→                    <AlertDialogCancel className="border-white/10 text-white/50 hover:bg-white/5 hover:text-white">
+  1321→  1321→                      Cancelar
+  1322→  1322→                    </AlertDialogCancel>
+  1323→  1323→                    <AlertDialogAction
+  1324→  1324→                      onClick={handleDeleteClause}
+  1325→  1325→                      className="bg-red-500/20 text-red-400 hover:bg-red-500/30"
+  1326→  1326→                    >
+  1327→  1327→                      Eliminar
+  1328→  1328→                    </AlertDialogAction>
+  1329→  1329→                  </AlertDialogFooter>
+  1330→  1330→                </AlertDialogContent>
+  1331→  1331→              </AlertDialog>
+  1332→  1332→            </TabsContent>
+  1333→  1333→
+  1334→  1334→            {/* ============================================================ */}
+  1335→  1335→            {/*  4. GESTIÓN DE USUARIOS                                      */}
+  1336→  1336→            {/* ============================================================ */}
+  1337→  1337→            <TabsContent value="usuarios" className="mt-0 flex-1 lg:ml-6">
+  1338→  1338→              <div className="space-y-6">
+  1339→  1339→                <div>
+  1340→  1340→                  <h2 className="text-lg font-semibold text-white">Gestión de Usuarios</h2>
+  1341→  1341→                  <p className="text-xs text-white/40">Administra los usuarios registrados en la plataforma</p>
+  1342→  1342→                </div>
+  1343→  1343→
+  1344→  1344→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1345→  1345→                  <CardContent className="p-0">
+  1346→  1346→                    {loadingUsers ? (
+  1347→  1347→                      <TableSkeleton rows={6} cols={8} />
+  1348→  1348→                    ) : users.length > 0 ? (
+  1349→  1349→                      <div className="overflow-x-auto">
+  1350→  1350→                        <Table>
+  1351→  1351→                          <TableHeader>
+  1352→  1352→                            <TableRow className="border-white/5 hover:bg-transparent">
+  1353→  1353→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+  1354→  1354→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Usuario</TableHead>
+  1355→  1355→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Email</TableHead>
+  1356→  1356→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Rol</TableHead>
+  1357→  1357→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  1358→  1358→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Suscripción</TableHead>
+  1359→  1359→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Docs</TableHead>
+  1360→  1360→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 xl:table-cell">Último acceso</TableHead>
+  1361→  1361→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  1362→  1362→                            </TableRow>
+  1363→  1363→                          </TableHeader>
+  1364→  1364→                          <TableBody className="divide-y divide-white/5">
+  1365→  1365→                            {users.map((u) => (
+  1366→  1366→                              <TableRow key={u.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+  1367→  1367→                                <TableCell className="font-medium text-white/80">{u.name}</TableCell>
+  1368→  1368→                                <TableCell className="hidden text-white/40 md:table-cell">@{u.username}</TableCell>
+  1369→  1369→                                <TableCell className="hidden max-w-[200px] truncate text-white/40 lg:table-cell">{u.email}</TableCell>
+  1370→  1370→                                <TableCell>
+  1371→  1371→                                  <DropdownMenu>
+  1372→  1372→                                    <DropdownMenuTrigger asChild>
+  1373→  1373→                                      <button className="cursor-pointer">
+  1374→  1374→                                        <Badge variant="outline" className={`${ROLE_BADGE_CONFIG[u.role] || 'bg-gray-500/15 text-gray-400 border-gray-500/25'} hover:${ROLE_BADGE_CONFIG[u.role] || ''}`}>
+  1375→  1375→                                          {u.role}
+  1376→  1376→                                        </Badge>
+  1377→  1377→                                      </button>
+  1378→  1378→                                    </DropdownMenuTrigger>
+  1379→  1379→                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+  1380→  1380→                                      {['admin', 'user', 'editor'].map((role) => (
+  1381→  1381→                                        <DropdownMenuItem
+  1382→  1382→                                          key={role}
+  1383→  1383→                                          onClick={() => handleChangeUserRole(u.id, role)}
+  1384→  1384→                                          disabled={role === u.role}
+  1385→  1385→                                          className="capitalize focus:bg-white/5 focus:text-white"
+  1386→  1386→                                        >
+  1387→  1387→                                          {role}
+  1388→  1388→                                        </DropdownMenuItem>
+  1389→  1389→                                      ))}
+  1390→  1390→                                    </DropdownMenuContent>
+  1391→  1391→                                  </DropdownMenu>
+  1392→  1392→                                </TableCell>
+  1393→  1393→                                <TableCell>
+  1394→  1394→                                  <StatusBadge status={u.status} config={USER_STATUS_CONFIG} />
+  1395→  1395→                                </TableCell>
+  1396→  1396→                                <TableCell className="hidden text-white/40 sm:table-cell">{u.subscription || '—'}</TableCell>
+  1397→  1397→                                <TableCell className="hidden text-right text-white/40 lg:table-cell">{u.documentCount}</TableCell>
+  1398→  1398→                                <TableCell className="hidden text-right text-white/40 xl:table-cell">{u.lastAccess ? formatDate(u.lastAccess) : '—'}</TableCell>
+  1399→  1399→                                <TableCell className="text-right">
+  1400→  1400→                                  <DropdownMenu>
+  1401→  1401→                                    <DropdownMenuTrigger asChild>
+  1402→  1402→                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/5">
+  1403→  1403→                                        <MoreVertical className="h-4 w-4" />
+  1404→  1404→                                      </Button>
+  1405→  1405→                                    </DropdownMenuTrigger>
+  1406→  1406→                                    <DropdownMenuContent align="end" className="border-white/10 bg-[#0F1D32] text-white">
+  1407→  1407→                                      {u.status === 'active' ? (
+  1408→  1408→                                        <DropdownMenuItem
+  1409→  1409→                                          onClick={() => handleUpdateUserStatus(u.id, 'suspended')}
+  1410→  1410→                                          className="focus:bg-red-500/10 focus:text-red-400"
+  1411→  1411→                                        >
+  1412→  1412→                                          <X className="mr-2 h-4 w-4" />
+  1413→  1413→                                          Suspender
+  1414→  1414→                                        </DropdownMenuItem>
+  1415→  1415→                                      ) : (
+  1416→  1416→                                        <DropdownMenuItem
+  1417→  1417→                                          onClick={() => handleUpdateUserStatus(u.id, 'active')}
+  1418→  1418→                                          className="focus:bg-green-500/10 focus:text-green-400"
+  1419→  1419→                                        >
+  1420→  1420→                                          <Check className="mr-2 h-4 w-4" />
+  1421→  1421→                                          Activar
+  1422→  1422→                                        </DropdownMenuItem>
+  1423→  1423→                                      )}
+  1424→  1424→                                    </DropdownMenuContent>
+  1425→  1425→                                  </DropdownMenu>
+  1426→  1426→                                </TableCell>
+  1427→  1427→                              </TableRow>
+  1428→  1428→                            ))}
+  1429→  1429→                          </TableBody>
+  1430→  1430→                        </Table>
+  1431→  1431→                      </div>
+  1432→  1432→                    ) : (
+  1433→  1433→                      <EmptyState icon={Users} message="No hay usuarios registrados" />
+  1434→  1434→                    )}
+  1435→  1435→                  </CardContent>
+  1436→  1436→                </Card>
+  1437→  1437→              </div>
+  1438→  1438→            </TabsContent>
+  1439→  1439→
+  1440→  1440→            {/* ============================================================ */}
+  1441→  1441→            {/*  5. SOLICITUDES DE NUEVOS DOCUMENTOS                         */}
+  1442→  1442→            {/* ============================================================ */}
+  1443→  1443→            <TabsContent value="solicitudes" className="mt-0 flex-1 lg:ml-6">
+  1444→  1444→              <div className="space-y-6">
+  1445→  1445→                <div>
+  1446→  1446→                  <h2 className="text-lg font-semibold text-white">Solicitudes de Nuevos Documentos</h2>
+  1447→  1447→                  <p className="text-xs text-white/40">Revisa y gestiona las solicitudes de la comunidad</p>
+  1448→  1448→                </div>
+  1449→  1449→
+  1450→  1450→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1451→  1451→                  <CardContent className="p-0">
+  1452→  1452→                    {loadingRequests ? (
+  1453→  1453→                      <TableSkeleton rows={5} cols={5} />
+  1454→  1454→                    ) : requests.length > 0 ? (
+  1455→  1455→                      <div className="overflow-x-auto">
+  1456→  1456→                        <Table>
+  1457→  1457→                          <TableHeader>
+  1458→  1458→                            <TableRow className="border-white/5 hover:bg-transparent">
+  1459→  1459→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Título</TableHead>
+  1460→  1460→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Descripción</TableHead>
+  1461→  1461→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Usuario</TableHead>
+  1462→  1462→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+  1463→  1463→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  1464→  1464→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  1465→  1465→                            </TableRow>
+  1466→  1466→                          </TableHeader>
+  1467→  1467→                          <TableBody className="divide-y divide-white/5">
+  1468→  1468→                            {requests.map((req) => (
+  1469→  1469→                              <TableRow key={req.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+  1470→  1470→                                <TableCell className="max-w-[180px] truncate font-medium text-white/80">{req.title}</TableCell>
+  1471→  1471→                                <TableCell className="hidden max-w-[250px] truncate text-white/40 md:table-cell">{req.description}</TableCell>
+  1472→  1472→                                <TableCell className="hidden text-white/40 lg:table-cell">{req.user}</TableCell>
+  1473→  1473→                                <TableCell className="whitespace-nowrap text-white/40">{formatDate(req.date)}</TableCell>
+  1474→  1474→                                <TableCell>
+  1475→  1475→                                  <StatusBadge status={req.status} config={REQUEST_STATUS_CONFIG} />
+  1476→  1476→                                </TableCell>
+  1477→  1477→                                <TableCell className="text-right">
+  1478→  1478→                                  {req.status === 'pendiente' ? (
+  1479→  1479→                                    <div className="flex items-center justify-end gap-1">
+  1480→  1480→                                      <Button
+  1481→  1481→                                        variant="ghost"
+  1482→  1482→                                        size="sm"
+  1483→  1483→                                        className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+  1484→  1484→                                        onClick={() => handleRequestAction(req.id, 'aprobada')}
+  1485→  1485→                                      >
+  1486→  1486→                                        <Check className="mr-1 h-3 w-3" />
+  1487→  1487→                                        Aprobar
+  1488→  1488→                                      </Button>
+  1489→  1489→                                      <Button
+  1490→  1490→                                        variant="ghost"
+  1491→  1491→                                        size="sm"
+  1492→  1492→                                        className="h-7 text-xs text-red-400 hover:bg-red-400/10"
+  1493→  1493→                                        onClick={() => handleRequestAction(req.id, 'rechazada')}
+  1494→  1494→                                      >
+  1495→  1495→                                        <X className="mr-1 h-3 w-3" />
+  1496→  1496→                                        Rechazar
+  1497→  1497→                                      </Button>
+  1498→  1498→                                      <Button
+  1499→  1499→                                        variant="ghost"
+  1500→  1500→                                        size="sm"
+  1501→  1501→                                        className="h-7 text-xs text-blue-400 hover:bg-blue-400/10"
+  1502→  1502→                                        onClick={() => { setRequestNotesId(req.id); setRequestNotes('') }}
+  1503→  1503→                                      >
+  1504→  1504→                                        <AlertCircle className="mr-1 h-3 w-3" />
+  1505→  1505→                                        En desarrollo
+  1506→  1506→                                      </Button>
+  1507→  1507→                                    </div>
+  1508→  1508→                                  ) : (
+  1509→  1509→                                    <span className="text-xs text-white/20">—</span>
+  1510→  1510→                                  )}
+  1511→  1511→                                </TableCell>
+  1512→  1512→                              </TableRow>
+  1513→  1513→                            ))}
+  1514→  1514→                          </TableBody>
+  1515→  1515→                        </Table>
+  1516→  1516→                      </div>
+  1517→  1517→                    ) : (
+  1518→  1518→                      <EmptyState icon={MessageSquare} message="No hay solicitudes pendientes" />
+  1519→  1519→                    )}
+  1520→  1520→                  </CardContent>
+  1521→  1521→                </Card>
+  1522→  1522→
+  1523→  1523→                {/* Visitor completed documents */}
+  1524→  1524→                <div className="pt-2">
+  1525→  1525→                  <h3 className="text-base font-semibold text-white mb-1">Documentos de Visitantes</h3>
+  1526→  1526→                  <p className="text-xs text-white/40 mb-4">Documentos generados por usuarios no registrados</p>
+  1527→  1527→                  <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1528→  1528→                    <CardContent className="p-0">
+  1529→  1529→                      {loadingVisitorDocs ? (
+  1530→  1530→                        <TableSkeleton rows={3} cols={5} />
+  1531→  1531→                      ) : visitorDocs.length > 0 ? (
+  1532→  1532→                      <div className="overflow-x-auto">
+  1533→  1533→                        <Table>
+  1534→  1534→                          <TableHeader>
+  1535→  1535→                            <TableRow className="border-white/5 hover:bg-transparent">
+  1536→  1536→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Documento</TableHead>
+  1537→  1537→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Nombre</TableHead>
+  1538→  1538→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Teléfono</TableHead>
+  1539→  1539→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+  1540→  1540→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  1541→  1541→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Descargar</TableHead>
+  1542→  1542→                            </TableRow>
+  1543→  1543→                          </TableHeader>
+  1544→  1544→                          <TableBody className="divide-y divide-white/5">
+  1545→  1545→                            {visitorDocs.map((doc) => (
+  1546→  1546→                              <TableRow key={doc.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+  1547→  1547→                                <TableCell className="max-w-[200px] truncate font-medium text-white/80">{doc.title}</TableCell>
+  1548→  1548→                                <TableCell className="hidden text-white/40 sm:table-cell">{doc.visitorName || '—'}</TableCell>
+  1549→  1549→                                <TableCell className="hidden text-white/40 md:table-cell">{doc.visitorPhone || '—'}</TableCell>
+  1550→  1550→                                <TableCell className="whitespace-nowrap text-white/40">{formatDate(doc.createdAt)}</TableCell>
+  1551→  1551→                                <TableCell>
+  1552→  1552→                                  <Badge className="bg-green-500/15 text-green-400 border-0 text-[10px]">Completado</Badge>
+  1553→  1553→                                </TableCell>
+  1554→  1554→                                <TableCell className="text-right">
+  1555→  1555→                                  <div className="flex items-center justify-end gap-1">
+  1556→  1556→                                    <Button
+  1557→  1557→                                      variant="ghost"
+  1558→  1558→                                      size="sm"
+  1559→  1559→                                      className="h-7 text-xs text-blue-400 hover:bg-blue-400/10"
+  1560→  1560→                                      onClick={() => handleExportVisitor(doc.id, 'pdf')}
+  1561→  1561→                                    >
+  1562→  1562→                                      <Download className="mr-1 h-3 w-3" />
+  1563→  1563→                                      PDF
+  1564→  1564→                                    </Button>
+  1565→  1565→                                    <Button
+  1566→  1566→                                      variant="ghost"
+  1567→  1567→                                      size="sm"
+  1568→  1568→                                      className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+  1569→  1569→                                      onClick={() => handleExportVisitor(doc.id, 'docx')}
+  1570→  1570→                                    >
+  1571→  1571→                                      <Download className="mr-1 h-3 w-3" />
+  1572→  1572→                                      DOCX
+  1573→  1573→                                    </Button>
+  1574→  1574→                                  </div>
+  1575→  1575→                                </TableCell>
+  1576→  1576→                              </TableRow>
+  1577→  1577→                            ))}
+  1578→  1578→                          </TableBody>
+  1579→  1579→                        </Table>
+  1580→  1580→                      </div>
+  1581→  1581→                    ) : (
+  1582→  1582→                      <div className="flex flex-col items-center justify-center py-10 text-center">
+  1583→  1583→                        <FileText className="h-8 w-8 text-white/10 mb-2" />
+  1584→  1584→                        <p className="text-sm text-white/30">No hay documentos de visitantes</p>
+  1585→  1585→                      </div>
+  1586→  1586→                    )}
+  1587→  1587→                    </CardContent>
+  1588→  1588→                  </Card>
+  1589→  1589→                </div>
+  1590→  1590→              </div>
+  1591→  1591→
+  1592→  1592→              {/* Notes Dialog for "En desarrollo" */}
+  1593→  1593→              <Dialog open={!!requestNotesId} onOpenChange={(open) => { if (!open) setRequestNotesId(null) }}>
+  1594→  1594→                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-md">
+  1595→  1595→                  <DialogHeader>
+  1596→  1596→                    <DialogTitle className="text-white">Marcar como En Desarrollo</DialogTitle>
+  1597→  1597→                  </DialogHeader>
+  1598→  1598→                  <div className="grid gap-4 py-4">
+  1599→  1599→                    <div className="grid gap-2">
+  1600→  1600→                      <Label className="text-white/70">Notas (opcional)</Label>
+  1601→  1601→                      <Textarea
+  1602→  1602→                        value={requestNotes}
+  1603→  1603→                        onChange={(e) => setRequestNotes(e.target.value)}
+  1604→  1604→                        placeholder="Agrega notas sobre el progreso..."
+  1605→  1605→                        rows={4}
+  1606→  1606→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1607→  1607→                      />
+  1608→  1608→                    </div>
+  1609→  1609→                  </div>
+  1610→  1610→                  <DialogFooter>
+  1611→  1611→                    <Button
+  1612→  1612→                      variant="ghost"
+  1613→  1613→                      onClick={() => setRequestNotesId(null)}
+  1614→  1614→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  1615→  1615→                    >
+  1616→  1616→                      Cancelar
+  1617→  1617→                    </Button>
+  1618→  1618→                    <Button
+  1619→  1619→                      onClick={() => requestNotesId && handleRequestAction(requestNotesId, 'en_desarrollo', requestNotes)}
+  1620→  1620→                      className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+  1621→  1621→                    >
+  1622→  1622→                      Confirmar
+  1623→  1623→                    </Button>
+  1624→  1624→                  </DialogFooter>
+  1625→  1625→                </DialogContent>
+  1626→  1626→              </Dialog>
+  1627→  1627→            </TabsContent>
+  1628→  1628→
+  1629→  1629→            {/* ============================================================ */}
+  1630→  1630→            {/*  6. GESTION DE CREDITOS                                     */}
+  1631→  1631→            {/* ============================================================ */}
+  1632→  1632→            <TabsContent value="precios" className="mt-0 flex-1 lg:ml-6">
+  1633→  1633→              <div className="space-y-6">
+  1634→  1634→                <div>
+  1635→  1635→                  <h2 className="text-lg font-semibold text-white">Gestión de Créditos</h2>
+  1636→  1636→                  <p className="text-xs text-white/40">Administra los créditos de los usuarios. Cada crédito equivale a un documento.</p>
+  1637→  1637→                </div>
+  1638→  1638→
+  1639→  1639→                {loadingCreditUsers ? (
+  1640→  1640→                  <TableSkeleton rows={4} cols={5} />
+  1641→  1641→                ) : creditUsers.length > 0 ? (
+  1642→  1642→                  <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1643→  1643→                    <CardContent className="p-0">
+  1644→  1644→                      <div className="overflow-x-auto">
+  1645→  1645→                        <Table>
+  1646→  1646→                          <TableHeader>
+  1647→  1647→                            <TableRow className="border-white/5 hover:bg-transparent">
+  1648→  1648→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Usuario</TableHead>
+  1649→  1649→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Email</TableHead>
+  1650→  1650→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  1651→  1651→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30 text-center">Créditos</TableHead>
+  1652→  1652→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  1653→  1653→                            </TableRow>
+  1654→  1654→                          </TableHeader>
+  1655→  1655→                          <TableBody className="divide-y divide-white/5">
+  1656→  1656→                            {creditUsers.map((cu) => (
+  1657→  1657→                              <TableRow key={cu.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+  1658→  1658→                                <TableCell>
+  1659→  1659→                                  <div>
+  1660→  1660→                                    <p className="text-sm font-medium text-white/90">{cu.name}</p>
+  1661→  1661→                                    <p className="text-xs text-white/40">@{cu.username}</p>
+  1662→  1662→                                  </div>
+  1663→  1663→                                </TableCell>
+  1664→  1664→                                <TableCell className="hidden text-white/40 text-sm md:table-cell">{cu.email || '—'}</TableCell>
+  1665→  1665→                                <TableCell>
+  1666→  1666→                                  <Badge className={cu.status === 'active' ? 'bg-green-500/15 text-green-400 border-green-500/25' : 'bg-red-500/15 text-red-400 border-red-500/25'} variant="outline">
+  1667→  1667→                                    {cu.status === 'active' ? 'Activo' : 'Suspendido'}
+  1668→  1668→                                  </Badge>
+  1669→  1669→                                </TableCell>
+  1670→  1670→                                <TableCell className="text-center">
+  1671→  1671→                                  <span className={`text-lg font-bold ${cu.credits > 5 ? 'text-[#C9A94E]' : cu.credits > 0 ? 'text-amber-400' : 'text-red-400'}`}>{cu.credits}</span>
+  1672→  1672→                                </TableCell>
+  1673→  1673→                                <TableCell className="text-right">
+  1674→  1674→                                  <div className="flex items-center justify-end gap-1">
+  1675→  1675→                                    <Button
+  1676→  1676→                                      variant="ghost"
+  1677→  1677→                                      size="sm"
+  1678→  1678→                                      className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+  1679→  1679→                                      onClick={() => handleOpenCreditDialog(cu)}
+  1680→  1680→                                    >
+  1681→  1681→                                      <Plus className="mr-1 h-3 w-3" />
+  1682→  1682→                                      Agregar
+  1683→  1683→                                    </Button>
+  1684→  1684→                                    <Button
+  1685→  1685→                                      variant="ghost"
+  1686→  1686→                                      size="sm"
+  1687→  1687→                                      className="h-7 text-xs text-blue-400 hover:bg-blue-400/10"
+  1688→  1688→                                      onClick={() => handleViewCreditHistory(cu)}
+  1689→  1689→                                    >
+  1690→  1690→                                      <Eye className="mr-1 h-3 w-3" />
+  1691→  1691→                                      Historial
+  1692→  1692→                                    </Button>
+  1693→  1693→                                  </div>
+  1694→  1694→                                </TableCell>
+  1695→  1695→                              </TableRow>
+  1696→  1696→                            ))}
+  1697→  1697→                          </TableBody>
+  1698→  1698→                        </Table>
+  1699→  1699→                      </div>
+  1700→  1700→                    </CardContent>
+  1701→  1701→                  </Card>
+  1702→  1702→                ) : (
+  1703→  1703→                  <EmptyState icon={Coins} message="No hay usuarios registrados" />
+  1704→  1704→                )}
+  1705→  1705→
+  1706→  1706→                {selectedCreditUser && (
+  1707→  1707→                  <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1708→  1708→                    <CardHeader className="pb-3">
+  1709→  1709→                      <div className="flex items-center justify-between">
+  1710→  1710→                        <CardTitle className="text-base font-semibold text-white">
+  1711→  1711→                          Historial de {selectedCreditUser.name}
+  1712→  1712→                        </CardTitle>
+  1713→  1713→                        <button onClick={() => setSelectedCreditUser(null)} className="text-white/30 hover:text-white/60">
+  1714→  1714→                          <X className="h-4 w-4" />
+  1715→  1715→                        </button>
+  1716→  1716→                      </div>
+  1717→  1717→                    </CardHeader>
+  1718→  1718→                    <CardContent className="p-0">
+  1719→  1719→                      {loadingCreditTx ? (
+  1720→  1720→                        <TableSkeleton rows={3} cols={4} />
+  1721→  1721→                      ) : creditTransactions.length > 0 ? (
+  1722→  1722→                        <div className="overflow-x-auto">
+  1723→  1723→                          <Table>
+  1724→  1724→                            <TableHeader>
+  1725→  1725→                              <TableRow className="border-white/5 hover:bg-transparent">
+  1726→  1726→                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+  1727→  1727→                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Descripción</TableHead>
+  1728→  1728→                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30 text-center">Tipo</TableHead>
+  1729→  1729→                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30 text-right">Cantidad</TableHead>
+  1730→  1730→                              </TableRow>
+  1731→  1731→                            </TableHeader>
+  1732→  1732→                            <TableBody className="divide-y divide-white/5">
+  1733→  1733→                              {creditTransactions.map((tx) => (
+  1734→  1734→                                <TableRow key={tx.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+  1735→  1735→                                  <TableCell className="text-white/40 text-sm">{formatDate(tx.createdAt)}</TableCell>
+  1736→  1736→                                  <TableCell className="text-white/80 text-sm">{tx.description || tx.type}</TableCell>
+  1737→  1737→                                  <TableCell className="text-center">
+  1738→  1738→                                    <Badge variant="outline" className={tx.type === 'admin_grant' ? 'bg-green-500/15 text-green-400 border-green-500/25' : 'bg-red-500/15 text-red-400 border-red-500/25'}>
+  1739→  1739→                                      {tx.type === 'admin_grant' ? 'Recarga' : 'Uso'}
+  1740→  1740→                                    </Badge>
+  1741→  1741→                                  </TableCell>
+  1742→  1742→                                  <TableCell className={`text-right font-mono font-semibold ${tx.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>
+  1743→  1743→                                    {tx.amount > 0 ? '+' : ''}{tx.amount}
+  1744→  1744→                                  </TableCell>
+  1745→  1745→                                </TableRow>
+  1746→  1746→                              ))}
+  1747→  1747→                            </TableBody>
+  1748→  1748→                          </Table>
+  1749→  1749→                        </div>
+  1750→  1750→                      ) : (
+  1751→  1751→                        <div className="flex flex-col items-center justify-center py-10 text-center">
+  1752→  1752→                          <Coins className="h-8 w-8 text-white/10 mb-2" />
+  1753→  1753→                          <p className="text-sm text-white/30">Sin movimientos</p>
+  1754→  1754→                        </div>
+  1755→  1755→                      )}
+  1756→  1756→                    </CardContent>
+  1757→  1757→                  </Card>
+  1758→  1758→                )}
+  1759→  1759→              </div>
+  1760→  1760→
+  1761→  1761→              <Dialog open={creditDialogOpen} onOpenChange={setCreditDialogOpen}>
+  1762→  1762→                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-md">
+  1763→  1763→                  <DialogHeader>
+  1764→  1764→                    <DialogTitle className="text-white flex items-center gap-2">
+  1765→  1765→                      <Coins className="h-5 w-5 text-[#C9A94E]" />
+  1766→  1766→                      Agregar Créditos
+  1767→  1767→                    </DialogTitle>
+  1768→  1768→                  </DialogHeader>
+  1769→  1769→                  <div className="grid gap-4 py-4">
+  1770→  1770→                    <div className="rounded-lg bg-white/5 p-3 border border-white/10">
+  1771→  1771→                      <p className="text-sm text-white/70">Usuario:</p>
+  1772→  1772→                      <p className="text-base font-semibold text-white">{selectedCreditUser?.name} <span className="text-white/40 font-normal">(@{selectedCreditUser?.username})</span></p>
+  1773→  1773→                      <p className="text-xs text-white/40 mt-1">Saldo actual: <span className="font-semibold text-[#C9A94E]">{selectedCreditUser?.credits}</span> crédito{selectedCreditUser?.credits !== 1 ? 's' : ''}</p>
+  1774→  1774→                    </div>
+  1775→  1775→                    <div className="grid gap-2">
+  1776→  1776→                      <Label className="text-white/70">Cantidad de créditos *</Label>
+  1777→  1777→                      <Input type="number" min="1" value={addCreditsAmount} onChange={(e) => setAddCreditsAmount(e.target.value)} placeholder="Ej: 10" className="border-white/10 bg-white/5 text-white placeholder:text-white/30" />
+  1778→  1778→                    </div>
+  1779→  1779→                    <div className="grid gap-2">
+  1780→  1780→                      <Label className="text-white/70">Nota / Descripción (opcional)</Label>
+  1781→  1781→                      <Input value={addCreditsDesc} onChange={(e) => setAddCreditsDesc(e.target.value)} placeholder="Ej: Recarga mensual" className="border-white/10 bg-white/5 text-white placeholder:text-white/30" />
+  1782→  1782→                    </div>
+  1783→  1783→                  </div>
+  1784→  1784→                  <DialogFooter className="gap-2 sm:gap-0">
+  1785→  1785→                    <Button variant="ghost" onClick={() => setCreditDialogOpen(false)} className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</Button>
+  1786→  1786→                    <Button onClick={handleAddCredits} disabled={addingCredits} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965] font-semibold min-w-[120px]">
+  1787→  1787→                      {addingCredits ? (
+  1788→  1788→                        <span className="flex items-center gap-2"><span className="animate-spin rounded-full h-4 w-4 border-2 border-[#0A1628] border-t-transparent" />Procesando…</span>
+  1789→  1789→                      ) : 'Agregar'}
+  1790→  1790→                    </Button>
+  1791→  1791→                  </DialogFooter>
+  1792→  1792→                </DialogContent>
+  1793→  1793→              </Dialog>
+  1794→  1794→            </TabsContent>
+  1795→  1795→          </Tabs>
+  1796→  1796→        </div>
+  1797→  1797→      </div>
+  1798→  1798→    </main>
+  1799→  1799→  )
+  1800→  1800→}

@@ -30,3 +30,26 @@ Stage Summary:
 - Each user gets X credits, admin can add more via Créditos tab
 - 1 credit = 1 completed document by registered user
 - Build passes successfully
+
+---
+Task ID: 2
+Agent: main
+Task: Fix 'en' TDZ error and remaining bugs
+
+Work Log:
+- Investigated 'en' TDZ error extensively: searched all source files, compiled chunks, dependencies - no variable 'en' found
+- Added themes={['light','dark','warm']} to ThemeProvider in layout.tsx (was missing, could cause next-themes initialization issues)
+- Added defensive theme handling: (theme || 'warm') fallback in CatalogPage and AppLayout to prevent undefined theme access
+- Fixed AdminPage CreditCard reference error (line 878): replaced with Coins (already imported)
+- Fixed AdminPage stats data mismatch: API returns data nested under 'stats' key but component read top-level keys. Fixed to destructure from data.stats
+- Fixed stale seed.ts references: removed subscriptionPlan/subscriptionEnd from user creation, removed PLANS constant and plan seeding loop
+- Re-seeded database with clean data (admin: 999 credits, demo: 10 credits)
+- Cleared .next cache to eliminate any stale Turbopack compilation artifacts
+- Final build verified successful
+
+Stage Summary:
+- 'en' TDZ error: Likely resolved via ThemeProvider themes prop fix + cache clear + defensive theme handling
+- AdminPage CreditCard error: FIXED
+- AdminPage stats mismatch: FIXED
+- Stale seed references: FIXED
+- Database re-seeded cleanly

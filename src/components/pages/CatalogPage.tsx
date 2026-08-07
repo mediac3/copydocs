@@ -652,13 +652,14 @@ export default function CatalogPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  if (theme === 'warm') setTheme('dark')
-                  else if (theme === 'dark') setTheme('light')
+                  const t = theme || 'warm'
+                  if (t === 'warm') setTheme('dark')
+                  else if (t === 'dark') setTheme('light')
                   else setTheme('warm')
                 }}
                 className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
               >
-                {theme === 'dark' ? <Sun className="h-4 w-4" /> : theme === 'light' ? <Palette className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {(theme || 'warm') === 'dark' ? <Sun className="h-4 w-4" /> : (theme || 'warm') === 'light' ? <Palette className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
               <Button
                 variant="outline"

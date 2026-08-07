@@ -367,13 +367,14 @@ export default function AdminPage() {
       const res = await fetch('/api/admin', { headers: authHeaders() })
       if (res.ok) {
         const data = await res.json()
+        const s = data.stats || data
         setStats({
-          totalUsers: data.totalUsers ?? 0,
-          totalDocuments: data.totalDocuments ?? 0,
-          activeTemplates: data.activeTemplates ?? 0,
-          totalRevenue: data.totalRevenue ?? 0,
-          documentsByMonth: data.documentsByMonth ?? [],
-          topTemplates: data.topTemplates ?? [],
+          totalUsers: s.totalUsers ?? 0,
+          totalDocuments: s.totalDocuments ?? 0,
+          activeTemplates: s.totalTemplates ?? 0,
+          totalRevenue: s.totalCredits ?? 0,
+          documentsByMonth: s.monthlyStats ?? [],
+          topTemplates: s.topTemplates ?? [],
         })
       }
     } catch {
@@ -875,7 +876,7 @@ export default function AdminPage() {
                   <AdminStatCard
                     label="Ingresos totales"
                     value={loadingStats ? '…' : formatCurrency(stats?.totalRevenue ?? 0)}
-                    icon={<CreditCard className="h-5 w-5" />}
+                    icon={<Coins className="h-5 w-5" />}
                     accentBg="bg-purple-500/15"
                     accentText="text-purple-400"
                     accentBorder="border-purple-500/20"

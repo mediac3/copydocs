@@ -834,12 +834,6 @@ const NORMATIVITY = [
   { lawName: 'Estatuto del Consumidor', lawReference: 'Ley 1480 de 2011' }
 ];
 
-const PLANS = [
-  { name: 'Básico', price: 0, interval: 'monthly', maxDocuments: 3, features: '3 documentos/mes,Plantillas gratuitas,Soporte por email' },
-  { name: 'Profesional', price: 49900, interval: 'monthly', maxDocuments: 20, features: '20 documentos/mes,Todas las plantillas,Vista previa en tiempo real,Soporte prioritario,Descarga DOCX y PDF' },
-  { name: 'Empresarial', price: 149900, interval: 'monthly', maxDocuments: 100, features: '100 documentos/mes,Todas las plantillas,Editor de plantillas personalizado,Múltiples usuarios,Soporte dedicado,API de integración' }
-];
-
 export async function seedDatabase() {
   console.log('Seeding database...');
 
@@ -857,7 +851,7 @@ export async function seedDatabase() {
       phone: '+57 310 1234567',
       role: 'admin',
       status: 'active',
-      subscriptionPlan: 'Empresarial'
+      credits: 999
     }
   });
 
@@ -872,8 +866,7 @@ export async function seedDatabase() {
       phone: '+57 300 9876543',
       role: 'client',
       status: 'active',
-      subscriptionPlan: 'Profesional',
-      subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      credits: 10
     }
   });
 
@@ -885,13 +878,7 @@ export async function seedDatabase() {
     });
   }
 
-  for (const plan of PLANS) {
-    await db.subscriptionPlan.upsert({
-      where: { id: `plan-${plan.name.toLowerCase()}` },
-      update: {},
-      create: { id: `plan-${plan.name.toLowerCase()}`, ...plan }
-    });
-  }
+  // Plans system replaced with credits - skip plan seeding
 
   for (const template of TEMPLATES) {
     const created = await db.documentTemplate.upsert({

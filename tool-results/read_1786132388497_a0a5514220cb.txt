@@ -1,0 +1,935 @@
+     1→import { db } from '@/lib/db';
+     2→import { hash } from 'bcryptjs';
+     3→
+     4→const TEMPLATES = [
+     5→  {
+     6→    name: 'Contrato de Arrendamiento de Vivienda Urbana',
+     7→    description: 'Contrato de arrendamiento para vivienda urbana conforme a la Ley 820 de 2003. Incluye cláusulas sobre canon, depósito, obligaciones del arrendatario y arrendador, y subarrendamiento.',
+     8→    category: 'Contratos',
+     9→    legalArea: 'Civil',
+    10→    audience: 'particulares',
+    11→    price: 0,
+    12→    estimatedQuestions: 18,
+    13→    estimatedMinutes: 10,
+    14→    rating: 4.7,
+    15→    ratingCount: 234,
+    16→    baseContent: `CONTRATO DE ARRENDAMIENTO DE VIVIENDA URBANA
+    17→
+    18→Entre los suscritos, a saber:
+    19→
+    20→ARRENDADOR: {{nombre_arrendador}}, mayor de edad, identificado(a) con {{tipo_doc_arrendador}} No. {{num_doc_arrendador}} de {{ciudad_doc_arrendador}}, domiciliado(a) en {{direccion_arrendador}}, {{ciudad_arrendador}}.
+    21→
+    22→ARRENDATARIO: {{nombre_arrendatario}}, mayor de edad, identificado(a) con {{tipo_doc_arrendatario}} No. {{num_doc_arrendatario}} de {{ciudad_doc_arrendatario}}, domiciliado(a) en {{direccion_arrendatario}}, {{ciudad_arrendatario}}.
+    23→
+    24→Las partes han convenido en celebrar el presente contrato de arrendamiento, el cual se rige por las siguientes cláusulas:
+    25→
+    26→PRIMERA. OBJETO: El arrendador entrega en arrendamiento al arrendatario el inmueble ubicado en {{direccion_inmueble}}, {{ciudad_inmueble}}, identificado con matrícula inmobiliaria No. {{matricula_inmobiliaria}}.
+    27→
+    28→SEGUNDA. CANON: El canon de arrendamiento será de {{valor_canon}} pesos colombianos (\${{valor_canon_numero}}) mensuales, los cuales deberán ser pagados dentro de los primeros cinco (5) días de cada mes.
+    29→
+    30→TERCERA. DEPÓSITO: El arrendatario constituye un depósito en dinero equivalente a {{valor_deposito}} pesos colombianos, el cual será devuelto al terminarse el contrato, descontando los saldos que adeude.
+    31→
+    32→CUARTA. DURACIÓN: El contrato tendrá una duración de {{duracion_contrato}} meses, contados a partir del {{fecha_inicio}} hasta el {{fecha_fin}}.
+    33→
+    34→QUINTA. DESTINO: El inmueble se destinará exclusivamente a vivienda urbana.
+    35→
+    36→SEXTA. {{clausula_fiador}}
+    37→
+    38→SÉPTIMA. PROHIBICIONES: El arrendatario no podrá subarrendar ni ceder el contrato sin autorización escrita del arrendador.
+    39→
+    40→OCTAVA. TERMINACIÓN ANTICIPADA: Cualquiera de las partes podrá dar por terminado el contrato con un preaviso de {{preaviso}} meses.
+    41→
+    42→En señal de aceptación, las partes firman el presente contrato en la ciudad de {{ciudad_firma}}, a los {{dia_firma}} días del mes de {{mes_firma}} de {{anio_firma}}.
+    43→
+    44→___________________________
+    45→ARRENDADOR
+    46→
+    47→___________________________
+    48→ARRENDATARIO
+    49→
+    50→{{firma_fiador}}`,
+    51→    wizardConfig: JSON.stringify({
+    52→      steps: [
+    53→        {
+    54→          title: 'Datos del Arrendador',
+    55→          fields: [
+    56→            { key: 'nombre_arrendador', label: 'Nombre completo del arrendador', type: 'text', tooltip: 'Persona o entidad que es propietaria del inmueble y lo entrega en arrendamiento.' },
+    57→            { key: 'tipo_doc_arrendador', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT', 'Cédula de Extranjería', 'Pasaporte'] },
+    58→            { key: 'num_doc_arrendador', label: 'Número de documento', type: 'text' },
+    59→            { key: 'ciudad_doc_arrendador', label: 'Ciudad de expedición del documento', type: 'text' },
+    60→            { key: 'direccion_arrendador', label: 'Dirección de domicilio', type: 'text' },
+    61→            { key: 'ciudad_arrendador', label: 'Ciudad de domicilio', type: 'text' }
+    62→          ]
+    63→        },
+    64→        {
+    65→          title: 'Datos del Arrendatario',
+    66→          fields: [
+    67→            { key: 'nombre_arrendatario', label: 'Nombre completo del arrendatario', type: 'text', tooltip: 'Persona que toma el inmueble en arrendamiento.' },
+    68→            { key: 'tipo_doc_arrendatario', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT', 'Cédula de Extranjería', 'Pasaporte'] },
+    69→            { key: 'num_doc_arrendatario', label: 'Número de documento', type: 'text' },
+    70→            { key: 'ciudad_doc_arrendatario', label: 'Ciudad de expedición del documento', type: 'text' },
+    71→            { key: 'direccion_arrendatario', label: 'Dirección de domicilio', type: 'text' },
+    72→            { key: 'ciudad_arrendatario', label: 'Ciudad de domicilio', type: 'text' }
+    73→          ]
+    74→        },
+    75→        {
+    76→          title: 'Datos del Inmueble',
+    77→          fields: [
+    78→            { key: 'direccion_inmueble', label: 'Dirección del inmueble', type: 'text' },
+    79→            { key: 'ciudad_inmueble', label: 'Ciudad del inmueble', type: 'text' },
+    80→            { key: 'matricula_inmobiliaria', label: 'Matrícula inmobiliaria', type: 'text', tooltip: 'Número de matrícula inmobiliaria del predio, disponible en el certificado de tradición y libertad.' }
+    81→          ]
+    82→        },
+    83→        {
+    84→          title: 'Condiciones del Contrato',
+    85→          fields: [
+    86→            { key: 'valor_canon', label: 'Valor del canon mensual (en letras)', type: 'text' },
+    87→            { key: 'valor_canon_numero', label: 'Valor del canon mensual (en números)', type: 'number' },
+    88→            { key: 'valor_deposito', label: 'Valor del depósito (en letras)', type: 'text' },
+    89→            { key: 'duracion_contrato', label: 'Duración del contrato (meses)', type: 'number' },
+    90→            { key: 'fecha_inicio', label: 'Fecha de inicio', type: 'date' },
+    91→            { key: 'fecha_fin', label: 'Fecha de finalización', type: 'date' },
+    92→            { key: 'preaviso', label: 'Meses de preaviso para terminación anticipada', type: 'number' }
+    93→          ]
+    94→        },
+    95→        {
+    96→          title: 'Fiador (Opcional)',
+    97→          fields: [
+    98→            { key: 'tiene_fiador', label: '¿Hay fiador?', type: 'boolean', tooltip: 'El fiador responde solidariamente por las obligaciones del arrendatario.' },
+    99→            { key: 'nombre_fiador', label: 'Nombre del fiador', type: 'text', condition: { field: 'tiene_fiador', value: true } },
+   100→            { key: 'tipo_doc_fiador', label: 'Tipo de documento del fiador', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'], condition: { field: 'tiene_fiador', value: true } },
+   101→            { key: 'num_doc_fiador', label: 'Número de documento del fiador', type: 'text', condition: { field: 'tiene_fiador', value: true } },
+   102→            { key: 'direccion_fiador', label: 'Dirección del fiador', type: 'text', condition: { field: 'tiene_fiador', value: true } }
+   103→          ]
+   104→        },
+   105→        {
+   106→          title: 'Firma',
+   107→          fields: [
+   108→            { key: 'ciudad_firma', label: 'Ciudad de firma', type: 'text' },
+   109→            { key: 'dia_firma', label: 'Día de firma', type: 'number' },
+   110→            { key: 'mes_firma', label: 'Mes de firma', type: 'text' },
+   111→            { key: 'anio_firma', label: 'Año de firma', type: 'number' }
+   112→          ]
+   113→        }
+   114→      ]
+   115→    })
+   116→  },
+   117→  {
+   118→    name: 'Acta de Constitución de S.A.S.',
+   119→    description: 'Acta de constitución de Sociedad por Acciones Simplificada conforme a la Ley 1258 de 2008. Incluye estatutos sociales, objeto social, capital y estructura de la sociedad.',
+   120→    category: 'Actas',
+   121→    legalArea: 'Mercantil',
+   122→    audience: 'profesionales',
+   123→    price: 25000,
+   124→    estimatedQuestions: 25,
+   125→    estimatedMinutes: 15,
+   126→    rating: 4.9,
+   127→    ratingCount: 189,
+   128→    baseContent: `ACTA DE CONSTITUCIÓN DE SOCIEDAD POR ACCIONES SIMPLIFICADA
+   129→
+   130→Reunidos en la ciudad de {{ciudad}}, a los {{dia}} días del mes de {{mes}} de {{anio}}, los señores:
+   131→
+   132→{{lista_socios}}
+   133→
+   134→Quienes actúan en calidad de constituyentes, con el fin de constituir una Sociedad por Acciones Simplificada (S.A.S.), de conformidad con la Ley 1258 de 2008 y el Código de Comercio.
+   135→
+   136→Bajo las siguientes estipulaciones:
+   137→
+   138→PRIMERA. DENOMINACIÓN SOCIAL: La sociedad se denominará "{{razon_social}} S.A.S."
+   139→
+   140→SEGUNDA. DOMICILIO: El domicilio principal de la sociedad será la ciudad de {{ciudad_domicilio}}.
+   141→
+   142→TERCERA. OBJETO SOCIAL: {{objeto_social}}
+   143→
+   144→CUARTA. CAPITAL: El capital autorizado de la sociedad será de {{capital_social}} pesos colombianos, dividido en {{numero_acciones}} acciones de valor nominal de {{valor_nominal_accion}} pesos cada una.
+   145→
+   146→QUINTA. DURACIÓN: La sociedad tendrá una duración de {{duracion}} años contados a partir de la fecha de inscripción en el Registro Mercantil.
+   147→
+   148→SEXTA. ADMINISTRACIÓN: La sociedad será administrada por {{tipo_administracion}}.
+   149→
+   150→SÉPTIMA. REPRESENTACIÓN LEGAL: El representante legal será {{representante_legal}}.
+   151→
+   152→En constancia de lo anterior, los constituyentes firman el presente documento.
+   153→
+   154→___________________________
+   155→{{firmas}}`,
+   156→    wizardConfig: JSON.stringify({
+   157→      steps: [
+   158→        {
+   159→          title: 'Datos Generales',
+   160→          fields: [
+   161→            { key: 'ciudad', label: 'Ciudad de constitución', type: 'text' },
+   162→            { key: 'dia', label: 'Día', type: 'number' },
+   163→            { key: 'mes', label: 'Mes', type: 'text' },
+   164→            { key: 'anio', label: 'Año', type: 'number' },
+   165→            { key: 'razon_social', label: 'Razón social', type: 'text', tooltip: 'Nombre que identificará a la sociedad. No debe coincidir con sociedades ya existentes.' }
+   166→          ]
+   167→        },
+   168→        {
+   169→          title: 'Socios',
+   170→          fields: [
+   171→            { key: 'lista_socios', label: 'Lista de socios (nombre, documento, aportes)', type: 'textarea', tooltip: 'Incluya nombre completo, tipo y número de documento, y el monto de su aporte para cada socio.' }
+   172→          ]
+   173→        },
+   174→        {
+   175→          title: 'Datos de la Sociedad',
+   176→          fields: [
+   177→            { key: 'ciudad_domicilio', label: 'Ciudad de domicilio', type: 'text' },
+   178→            { key: 'objeto_social', label: 'Objeto social', type: 'textarea', tooltip: 'Descripción de las actividades comerciales que realizará la sociedad.' },
+   179→            { key: 'capital_social', label: 'Capital social (en letras)', type: 'text' },
+   180→            { key: 'numero_acciones', label: 'Número total de acciones', type: 'number' },
+   181→            { key: 'valor_nominal_accion', label: 'Valor nominal por acción (en números)', type: 'number' },
+   182→            { key: 'duracion', label: 'Duración en años', type: 'number' }
+   183→          ]
+   184→        },
+   185→        {
+   186→          title: 'Administración',
+   187→          fields: [
+   188→            { key: 'tipo_administracion', label: 'Tipo de administración', type: 'select', options: ['Unipersonal (Un solo representante legal)', 'Junta Directiva', 'Consejo de Administración'] },
+   189→            { key: 'representante_legal', label: 'Nombre del representante legal', type: 'text' },
+   190→            { key: 'firmas', label: 'Nombres completos para firmas', type: 'textarea' }
+   191→          ]
+   192→        }
+   193→      ]
+   194→    })
+   195→  },
+   196→  {
+   197→    name: 'Derecho de Petición',
+   198→    description: 'Derecho de petición conforme al Artículo 23 de la Constitución Política y el Código de Procedimiento Administrativo y de lo Contencioso Administrativo (Ley 1437 de 2011).',
+   199→    category: 'Derechos de Petición',
+   200→    legalArea: 'Constitucional',
+   201→    audience: 'particulares',
+   202→    price: 0,
+   203→    estimatedQuestions: 12,
+   204→    estimatedMinutes: 5,
+   205→    rating: 4.5,
+   206→    ratingCount: 312,
+   207→    baseContent: `DERECHO DE PETICIÓN
+   208→
+   209→{{ciudad}}, {{dia}} de {{mes}} de {{anio}}
+   210→
+   211→Señor(a)
+   212→{{destinatario_cargo}}
+   213→{{destinatario_entidad}}
+   214→{{ciudad_entidad}}
+   215→
+   216→Referencia: Derecho de petición de {{tipo_peticion}}
+   217→
+   218→Respetado(a) señor(a) {{destinatario_nombre}}:
+   219→
+   220→Yo, {{nombre_peticionario}}, identificado(a) con {{tipo_doc_peticionario}} No. {{num_doc_peticionario}} de {{ciudad_doc_peticionario}}, actuando en nombre propio{{representacion}}, me dirijo a usted respetuosamente para presentar el siguiente derecho de petición:
+   221→
+   222→{{hechos}}
+   223→
+   224→FUNDAMENTOS DE DERECHO
+   225→
+   226→El presente derecho de petición se fundamenta en:
+   227→1. Artículo 23 de la Constitución Política de Colombia.
+   228→2. Artículos 14 y siguientes de la Ley 1437 de 2011 (Código de Procedimiento Administrativo y de lo Contencioso Administrativo).
+   229→3. {{otros_fundamentos}}
+   230→
+   231→PETICIÓN
+   232→
+   233→Con base en los hechos y fundamentos expuestos, respetuosamente solicito:
+   234→
+   235→{{peticion_concreta}}
+   236→
+   237→ANEXOS
+   238→
+   239→{{anexos}}
+   240→
+   241→Del señor(a)
+   242→{{destinatario_nombre}}
+   243→{{destinatario_cargo}}
+   244→{{destinatario_entidad}}
+   245→
+   246→Atentamente,
+   247→
+   248→___________________________
+   249→{{nombre_peticionario}}
+   250→{{tipo_doc_peticionario}} No. {{num_doc_peticionario}}
+   251→{{direccion_peticionario}}
+   252→{{telefono_peticionario}}
+   253→{{correo_peticionario}}`,
+   254→    wizardConfig: JSON.stringify({
+   255→      steps: [
+   256→        {
+   257→          title: 'Datos del Peticionario',
+   258→          fields: [
+   259→            { key: 'nombre_peticionario', label: 'Nombre completo', type: 'text' },
+   260→            { key: 'tipo_doc_peticionario', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'Cédula de Extranjería', 'Pasaporte', 'NIT'] },
+   261→            { key: 'num_doc_peticionario', label: 'Número de documento', type: 'text' },
+   262→            { key: 'ciudad_doc_peticionario', label: 'Ciudad de expedición', type: 'text' },
+   263→            { key: 'direccion_peticionario', label: 'Dirección', type: 'text' },
+   264→            { key: 'telefono_peticionario', label: 'Teléfono', type: 'text' },
+   265→            { key: 'correo_peticionario', label: 'Correo electrónico', type: 'text' }
+   266→          ]
+   267→        },
+   268→        {
+   269→          title: 'Datos del Destinatario',
+   270→          fields: [
+   271→            { key: 'destinatario_nombre', label: 'Nombre del destinatario', type: 'text' },
+   272→            { key: 'destinatario_cargo', label: 'Cargo del destinatario', type: 'text' },
+   273→            { key: 'destinatario_entidad', label: 'Entidad', type: 'text' },
+   274→            { key: 'ciudad_entidad', label: 'Ciudad de la entidad', type: 'text' }
+   275→          ]
+   276→        },
+   277→        {
+   278→          title: 'Contenido de la Petición',
+   279→          fields: [
+   280→            { key: 'tipo_peticion', label: 'Tipo de petición', type: 'select', options: ['Información', 'Documentos', 'Copia', 'Consulta', 'Queja', 'Reclamo', 'Sugerencia'] },
+   281→            { key: 'representacion', label: '¿Actúa como representante de alguien?', type: 'boolean', tooltip: 'Marque sí si actúa en representación de un tercero.' },
+   282→            { key: 'datos_representado', label: 'Datos del representado', type: 'textarea', condition: { field: 'representacion', value: true } },
+   283→            { key: 'hechos', label: 'Hechos relevantes', type: 'textarea', tooltip: 'Describa los hechos que motivan la petición de forma clara y cronológica.' },
+   284→            { key: 'otros_fundamentos', label: 'Otros fundamentos normativos', type: 'textarea' },
+   285→            { key: 'peticion_concreta', label: 'Petición concreta', type: 'textarea', tooltip: 'Describa de forma clara lo que solicita.' },
+   286→            { key: 'anexos', label: 'Anexos (listar documentos adjuntos)', type: 'textarea' }
+   287→          ]
+   288→        },
+   289→        {
+   290→          title: 'Fecha y Lugar',
+   291→          fields: [
+   292→            { key: 'ciudad', label: 'Ciudad', type: 'text' },
+   293→            { key: 'dia', label: 'Día', type: 'number' },
+   294→            { key: 'mes', label: 'Mes', type: 'text' },
+   295→            { key: 'anio', label: 'Año', type: 'number' }
+   296→          ]
+   297→        }
+   298→      ]
+   299→    })
+   300→  },
+   301→  {
+   302→    name: 'Contrato de Prestación de Servicios',
+   303→    description: 'Contrato de prestación de servicios profesionales conforme al Código de Comercio y la Ley 1561 de 2012. Ideal para servicios profesionales, de consultoría y técnicos.',
+   304→    category: 'Contratos',
+   305→    legalArea: 'Mercantil',
+   306→    audience: 'profesionales',
+   307→    price: 15000,
+   308→    estimatedQuestions: 20,
+   309→    estimatedMinutes: 12,
+   310→    rating: 4.8,
+   311→    ratingCount: 456,
+   312→    baseContent: `CONTRATO DE PRESTACIÓN DE SERVICIOS
+   313→
+   314→Entre los suscritos:
+   315→
+   316→CONTRATANTE: {{nombre_contratante}}, identificado(a) con {{tipo_doc_contratante}} No. {{num_doc_contratante}}.
+   317→
+   318→CONTRATISTA: {{nombre_contratista}}, identificado(a) con {{tipo_doc_contratista}} No. {{num_doc_contratista}}, matrícula profesional No. {{matricula_profesional}}.
+   319→
+   320→Las partes han convenido en celebrar el presente contrato de prestación de servicios, que se regirá por las siguientes cláusulas:
+   321→
+   322→PRIMERA. OBJETO: El contratista se obliga a prestar sus servicios profesionales para {{objeto_servicio}}.
+   323→
+   324→SEGUNDA. OBLIGACIONES DEL CONTRATISTA: {{obligaciones_contratista}}
+   325→
+   326→TERCERA. OBLIGACIONES DEL CONTRATANTE: {{obligaciones_contratante}}
+   327→
+   328→CUARTA. HONORARIOS: El contratante pagará al contratista la suma de {{valor_honorarios}} pesos colombianos, pagaderos de la siguiente forma: {{forma_pago}}.
+   329→
+   330→QUINTA. PLAZO: El contrato tendrá una duración de {{plazo}} contados a partir del {{fecha_inicio}} hasta el {{fecha_fin}}.
+   331→
+   332→SEXTA. CONFIDENCIALIDAD: El contratista se obliga a mantener reserva sobre la información a la que tenga acceso.
+   333→
+   334→SÉPTIMA. PROPIEDAD INTELECTUAL: {{propiedad_intelectual}}
+   335→
+   336→En señal de aceptación, firman en {{ciudad_firma}} a los {{dia_firma}} días del mes de {{mes_firma}} de {{anio_firma}}.
+   337→
+   338→___________________________
+   339→CONTRATANTE
+   340→
+   341→___________________________
+   342→CONTRATISTA`,
+   343→    wizardConfig: JSON.stringify({
+   344→      steps: [
+   345→        {
+   346→          title: 'Datos del Contratante',
+   347→          fields: [
+   348→            { key: 'nombre_contratante', label: 'Nombre del contratante', type: 'text' },
+   349→            { key: 'tipo_doc_contratante', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT', 'Cédula de Extranjería'] },
+   350→            { key: 'num_doc_contratante', label: 'Número de documento', type: 'text' }
+   351→          ]
+   352→        },
+   353→        {
+   354→          title: 'Datos del Contratista',
+   355→          fields: [
+   356→            { key: 'nombre_contratista', label: 'Nombre del contratista', type: 'text' },
+   357→            { key: 'tipo_doc_contratista', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT', 'Cédula de Extranjería'] },
+   358→            { key: 'num_doc_contratista', label: 'Número de documento', type: 'text' },
+   359→            { key: 'matricula_profesional', label: 'Matrícula profesional (si aplica)', type: 'text' }
+   360→          ]
+   361→        },
+   362→        {
+   363→          title: 'Condiciones del Servicio',
+   364→          fields: [
+   365→            { key: 'objeto_servicio', label: 'Descripción del servicio a prestar', type: 'textarea', tooltip: 'Describa de forma detallada las actividades que realizará el contratista.' },
+   366→            { key: 'obligaciones_contratista', label: 'Obligaciones específicas del contratista', type: 'textarea' },
+   367→            { key: 'obligaciones_contratante', label: 'Obligaciones del contratante', type: 'textarea' },
+   368→            { key: 'valor_honorarios', label: 'Valor de los honorarios (en letras)', type: 'text' },
+   369→            { key: 'forma_pago', label: 'Forma de pago', type: 'textarea', tooltip: 'Describa las fechas y condiciones de pago.' },
+   370→            { key: 'plazo', label: 'Plazo de ejecución', type: 'text' },
+   371→            { key: 'fecha_inicio', label: 'Fecha de inicio', type: 'date' },
+   372→            { key: 'fecha_fin', label: 'Fecha de finalización', type: 'date' },
+   373→            { key: 'propiedad_intelectual', label: 'Condiciones de propiedad intelectual', type: 'textarea' }
+   374→          ]
+   375→        },
+   376→        {
+   377→          title: 'Firma',
+   378→          fields: [
+   379→            { key: 'ciudad_firma', label: 'Ciudad de firma', type: 'text' },
+   380→            { key: 'dia_firma', label: 'Día de firma', type: 'number' },
+   381→            { key: 'mes_firma', label: 'Mes de firma', type: 'text' },
+   382→            { key: 'anio_firma', label: 'Año de firma', type: 'number' }
+   383→          ]
+   384→        }
+   385→      ]
+   386→    })
+   387→  },
+   388→  {
+   389→    name: 'Contrato de Compraventa de Inmueble',
+   390→    description: 'Contrato de compraventa de bien inmueble conforme al Código Civil Colombiano. Incluye cláusulas sobre precio, forma de pago, entregas y garantías.',
+   391→    category: 'Contratos',
+   392→    legalArea: 'Civil',
+   393→    audience: 'particulares',
+   394→    price: 20000,
+   395→    estimatedQuestions: 22,
+   396→    estimatedMinutes: 14,
+   397→    rating: 4.6,
+   398→    ratingCount: 178,
+   399→    baseContent: `CONTRATO DE COMPRAVENTA DE BIEN INMUEBLE
+   400→
+   401→Entre los suscritos:
+   402→
+   403→VENDEDOR: {{nombre_vendedor}}, mayor de edad, identificado(a) con {{tipo_doc_vendedor}} No. {{num_doc_vendedor}} de {{ciudad_doc_vendedor}}.
+   404→
+   405→COMPRADOR: {{nombre_comprador}}, mayor de edad, identificado(a) con {{tipo_doc_comprador}} No. {{num_doc_comprador}} de {{ciudad_doc_comprador}}.
+   406→
+   407→Las partes han convenido en celebrar el presente contrato de compraventa, bajo las siguientes estipulaciones:
+   408→
+   409→PRIMERA. OBJETO: El vendedor vende al comprador el inmueble ubicado en {{direccion_inmueble}}, {{ciudad_inmueble}}, matrícula inmobiliaria No. {{matricula_inmobiliaria}}.
+   410→
+   411→SEGUNDA. PRECIO: El precio de la venta es de {{precio_venta}} pesos colombianos.
+   412→
+   413→TERCERA. FORMA DE PAGO: {{forma_pago}}
+   414→
+   415→CUARTA. ESTADO DEL INMUEBLE: El inmueble se entrega en el estado en que se encuentra, conocido por el comprador.
+   416→
+   417→QUINTA. GASTOS E IMPUESTOS: Los gastos de escrituración e impuestos serán pagados por {{pago_gastos}}.
+   418→
+   419→En señal de aceptación, firman en {{ciudad_firma}}.
+   420→
+   421→___________________________
+   422→VENDEDOR
+   423→
+   424→___________________________
+   425→COMPRADOR`,
+   426→    wizardConfig: JSON.stringify({
+   427→      steps: [
+   428→        { title: 'Datos del Vendedor', fields: [
+   429→          { key: 'nombre_vendedor', label: 'Nombre completo del vendedor', type: 'text' },
+   430→          { key: 'tipo_doc_vendedor', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT', 'Cédula de Extranjería'] },
+   431→          { key: 'num_doc_vendedor', label: 'Número de documento', type: 'text' },
+   432→          { key: 'ciudad_doc_vendedor', label: 'Ciudad de expedición', type: 'text' }
+   433→        ]},
+   434→        { title: 'Datos del Comprador', fields: [
+   435→          { key: 'nombre_comprador', label: 'Nombre completo del comprador', type: 'text' },
+   436→          { key: 'tipo_doc_comprador', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT', 'Cédula de Extranjería'] },
+   437→          { key: 'num_doc_comprador', label: 'Número de documento', type: 'text' },
+   438→          { key: 'ciudad_doc_comprador', label: 'Ciudad de expedición', type: 'text' }
+   439→        ]},
+   440→        { title: 'Datos del Inmueble y Precio', fields: [
+   441→          { key: 'direccion_inmueble', label: 'Dirección del inmueble', type: 'text' },
+   442→          { key: 'ciudad_inmueble', label: 'Ciudad del inmueble', type: 'text' },
+   443→          { key: 'matricula_inmobiliaria', label: 'Matrícula inmobiliaria', type: 'text' },
+   444→          { key: 'precio_venta', label: 'Precio de venta (en letras)', type: 'text' },
+   445→          { key: 'forma_pago', label: 'Forma de pago', type: 'textarea' },
+   446→          { key: 'pago_gastos', label: '¿Quién paga gastos e impuestos?', type: 'select', options: ['El comprador', 'El vendedor', 'Mitad y mitad'] }
+   447→        ]},
+   448→        { title: 'Firma', fields: [
+   449→          { key: 'ciudad_firma', label: 'Ciudad de firma', type: 'text' }
+   450→        ]}
+   451→      ]
+   452→    })
+   453→  },
+   454→  {
+   455→    name: 'Contrato de Préstamo de Dinero',
+   456→    description: 'Contrato de mutuo o préstamo de dinero entre particulares. Incluye cláusulas de interés, plazos de pago y garantías conforme al Código Civil.',
+   457→    category: 'Contratos',
+   458→    legalArea: 'Civil',
+   459→    audience: 'particulares',
+   460→    price: 0,
+   461→    estimatedQuestions: 14,
+   462→    estimatedMinutes: 7,
+   463→    rating: 4.4,
+   464→    ratingCount: 267,
+   465→    baseContent: `CONTRATO DE PRÉSTAMO DE DINERO (MUTUO)
+   466→
+   467→Entre los suscritos:
+   468→
+   469→PRESTAMISTA: {{nombre_prestamista}}, identificado(a) con {{tipo_doc_prestamista}} No. {{num_doc_prestamista}}.
+   470→
+   471→DEUDOR: {{nombre_deudor}}, identificado(a) con {{tipo_doc_deudor}} No. {{num_doc_deudor}}.
+   472→
+   473→CLÁUSULAS:
+   474→
+   475→PRIMERA. EL PRÉSTAMO: El prestamista entrega al deudor la suma de {{valor_prestamo}} pesos colombianos.
+   476→
+   477→SEGUNDA. INTERÉS: {{condicion_interes}}
+   478→
+   479→TERCERA. PLAZO: El préstamo deberá ser pagado en un plazo máximo de {{plazo_pago}}.
+   480→
+   481→CUARTA. FORMA DE PAGO: {{forma_pago}}
+   482→
+   483→QUINTA. GARANTÍA: {{garantia}}
+   484→
+   485→En constancia, firman en {{ciudad_firma}}.
+   486→
+   487→___________________________
+   488→PRESTAMISTA
+   489→
+   490→___________________________
+   491→DEUDOR`,
+   492→    wizardConfig: JSON.stringify({
+   493→      steps: [
+   494→        { title: 'Datos del Prestamista', fields: [
+   495→          { key: 'nombre_prestamista', label: 'Nombre completo', type: 'text' },
+   496→          { key: 'tipo_doc_prestamista', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'] },
+   497→          { key: 'num_doc_prestamista', label: 'Número de documento', type: 'text' }
+   498→        ]},
+   499→        { title: 'Datos del Deudor', fields: [
+   500→          { key: 'nombre_deudor', label: 'Nombre completo', type: 'text' },
+   501→          { key: 'tipo_doc_deudor', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'] },
+   502→          { key: 'num_doc_deudor', label: 'Número de documento', type: 'text' }
+   503→        ]},
+   504→        { title: 'Condiciones del Préstamo', fields: [
+   505→          { key: 'valor_prestamo', label: 'Monto del préstamo (en letras)', type: 'text' },
+   506→          { key: 'condicion_interes', label: 'Condiciones de interés', type: 'textarea', tooltip: 'Indique si el préstamo devenga intereses, la tasa y si está exento de usura.' },
+   507→          { key: 'plazo_pago', label: 'Plazo para el pago', type: 'text' },
+   508→          { key: 'forma_pago', label: 'Forma de pago', type: 'textarea' },
+   509→          { key: 'garantia', label: 'Garantía (si aplica)', type: 'textarea' }
+   510→        ]},
+   511→        { title: 'Firma', fields: [
+   512→          { key: 'ciudad_firma', label: 'Ciudad de firma', type: 'text' }
+   513→        ]}
+   514→      ]
+   515→    })
+   516→  },
+   517→  {
+   518→    name: 'Promesa de Compraventa de Inmueble',
+   519→    description: 'Contrato de promesa de compraventa de bien inmueble. Establece las condiciones bajo las cuales las partes se comprometen a celebrar la compraventa definitiva.',
+   520→    category: 'Contratos',
+   521→    legalArea: 'Civil',
+   522→    audience: 'particulares',
+   523→    price: 15000,
+   524→    estimatedQuestions: 20,
+   525→    estimatedMinutes: 12,
+   526→    rating: 4.5,
+   527→    ratingCount: 145,
+   528→    baseContent: `PROMESA DE COMPRAVENTA DE BIEN INMUEBLE
+   529→
+   530→Entre los suscritos:
+   531→
+   532→PROMITENTE VENDEDOR: {{nombre_vendedor}}, identificado(a) con {{tipo_doc_vendedor}} No. {{num_doc_vendedor}}.
+   533→
+   534→PROMITENTE COMPRADOR: {{nombre_comprador}}, identificado(a) con {{tipo_doc_comprador}} No. {{num_doc_comprador}}.
+   535→
+   536→CLÁUSULAS:
+   537→
+   538→PRIMERA. OBJETO: Las partes se comprometen a celebrar un contrato de compraventa sobre el inmueble ubicado en {{direccion_inmueble}}, matrícula inmobiliaria No. {{matricula_inmobiliaria}}.
+   539→
+   540→SEGUNDA. PRECIO: El precio pactado es de {{precio_venta}} pesos colombianos.
+   541→
+   542→TERCERA. PLAZO: La firma de la escritura pública se realizará dentro de los {{plazo}} días hábiles siguientes.
+   543→
+   544→CUARTA. CLÁUSULA PENAL: En caso de incumplimiento, el incumplido pagará una penalidad equivalente al {{penalidad}} del precio.
+   545→
+   546→En señal de aceptación, firman en {{ciudad_firma}}.
+   547→
+   548→___________________________
+   549→PROMITENTE VENDEDOR
+   550→
+   551→___________________________
+   552→PROMITENTE COMPRADOR`,
+   553→    wizardConfig: JSON.stringify({
+   554→      steps: [
+   555→        { title: 'Datos del Promitente Vendedor', fields: [
+   556→          { key: 'nombre_vendedor', label: 'Nombre completo', type: 'text' },
+   557→          { key: 'tipo_doc_vendedor', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'] },
+   558→          { key: 'num_doc_vendedor', label: 'Número de documento', type: 'text' }
+   559→        ]},
+   560→        { title: 'Datos del Promitente Comprador', fields: [
+   561→          { key: 'nombre_comprador', label: 'Nombre completo', type: 'text' },
+   562→          { key: 'tipo_doc_comprador', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'] },
+   563→          { key: 'num_doc_comprador', label: 'Número de documento', type: 'text' }
+   564→        ]},
+   565→        { title: 'Datos del Inmueble', fields: [
+   566→          { key: 'direccion_inmueble', label: 'Dirección', type: 'text' },
+   567→          { key: 'matricula_inmobiliaria', label: 'Matrícula inmobiliaria', type: 'text' },
+   568→          { key: 'precio_venta', label: 'Precio pactado', type: 'text' },
+   569→          { key: 'plazo', label: 'Plazo en días hábiles para firma de escritura', type: 'number' },
+   570→          { key: 'penalidad', label: 'Porcentaje de penalidad por incumplimiento', type: 'text' }
+   571→        ]},
+   572→        { title: 'Firma', fields: [
+   573→          { key: 'ciudad_firma', label: 'Ciudad de firma', type: 'text' }
+   574→        ]}
+   575→      ]
+   576→    })
+   577→  },
+   578→  {
+   579→    name: 'Reglamento Interno de Trabajo',
+   580→    description: 'Reglamento interno de trabajo conforme al Código Sustantivo del Trabajo y la Ley 1429 de 2010. Obligatorio para empresas con más de 5 empleados.',
+   581→    category: 'Contratos',
+   582→    legalArea: 'Laboral',
+   583→    audience: 'profesionales',
+   584→    price: 30000,
+   585→    estimatedQuestions: 28,
+   586→    estimatedMinutes: 20,
+   587→    rating: 4.8,
+   588→    ratingCount: 98,
+   589→    baseContent: `REGLAMENTO INTERNO DE TRABAJO
+   590→
+   591→{{razon_social}}
+   592→
+   593→NIT: {{nit_empresa}}
+   594→
+   595→CAPÍTULO I - DISPOSICIONES GENERALES
+   596→
+   597→Artículo 1. El presente reglamento regula las condiciones de trabajo del personal de {{razon_social}}, conforme al Código Sustantivo del Trabajo.
+   598→
+   599→Artículo 2. ÁMBITO DE APLICACIÓN: Este reglamento aplica a todos los trabajadores de la empresa.
+   600→
+   601→CAPÍTULO II - CONDICIONES DE ADMISIÓN
+   602→
+   603→Artículo 3. REQUISITOS: {{requisitos_admision}}
+   604→
+   605→CAPÍTULO III - JORNADA DE TRABAJO
+   606→
+   607→Artículo 4. La jornada de trabajo será de {{horario_trabajo}}.
+   608→
+   609→CAPÍTULO IV - SALARIOS Y PRESTACIONES
+   610→
+   611→Artículo 5. El sistema de remuneración será: {{sistema_salarios}}
+   612→
+   613→CAPÍTULO V - VACACIONES Y LICENCIAS
+   614→
+   615→Artículo 6. VACACIONES: Conforme al artículo 186 del C.S.T., los trabajadores tendrán derecho a 15 días hábiles de vacaciones por cada año de servicio.
+   616→
+   617→CAPÍTULO VI - DISCIPLINA Y SANCIONES
+   618→
+   619→Artículo 7. SANCIONES: {{sanciones}}
+   620→
+   621→Dado en {{ciudad}}, a los {{dia}} de {{mes}} de {{anio}}.
+   622→
+   623→___________________________
+   624→Representante Legal
+   625→{{razon_social}}`,
+   626→    wizardConfig: JSON.stringify({
+   627→      steps: [
+   628→        { title: 'Datos de la Empresa', fields: [
+   629→          { key: 'razon_social', label: 'Razón social', type: 'text' },
+   630→          { key: 'nit_empresa', label: 'NIT', type: 'text' },
+   631→          { key: 'ciudad', label: 'Ciudad', type: 'text' }
+   632→        ]},
+   633→        { title: 'Condiciones Laborales', fields: [
+   634→          { key: 'requisitos_admision', label: 'Requisitos de admisión', type: 'textarea' },
+   635→          { key: 'horario_trabajo', label: 'Horario de trabajo', type: 'textarea' },
+   636→          { key: 'sistema_salarios', label: 'Sistema de salarios', type: 'textarea' },
+   637→          { key: 'sanciones', label: 'Régimen disciplinario', type: 'textarea' }
+   638→        ]},
+   639→        { title: 'Fecha', fields: [
+   640→          { key: 'dia', label: 'Día', type: 'number' },
+   641→          { key: 'mes', label: 'Mes', type: 'text' },
+   642→          { key: 'anio', label: 'Año', type: 'number' }
+   643→        ]}
+   644→      ]
+   645→    })
+   646→  },
+   647→  {
+   648→    name: 'Contrato de Arrendamiento de Local Comercial',
+   649→    description: 'Contrato de arrendamiento para local comercial conforme a la Ley 820 de 2003. Incluye cláusulas sobre canon, uso comercial, mejoras y renovación.',
+   650→    category: 'Contratos',
+   651→    legalArea: 'Mercantil',
+   652→    audience: 'profesionales',
+   653→    price: 20000,
+   654→    estimatedQuestions: 20,
+   655→    estimatedMinutes: 12,
+   656→    rating: 4.6,
+   657→    ratingCount: 134,
+   658→    baseContent: `CONTRATO DE ARRENDAMIENTO DE LOCAL COMERCIAL
+   659→
+   660→Entre los suscritos:
+   661→
+   662→ARRENDADOR: {{nombre_arrendador}}, identificado(a) con {{tipo_doc_arrendador}} No. {{num_doc_arrendador}}.
+   663→
+   664→ARRENDATARIO: {{nombre_arrendatario}}, identificado(a) con {{tipo_doc_arrendatario}} No. {{num_doc_arrendatario}}.
+   665→
+   666→CLÁUSULAS:
+   667→
+   668→PRIMERA. El arrendador entrega en arrendamiento el local comercial ubicado en {{direccion_inmueble}}, {{ciudad_inmueble}}.
+   669→
+   670→SEGUNDA. CANON: El canon mensual será de {{valor_canon}} COP.
+   671→
+   672→TERCERA. USO: El local se destinará a actividades comerciales de: {{uso_comercial}}.
+   673→
+   674→CUARTA. DURACIÓN: {{duracion_contrato}} meses desde {{fecha_inicio}}.
+   675→
+   676→QUINTA. MEJORAS: {{condiciones_mejoras}}
+   677→
+   678→En señal de aceptación, firman en {{ciudad_firma}}.
+   679→
+   680→___________________________
+   681→ARRENDADOR
+   682→
+   683→___________________________
+   684→ARRENDATARIO`,
+   685→    wizardConfig: JSON.stringify({
+   686→      steps: [
+   687→        { title: 'Datos del Arrendador', fields: [
+   688→          { key: 'nombre_arrendador', label: 'Nombre completo', type: 'text' },
+   689→          { key: 'tipo_doc_arrendador', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'] },
+   690→          { key: 'num_doc_arrendador', label: 'Número de documento', type: 'text' }
+   691→        ]},
+   692→        { title: 'Datos del Arrendatario', fields: [
+   693→          { key: 'nombre_arrendatario', label: 'Nombre completo', type: 'text' },
+   694→          { key: 'tipo_doc_arrendatario', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'] },
+   695→          { key: 'num_doc_arrendatario', label: 'Número de documento', type: 'text' }
+   696→        ]},
+   697→        { title: 'Datos del Local y Condiciones', fields: [
+   698→          { key: 'direccion_inmueble', label: 'Dirección del local', type: 'text' },
+   699→          { key: 'ciudad_inmueble', label: 'Ciudad', type: 'text' },
+   700→          { key: 'valor_canon', label: 'Canon mensual (COP)', type: 'text' },
+   701→          { key: 'uso_comercial', label: 'Uso comercial', type: 'text' },
+   702→          { key: 'duracion_contrato', label: 'Duración (meses)', type: 'number' },
+   703→          { key: 'fecha_inicio', label: 'Fecha de inicio', type: 'date' },
+   704→          { key: 'condiciones_mejoras', label: 'Condiciones sobre mejoras', type: 'textarea' }
+   705→        ]},
+   706→        { title: 'Firma', fields: [
+   707→          { key: 'ciudad_firma', label: 'Ciudad de firma', type: 'text' }
+   708→        ]}
+   709→      ]
+   710→    })
+   711→  },
+   712→  {
+   713→    name: 'Cesión de Contrato de Arrendamiento',
+   714→    description: 'Contrato de cesión de derechos y obligaciones de un contrato de arrendamiento. Requiere consentimiento del arrendador conforme al Código Civil.',
+   715→    category: 'Contratos',
+   716→    legalArea: 'Civil',
+   717→    audience: 'particulares',
+   718→    price: 10000,
+   719→    estimatedQuestions: 15,
+   720→    estimatedMinutes: 8,
+   721→    rating: 4.3,
+   722→    ratingCount: 89,
+   723→    baseContent: `CONTRATO DE CESIÓN DE ARRENDAMIENTO
+   724→
+   725→Entre los suscritos:
+   726→
+   727→CEDENTE (Arrendatario original): {{nombre_cedente}}, identificado(a) con {{tipo_doc_cedente}} No. {{num_doc_cedente}}.
+   728→
+   729→CESIONARIO (Nuevo arrendatario): {{nombre_cesionario}}, identificado(a) con {{tipo_doc_cesionario}} No. {{num_doc_cesionario}}.
+   730→
+   731→ARRENDADOR: {{nombre_arrendador}}, identificado(a) con {{tipo_doc_arrendador}} No. {{num_doc_arrendador}}, quien acepta la cesión.
+   732→
+   733→CLÁUSULAS:
+   734→
+   735→PRIMERA. OBJETO: El cedente cede al cesionario todos sus derechos y obligaciones derivados del contrato de arrendamiento sobre el inmueble ubicado en {{direccion_inmueble}}.
+   736→
+   737→SEGUNDA. ACEPTACIÓN: El arrendador acepta la cesión y reconoce al cesionario como nuevo arrendatario.
+   738→
+   739→TERCERA. EFECTOS: A partir de la fecha de este documento, el cesionario asume todas las obligaciones del cedente.
+   740→
+   741→En señal de aceptación, firman en {{ciudad_firma}}.
+   742→
+   743→___________________________
+   744→CEDENTE
+   745→
+   746→___________________________
+   747→CESIONARIO
+   748→
+   749→___________________________
+   750→ARRENDADOR`,
+   751→    wizardConfig: JSON.stringify({
+   752→      steps: [
+   753→        { title: 'Datos del Cedente', fields: [
+   754→          { key: 'nombre_cedente', label: 'Nombre completo', type: 'text' },
+   755→          { key: 'tipo_doc_cedente', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'] },
+   756→          { key: 'num_doc_cedente', label: 'Número de documento', type: 'text' }
+   757→        ]},
+   758→        { title: 'Datos del Cesionario', fields: [
+   759→          { key: 'nombre_cesionario', label: 'Nombre completo', type: 'text' },
+   760→          { key: 'tipo_doc_cesionario', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'] },
+   761→          { key: 'num_doc_cesionario', label: 'Número de documento', type: 'text' }
+   762→        ]},
+   763→        { title: 'Datos del Arrendador e Inmueble', fields: [
+   764→          { key: 'nombre_arrendador', label: 'Nombre del arrendador', type: 'text' },
+   765→          { key: 'tipo_doc_arrendador', label: 'Tipo de documento', type: 'select', options: ['Cédula de Ciudadanía', 'NIT'] },
+   766→          { key: 'num_doc_arrendador', label: 'Número de documento', type: 'text' },
+   767→          { key: 'direccion_inmueble', label: 'Dirección del inmueble', type: 'text' }
+   768→        ]},
+   769→        { title: 'Firma', fields: [
+   770→          { key: 'ciudad_firma', label: 'Ciudad de firma', type: 'text' }
+   771→        ]}
+   772→      ]
+   773→    })
+   774→  }
+   775→];
+   776→
+   777→const CLAUSES = [
+   778→  {
+   779→    title: 'Cláusula de No Competencia',
+   780→    content: 'El contratista se obliga a no prestar servicios similares, directa o indirectamente, a empresas competidores durante la vigencia del contrato y hasta {{meses_no_competencia}} meses después de su terminación.',
+   781→    legalArea: 'Mercantil',
+   782→    category: 'Confidencialidad',
+   783→    isDefault: false
+   784→  },
+   785→  {
+   786→    title: 'Cláusula de Confidencialidad',
+   787→    content: 'Las partes se comprometen a mantener estricta confidencialidad sobre toda la información intercambiada durante la ejecución del contrato, incluyendo datos comerciales, técnicos, financieros y estratégicos. Esta obligación persistirá por {{anos_confidencialidad}} años después de la terminación del contrato.',
+   788→    legalArea: 'General',
+   789→    category: 'Confidencialidad',
+   790→    isDefault: true
+   791→  },
+   792→  {
+   793→    title: 'Cláusula de Fuerza Mayor',
+   794→    content: 'Ninguna de las partes será responsable por el incumplimiento de sus obligaciones cuando este se deba a causas de fuerza mayor o caso fortuito, conforme al artículo 1.594 del Código Civil Colombiano.',
+   795→    legalArea: 'General',
+   796→    category: 'General',
+   797→    isDefault: true
+   798→  },
+   799→  {
+   800→    title: 'Cláusula de Solución de Controversias',
+   801→    content: 'Cualquier controversia derivada del presente contrato será resuelta en primer lugar mediante trámite de conciliación extrajudicial. Si no hubiere acuerdo, las partes se someten a la jurisdicción de los tribunales de {{ciudad_jurisdiccion}}.',
+   802→    legalArea: 'General',
+   803→    category: 'Resolución de Conflictos',
+   804→    isDefault: true
+   805→  },
+   806→  {
+   807→    title: 'Cláusula de Terminación Anticipada',
+   808→    content: 'Cualquiera de las partes podrá dar por terminado el presente contrato mediante notificación escrita con al menos {{dias_preaviso}} días de anticipación, sin necesidad de justificación alguna.',
+   809→    legalArea: 'General',
+   810→    category: 'Terminación',
+   811→    isDefault: false
+   812→  },
+   813→  {
+   814→    title: 'Cláusula de Indemnidad',
+   815→    content: 'El contratista se obliga a mantener indemne al contratante frente a cualquier reclamación, demanda o acción legal derivada del incumplimiento del contratista de sus obligaciones legales o contractuales.',
+   816→    legalArea: 'Mercantil',
+   817→    category: 'Protección',
+   818→    isDefault: false
+   819→  }
+   820→];
+   821→
+   822→const NORMATIVITY = [
+   823→  { lawName: 'Código Civil Colombiano', lawReference: 'Ley 57 de 1887' },
+   824→  { lawName: 'Código de Comercio', lawReference: 'Decreto 410 de 1971' },
+   825→  { lawName: 'Código Sustantivo del Trabajo', lawReference: 'Decreto 2351 de 1965' },
+   826→  { lawName: 'Ley de Sociedades por Acciones Simplificada', lawReference: 'Ley 1258 de 2008' },
+   827→  { lawName: 'Ley de Arrendamiento de Vivienda Urbana', lawReference: 'Ley 820 de 2003' },
+   828→  { lawName: 'Código de Procedimiento Administrativo', lawReference: 'Ley 1437 de 2011' },
+   829→  { lawName: 'Estatuto de la Contratación Estatal', lawReference: 'Ley 1150 de 2007' },
+   830→  { lawName: 'Ley de Firma Electrónica', lawReference: 'Ley 527 de 1999' },
+   831→  { lawName: 'Ley de Víctimas y Restitución de Tierras', lawReference: 'Ley 1448 de 2011' },
+   832→  { lawName: 'Constitución Política de Colombia', lawReference: 'Constitución de 1991' },
+   833→  { lawName: 'Ley de Formalización y Generación de Empleo', lawReference: 'Ley 1429 de 2010' },
+   834→  { lawName: 'Estatuto del Consumidor', lawReference: 'Ley 1480 de 2011' }
+   835→];
+   836→
+   837→const PLANS = [
+   838→  { name: 'Básico', price: 0, interval: 'monthly', maxDocuments: 3, features: '3 documentos/mes,Plantillas gratuitas,Soporte por email' },
+   839→  { name: 'Profesional', price: 49900, interval: 'monthly', maxDocuments: 20, features: '20 documentos/mes,Todas las plantillas,Vista previa en tiempo real,Soporte prioritario,Descarga DOCX y PDF' },
+   840→  { name: 'Empresarial', price: 149900, interval: 'monthly', maxDocuments: 100, features: '100 documentos/mes,Todas las plantillas,Editor de plantillas personalizado,Múltiples usuarios,Soporte dedicado,API de integración' }
+   841→];
+   842→
+   843→export async function seedDatabase() {
+   844→  console.log('Seeding database...');
+   845→
+   846→  const adminPassword = await hash('1038796568', 12);
+   847→  const demoPassword = await hash('demo', 12);
+   848→
+   849→  const admin = await db.user.upsert({
+   850→    where: { username: '1038796568' },
+   851→    update: {},
+   852→    create: {
+   853→      username: '1038796568',
+   854→      passwordHash: adminPassword,
+   855→      name: 'Administrador Jurídico',
+   856→      email: 'admin@lexdoc.co',
+   857→      phone: '+57 310 1234567',
+   858→      role: 'admin',
+   859→      status: 'active',
+   860→      subscriptionPlan: 'Empresarial'
+   861→    }
+   862→  });
+   863→
+   864→  const demo = await db.user.upsert({
+   865→    where: { username: 'demo' },
+   866→    update: {},
+   867→    create: {
+   868→      username: 'demo',
+   869→      passwordHash: demoPassword,
+   870→      name: 'Usuario Demo',
+   871→      email: 'demo@lexdoc.co',
+   872→      phone: '+57 300 9876543',
+   873→      role: 'client',
+   874→      status: 'active',
+   875→      subscriptionPlan: 'Profesional',
+   876→      subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+   877→    }
+   878→  });
+   879→
+   880→  for (const clause of CLAUSES) {
+   881→    await db.clause.upsert({
+   882→      where: { id: `clause-${clause.title.toLowerCase().replace(/\s+/g, '-')}` },
+   883→      update: {},
+   884→      create: { id: `clause-${clause.title.toLowerCase().replace(/\s+/g, '-')}`, ...clause }
+   885→    });
+   886→  }
+   887→
+   888→  for (const plan of PLANS) {
+   889→    await db.subscriptionPlan.upsert({
+   890→      where: { id: `plan-${plan.name.toLowerCase()}` },
+   891→      update: {},
+   892→      create: { id: `plan-${plan.name.toLowerCase()}`, ...plan }
+   893→    });
+   894→  }
+   895→
+   896→  for (const template of TEMPLATES) {
+   897→    const created = await db.documentTemplate.upsert({
+   898→      where: { id: `template-${template.name.toLowerCase().replace(/\s+/g, '-').substring(0, 50)}` },
+   899→      update: {},
+   900→      create: { id: `template-${template.name.toLowerCase().replace(/\s+/g, '-').substring(0, 50)}`, ...template }
+   901→    });
+   902→
+   903→    const applicableNorms = NORMATIVITY.filter(n => {
+   904→      if (template.legalArea === 'Civil') return ['Código Civil Colombiano', 'Constitución Política de Colombia'].includes(n.lawName);
+   905→      if (template.legalArea === 'Mercantil') return ['Código de Comercio', 'Ley de Sociedades por Acciones Simplificada', 'Ley de Firma Electrónica'].includes(n.lawName);
+   906→      if (template.legalArea === 'Laboral') return ['Código Sustantivo del Trabajo', 'Ley de Formalización y Generación de Empleo'].includes(n.lawName);
+   907→      if (template.legalArea === 'Constitucional') return ['Constitución Política de Colombia', 'Código de Procedimiento Administrativo', 'Estatuto del Consumidor'].includes(n.lawName);
+   908→      return true;
+   909→    });
+   910→
+   911→    for (const norm of applicableNorms) {
+   912→      await db.templateNormativity.create({
+   913→        data: { templateId: created.id, ...norm }
+   914→      });
+   915→    }
+   916→  }
+   917→
+   918→  const defaultClauses = await db.clause.findMany({ where: { isDefault: true } });
+   919→  const allTemplates = await db.documentTemplate.findMany();
+   920→  
+   921→  for (const template of allTemplates) {
+   922→    for (const clause of defaultClauses.slice(0, 2)) {
+   923→      await db.templateClause.create({
+   924→        data: { templateId: template.id, clauseId: clause.id, sectionName: 'Disposiciones Generales', order: 0 }
+   925→      });
+   926→    }
+   927→  }
+   928→
+   929→  console.log('Database seeded successfully!');
+   930→  console.log('Admin:', admin.username);
+   931→  console.log('Demo:', demo.username);
+   932→}
+   933→
+   934→seedDatabase().catch(console.error);
+   935→
