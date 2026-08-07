@@ -1,0 +1,846 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback, useRef } from 'react'
+     4→import {
+     5→  Search,
+     6→  Plus,
+     7→  Edit,
+     8→  Trash2,
+     9→  User,
+    10→  Building,
+    11→  MapPin,
+    12→  Phone,
+    13→  Mail,
+    14→  FileText,
+    15→  Users,
+    16→} from 'lucide-react'
+    17→import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    18→import { Card, CardContent } from '@/components/ui/card'
+    19→import { Badge } from '@/components/ui/badge'
+    20→import { Button } from '@/components/ui/button'
+    21→import {
+    22→  AlertDialog,
+    23→  AlertDialogAction,
+    24→  AlertDialogCancel,
+    25→  AlertDialogContent,
+    26→  AlertDialogDescription,
+    27→  AlertDialogFooter,
+    28→  AlertDialogHeader,
+    29→  AlertDialogTitle,
+    30→} from '@/components/ui/alert-dialog'
+    31→import {
+    32→  Dialog,
+    33→  DialogContent,
+    34→  DialogFooter,
+    35→  DialogHeader,
+    36→  DialogTitle,
+    37→} from '@/components/ui/dialog'
+    38→import { Input } from '@/components/ui/input'
+    39→import { Label } from '@/components/ui/label'
+    40→import {
+    41→  Select,
+    42→  SelectContent,
+    43→  SelectItem,
+    44→  SelectTrigger,
+    45→  SelectValue,
+    46→} from '@/components/ui/select'
+    47→import { Textarea } from '@/components/ui/textarea'
+    48→import { useAppStore } from '@/store/app-store'
+    49→import { toast } from 'sonner'
+    50→
+    51→/* -------------------------------------------------------------------------- */
+    52→/*  Types                                                                    */
+    53→/* -------------------------------------------------------------------------- */
+    54→
+    55→interface Contact {
+    56→  id: string
+    57→  name: string
+    58→  contactType: string
+    59→  documentType: string
+    60→  documentNumber: string
+    61→  address: string
+    62→  city: string
+    63→  phone: string
+    64→  email: string
+    65→  companyName: string
+    66→  notes: string
+    67→  createdAt: string
+    68→  updatedAt: string
+    69→}
+    70→
+    71→type ContactTabFilter =
+    72→  | 'all'
+    73→  | 'Propietario'
+    74→  | 'Arrendatario'
+    75→  | 'Empleado'
+    76→  | 'Empresa'
+    77→  | 'Fiador'
+    78→  | 'Notario'
+    79→  | 'Abogado'
+    80→  | 'Otro'
+    81→
+    82→type TabKey =
+    83→  | 'all'
+    84→  | 'Propietario'
+    85→  | 'Arrendatario'
+    86→  | 'Empleado'
+    87→  | 'Empresa'
+    88→  | 'Fiador'
+    89→  | 'Otro'
+    90→
+    91→/* -------------------------------------------------------------------------- */
+    92→/*  Constants                                                                */
+    93→/* -------------------------------------------------------------------------- */
+    94→
+    95→const CONTACT_TYPE_OPTIONS = [
+    96→  { value: 'Propietario', label: 'Propietario' },
+    97→  { value: 'Arrendatario', label: 'Arrendatario' },
+    98→  { value: 'Empleado', label: 'Empleado' },
+    99→  { value: 'Empresa', label: 'Empresa' },
+   100→  { value: 'Fiador', label: 'Fiador' },
+   101→  { value: 'Notario', label: 'Notario' },
+   102→  { value: 'Abogado', label: 'Abogado' },
+   103→  { value: 'Otro', label: 'Otro' },
+   104→] as const
+   105→
+   106→const DOCUMENT_TYPE_OPTIONS = [
+   107→  { value: 'CC', label: 'CC' },
+   108→  { value: 'NIT', label: 'NIT' },
+   109→  { value: 'CE', label: 'CE' },
+   110→  { value: 'Pasaporte', label: 'Pasaporte' },
+   111→] as const
+   112→
+   113→const TAB_CONFIG: Record<
+   114→  TabKey,
+   115→  { label: string; apiValue?: string }
+   116→> = {
+   117→  all: { label: 'Todos' },
+   118→  Propietario: { label: 'Propietarios', apiValue: 'Propietario' },
+   119→  Arrendatario: { label: 'Arrendatarios', apiValue: 'Arrendatario' },
+   120→  Empleado: { label: 'Empleados', apiValue: 'Empleado' },
+   121→  Empresa: { label: 'Empresas', apiValue: 'Empresa' },
+   122→  Fiador: { label: 'Fiadores', apiValue: 'Fiador' },
+   123→  Otro: { label: 'Otros', apiValue: 'Otro' },
+   124→}
+   125→
+   126→const TYPE_BADGE_COLORS: Record<string, string> = {
+   127→  Propietario:
+   128→    'bg-blue-500/15 text-blue-400 border-blue-500/25 hover:bg-blue-500/25',
+   129→  Arrendatario:
+   130→    'bg-emerald-500/15 text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/25',
+   131→  Empleado:
+   132→    'bg-violet-500/15 text-violet-400 border-violet-500/25 hover:bg-violet-500/25',
+   133→  Empresa:
+   134→    'bg-amber-500/15 text-amber-400 border-amber-500/25 hover:bg-amber-500/25',
+   135→  Fiador:
+   136→    'bg-rose-500/15 text-rose-400 border-rose-500/25 hover:bg-rose-500/25',
+   137→  Notario:
+   138→    'bg-cyan-500/15 text-cyan-400 border-cyan-500/25 hover:bg-cyan-500/25',
+   139→  Abogado:
+   140→    'bg-indigo-500/15 text-indigo-400 border-indigo-500/25 hover:bg-indigo-500/25',
+   141→  Otro: 'bg-gray-500/15 text-gray-400 border-gray-500/25 hover:bg-gray-500/25',
+   142→}
+   143→
+   144→const EMPTY_FORM: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> = {
+   145→  name: '',
+   146→  contactType: '',
+   147→  documentType: '',
+   148→  documentNumber: '',
+   149→  address: '',
+   150→  city: '',
+   151→  phone: '',
+   152→  email: '',
+   153→  companyName: '',
+   154→  notes: '',
+   155→}
+   156→
+   157→/* -------------------------------------------------------------------------- */
+   158→/*  Helpers                                                                  */
+   159→/* -------------------------------------------------------------------------- */
+   160→
+   161→function useDebounce<T>(value: T, delayMs: number): T {
+   162→  const [debounced, setDebounced] = useState(value)
+   163→  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+   164→
+   165→  useEffect(() => {
+   166→    if (timerRef.current) clearTimeout(timerRef.current)
+   167→    timerRef.current = setTimeout(() => setDebounced(value), delayMs)
+   168→    return () => {
+   169→      if (timerRef.current) clearTimeout(timerRef.current)
+   170→    }
+   171→  }, [value, delayMs])
+   172→
+   173→  return debounced
+   174→}
+   175→
+   176→/* -------------------------------------------------------------------------- */
+   177→/*  Empty State                                                              */
+   178→/* -------------------------------------------------------------------------- */
+   179→
+   180→function EmptyState() {
+   181→  return (
+   182→    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-white/10 px-6 py-16 text-center">
+   183→      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#C9A94E]/10">
+   184→        <Users className="h-8 w-8 text-[#C9A94E]/60" />
+   185→      </div>
+   186→      <div className="space-y-1">
+   187→        <p className="text-sm font-semibold text-white/70">
+   188→          No hay contactos
+   189→        </p>
+   190→        <p className="max-w-sm text-xs text-white/40">
+   191→          Agrega tu primer contacto para comenzar a usarlo en tus documentos
+   192→          legales.
+   193→        </p>
+   194→      </div>
+   195→    </div>
+   196→  )
+   197→}
+   198→
+   199→/* -------------------------------------------------------------------------- */
+   200→/*  Contact Card                                                             */
+   201→/* -------------------------------------------------------------------------- */
+   202→
+   203→function ContactCard({
+   204→  contact,
+   205→  onEdit,
+   206→  onDelete,
+   207→}: {
+   208→  contact: Contact
+   209→  onEdit: (c: Contact) => void
+   210→  onDelete: (c: Contact) => void
+   211→}) {
+   212→  const badgeColor =
+   213→    TYPE_BADGE_COLORS[contact.contactType] ?? TYPE_BADGE_COLORS.Otro
+   214→
+   215→  return (
+   216→    <Card className="group relative border-white/[0.06] bg-[#0F1D32]/80 backdrop-blur-sm transition-all duration-200 hover:border-[#C9A94E]/20 hover:bg-[#0F1D32]">
+   217→      <CardContent className="p-5">
+   218→        {/* Header: name + badge */}
+   219→        <div className="mb-3 flex items-start justify-between gap-2">
+   220→          <h3 className="text-[15px] font-semibold leading-tight text-white/90 cursor-pen">
+   221→            {contact.name}
+   222→          </h3>
+   223→          <Badge variant="outline" className={`shrink-0 text-[10px] font-medium ${badgeColor}`}>
+   224→            {contact.contactType}
+   225→          </Badge>
+   226→        </div>
+   227→
+   228→        {/* Document */}
+   229→        {contact.documentType && contact.documentNumber && (
+   230→          <div className="mb-2 flex items-center gap-1.5 text-xs text-white/40">
+   231→            <FileText className="h-3.5 w-3.5 shrink-0" />
+   232→            <span>
+   233→              {contact.documentType}{' '}
+   234→              <span className="cursor-pen text-white/55">
+   235→                {contact.documentNumber}
+   236→              </span>
+   237→            </span>
+   238→          </div>
+   239→        )}
+   240→
+   241→        {/* Details */}
+   242→        <div className="mb-4 space-y-1.5">
+   243→          {contact.companyName && (
+   244→            <div className="flex items-center gap-1.5 text-xs text-white/40">
+   245→              <Building className="h-3.5 w-3.5 shrink-0" />
+   246→              <span className="cursor-pen text-white/55">
+   247→                {contact.companyName}
+   248→              </span>
+   249→            </div>
+   250→          )}
+   251→          {contact.city && (
+   252→            <div className="flex items-center gap-1.5 text-xs text-white/40">
+   253→              <MapPin className="h-3.5 w-3.5 shrink-0" />
+   254→              <span className="cursor-pen text-white/55">{contact.city}</span>
+   255→            </div>
+   256→          )}
+   257→          {contact.phone && (
+   258→            <div className="flex items-center gap-1.5 text-xs text-white/40">
+   259→              <Phone className="h-3.5 w-3.5 shrink-0" />
+   260→              <span className="cursor-pen text-white/55">
+   261→                {contact.phone}
+   262→              </span>
+   263→            </div>
+   264→          )}
+   265→          {contact.email && (
+   266→            <div className="flex items-center gap-1.5 text-xs text-white/40">
+   267→              <Mail className="h-3.5 w-3.5 shrink-0" />
+   268→              <span className="cursor-pen text-white/55">
+   269→                {contact.email}
+   270→              </span>
+   271→            </div>
+   272→          )}
+   273→        </div>
+   274→
+   275→        {/* Actions */}
+   276→        <div className="flex items-center gap-1 border-t border-white/[0.06] pt-3">
+   277→          <Button
+   278→            variant="ghost"
+   279→            size="icon"
+   280→            className="h-8 w-8 text-white/30 transition-colors hover:bg-white/5 hover:text-[#C9A94E]"
+   281→            onClick={() => onEdit(contact)}
+   282→          >
+   283→            <Edit className="h-4 w-4" />
+   284→            <span className="sr-only">Editar</span>
+   285→          </Button>
+   286→          <Button
+   287→            variant="ghost"
+   288→            size="icon"
+   289→            className="h-8 w-8 text-white/30 transition-colors hover:bg-red-500/10 hover:text-red-400"
+   290→            onClick={() => onDelete(contact)}
+   291→          >
+   292→            <Trash2 className="h-4 w-4" />
+   293→            <span className="sr-only">Eliminar</span>
+   294→          </Button>
+   295→        </div>
+   296→      </CardContent>
+   297→    </Card>
+   298→  )
+   299→}
+   300→
+   301→/* -------------------------------------------------------------------------- */
+   302→/*  Contact Form Dialog                                                      */
+   303→/* -------------------------------------------------------------------------- */
+   304→
+   305→interface ContactFormData extends Omit<Contact, 'id' | 'createdAt' | 'updatedAt'> {
+   306→  id?: string
+   307→}
+   308→
+   309→function ContactFormDialog({
+   310→  open,
+   311→  onOpenChange,
+   312→  contact,
+   313→  onSave,
+   314→  saving,
+   315→}: {
+   316→  open: boolean
+   317→  onOpenChange: (open: boolean) => void
+   318→  contact: Contact | null
+   319→  onSave: (data: ContactFormData) => Promise<void>
+   320→  saving: boolean
+   321→}) {
+   322→  const isEdit = !!contact
+   323→  const [form, setForm] = useState<ContactFormData>(EMPTY_FORM)
+   324→
+   325→  useEffect(() => {
+   326→    if (contact && open) {
+   327→      setForm({
+   328→        id: contact.id,
+   329→        name: contact.name,
+   330→        contactType: contact.contactType,
+   331→        documentType: contact.documentType,
+   332→        documentNumber: contact.documentNumber,
+   333→        address: contact.address,
+   334→        city: contact.city,
+   335→        phone: contact.phone,
+   336→        email: contact.email,
+   337→        companyName: contact.companyName,
+   338→        notes: contact.notes,
+   339→      })
+   340→    }
+   341→  }, [open])
+   342→
+   343→  const set = (field: keyof typeof form, value: string) =>
+   344→    setForm((prev) => ({ ...prev, [field]: value }))
+   345→
+   346→  const isValid = form.name.trim().length > 0
+   347→
+   348→  const handleSubmit = async (e: React.FormEvent) => {
+   349→    e.preventDefault()
+   350→    if (!isValid || saving) return
+   351→    await onSave(form)
+   352→  }
+   353→
+   354→  return (
+   355→    <Dialog open={open} onOpenChange={onOpenChange}>
+   356→      <DialogContent className="max-h-[90vh] overflow-y-auto border-white/10 bg-[#0F1D32] text-white sm:max-w-lg">
+   357→        <DialogHeader>
+   358→          <DialogTitle className="text-white">
+   359→            {isEdit ? 'Editar contacto' : 'Nuevo contacto'}
+   360→          </DialogTitle>
+   361→        </DialogHeader>
+   362→
+   363→        <form onSubmit={handleSubmit} className="space-y-4">
+   364→          {/* Name */}
+   365→          <div className="space-y-2">
+   366→            <Label htmlFor="contact-name" className="text-white/60">
+   367→              Nombre <span className="text-red-400">*</span>
+   368→            </Label>
+   369→            <Input
+   370→              id="contact-name"
+   371→              value={form.name}
+   372→              onChange={(e) => set('name', e.target.value)}
+   373→              placeholder="Nombre completo o razón social"
+   374→              className="border-white/10 bg-white/5 text-white placeholder:text-white/25 focus-visible:border-[#C9A94E]/50 focus-visible:ring-[#C9A94E]/20"
+   375→            />
+   376→          </div>
+   377→
+   378→          {/* Type + Document row */}
+   379→          <div className="grid grid-cols-2 gap-3">
+   380→            <div className="space-y-2">
+   381→              <Label htmlFor="contact-type" className="text-white/60">
+   382→                Tipo de contacto
+   383→              </Label>
+   384→              <Select
+   385→                value={form.contactType}
+   386→                onValueChange={(v) => set('contactType', v)}
+   387→              >
+   388→                <SelectTrigger className="border-white/10 bg-white/5 text-white focus:ring-[#C9A94E]/20">
+   389→                  <SelectValue placeholder="Seleccionar" />
+   390→                </SelectTrigger>
+   391→                <SelectContent className="border-white/10 bg-[#0A1628] text-white">
+   392→                  {CONTACT_TYPE_OPTIONS.map((opt) => (
+   393→                    <SelectItem key={opt.value} value={opt.value}>
+   394→                      {opt.label}
+   395→                    </SelectItem>
+   396→                  ))}
+   397→                </SelectContent>
+   398→              </Select>
+   399→            </div>
+   400→
+   401→            <div className="space-y-2">
+   402→              <Label htmlFor="doc-type" className="text-white/60">
+   403→                Tipo de documento
+   404→              </Label>
+   405→              <Select
+   406→                value={form.documentType}
+   407→                onValueChange={(v) => set('documentType', v)}
+   408→              >
+   409→                <SelectTrigger className="border-white/10 bg-white/5 text-white focus:ring-[#C9A94E]/20">
+   410→                  <SelectValue placeholder="Seleccionar" />
+   411→                </SelectTrigger>
+   412→                <SelectContent className="border-white/10 bg-[#0A1628] text-white">
+   413→                  {DOCUMENT_TYPE_OPTIONS.map((opt) => (
+   414→                    <SelectItem key={opt.value} value={opt.value}>
+   415→                      {opt.label}
+   416→                    </SelectItem>
+   417→                  ))}
+   418→                </SelectContent>
+   419→              </Select>
+   420→            </div>
+   421→          </div>
+   422→
+   423→          {/* Document number */}
+   424→          <div className="space-y-2">
+   425→            <Label htmlFor="doc-number" className="text-white/60">
+   426→              Número de documento
+   427→            </Label>
+   428→            <Input
+   429→              id="doc-number"
+   430→              value={form.documentNumber}
+   431→              onChange={(e) => set('documentNumber', e.target.value)}
+   432→              placeholder="Ej. 1234567890"
+   433→              className="border-white/10 bg-white/5 text-white placeholder:text-white/25 focus-visible:border-[#C9A94E]/50 focus-visible:ring-[#C9A94E]/20"
+   434→            />
+   435→          </div>
+   436→
+   437→          {/* Address + City row */}
+   438→          <div className="grid grid-cols-2 gap-3">
+   439→            <div className="space-y-2">
+   440→              <Label htmlFor="contact-address" className="text-white/60">
+   441→                Dirección
+   442→              </Label>
+   443→              <Input
+   444→                id="contact-address"
+   445→                value={form.address}
+   446→                onChange={(e) => set('address', e.target.value)}
+   447→                placeholder="Calle, carrera, nro."
+   448→                className="border-white/10 bg-white/5 text-white placeholder:text-white/25 focus-visible:border-[#C9A94E]/50 focus-visible:ring-[#C9A94E]/20"
+   449→              />
+   450→            </div>
+   451→
+   452→            <div className="space-y-2">
+   453→              <Label htmlFor="contact-city" className="text-white/60">
+   454→                Ciudad
+   455→              </Label>
+   456→              <Input
+   457→                id="contact-city"
+   458→                value={form.city}
+   459→                onChange={(e) => set('city', e.target.value)}
+   460→                placeholder="Ej. Bogotá"
+   461→                className="border-white/10 bg-white/5 text-white placeholder:text-white/25 focus-visible:border-[#C9A94E]/50 focus-visible:ring-[#C9A94E]/20"
+   462→              />
+   463→            </div>
+   464→          </div>
+   465→
+   466→          {/* Phone + Email row */}
+   467→          <div className="grid grid-cols-2 gap-3">
+   468→            <div className="space-y-2">
+   469→              <Label htmlFor="contact-phone" className="text-white/60">
+   470→                Teléfono
+   471→              </Label>
+   472→              <Input
+   473→                id="contact-phone"
+   474→                value={form.phone}
+   475→                onChange={(e) => set('phone', e.target.value)}
+   476→                placeholder="+57 300 123 4567"
+   477→                className="border-white/10 bg-white/5 text-white placeholder:text-white/25 focus-visible:border-[#C9A94E]/50 focus-visible:ring-[#C9A94E]/20"
+   478→              />
+   479→            </div>
+   480→
+   481→            <div className="space-y-2">
+   482→              <Label htmlFor="contact-email" className="text-white/60">
+   483→                Correo electrónico
+   484→              </Label>
+   485→              <Input
+   486→                id="contact-email"
+   487→                type="email"
+   488→                value={form.email}
+   489→                onChange={(e) => set('email', e.target.value)}
+   490→                placeholder="correo@ejemplo.com"
+   491→                className="border-white/10 bg-white/5 text-white placeholder:text-white/25 focus-visible:border-[#C9A94E]/50 focus-visible:ring-[#C9A94E]/20"
+   492→              />
+   493→            </div>
+   494→          </div>
+   495→
+   496→          {/* Company name */}
+   497→          <div className="space-y-2">
+   498→            <Label htmlFor="company-name" className="text-white/60">
+   499→              Nombre de la empresa
+   500→            </Label>
+   501→            <Input
+   502→              id="company-name"
+   503→              value={form.companyName}
+   504→              onChange={(e) => set('companyName', e.target.value)}
+   505→              placeholder="Razón social (opcional)"
+   506→              className="border-white/10 bg-white/5 text-white placeholder:text-white/25 focus-visible:border-[#C9A94E]/50 focus-visible:ring-[#C9A94E]/20"
+   507→            />
+   508→          </div>
+   509→
+   510→          {/* Notes */}
+   511→          <div className="space-y-2">
+   512→            <Label htmlFor="contact-notes" className="text-white/60">
+   513→              Notas
+   514→            </Label>
+   515→            <Textarea
+   516→              id="contact-notes"
+   517→              value={form.notes}
+   518→              onChange={(e) => set('notes', e.target.value)}
+   519→              placeholder="Notas adicionales sobre el contacto..."
+   520→              rows={3}
+   521→              className="border-white/10 bg-white/5 text-white placeholder:text-white/25 focus-visible:border-[#C9A94E]/50 focus-visible:ring-[#C9A94E]/20 resize-none"
+   522→            />
+   523→          </div>
+   524→
+   525→          {/* Footer buttons */}
+   526→          <DialogFooter className="gap-2 pt-2 sm:gap-0">
+   527→            <Button
+   528→              type="button"
+   529→              variant="ghost"
+   530→              disabled={saving}
+   531→              onClick={() => onOpenChange(false)}
+   532→              className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+   533→            >
+   534→              Cancelar
+   535→            </Button>
+   536→            <Button
+   537→              type="submit"
+   538→              disabled={!isValid || saving}
+   539→              className="bg-[#C9A94E] text-[#0A1628] font-semibold hover:bg-[#B8983E] focus:ring-[#C9A94E]/50 disabled:opacity-50"
+   540→            >
+   541→              {saving
+   542→                ? isEdit
+   543→                  ? 'Guardando…'
+   544→                  : 'Creando…'
+   545→                : isEdit
+   546→                  ? 'Guardar cambios'
+   547→                  : 'Crear contacto'}
+   548→            </Button>
+   549→          </DialogFooter>
+   550→        </form>
+   551→      </DialogContent>
+   552→    </Dialog>
+   553→  )
+   554→}
+   555→
+   556→/* -------------------------------------------------------------------------- */
+   557→/*  Delete Confirmation Dialog                                                */
+   558→/* -------------------------------------------------------------------------- */
+   559→
+   560→function DeleteDialog({
+   561→  open,
+   562→  onOpenChange,
+   563→  contactName,
+   564→  onConfirm,
+   565→  loading,
+   566→}: {
+   567→  open: boolean
+   568→  onOpenChange: (open: boolean) => void
+   569→  contactName: string
+   570→  onConfirm: () => void
+   571→  loading: boolean
+   572→}) {
+   573→  return (
+   574→    <AlertDialog open={open} onOpenChange={onOpenChange}>
+   575→      <AlertDialogContent className="border-white/10 bg-[#0F1D32] text-white sm:max-w-md">
+   576→        <AlertDialogHeader>
+   577→          <AlertDialogTitle className="text-white">
+   578→            ¿Eliminar contacto?
+   579→          </AlertDialogTitle>
+   580→          <AlertDialogDescription className="text-white/50">
+   581→            Esta acción no se puede deshacer. Se eliminará permanentemente{' '}
+   582→            <span className="font-medium text-white/70">
+   583→              &quot;{contactName}&quot;
+   584→            </span>
+   585→            .
+   586→          </AlertDialogDescription>
+   587→        </AlertDialogHeader>
+   588→        <AlertDialogFooter className="gap-2 sm:gap-0">
+   589→          <AlertDialogCancel
+   590→            disabled={loading}
+   591→            className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+   592→          >
+   593→            Cancelar
+   594→          </AlertDialogCancel>
+   595→          <AlertDialogAction
+   596→            onClick={(e) => {
+   597→              e.preventDefault()
+   598→              onConfirm()
+   599→            }}
+   600→            disabled={loading}
+   601→            className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
+   602→          >
+   603→            {loading ? 'Eliminando…' : 'Eliminar'}
+   604→          </AlertDialogAction>
+   605→        </AlertDialogFooter>
+   606→      </AlertDialogContent>
+   607→    </AlertDialog>
+   608→  )
+   609→}
+   610→
+   611→/* -------------------------------------------------------------------------- */
+   612→/*  ContactsPage                                                             */
+   613→/* -------------------------------------------------------------------------- */
+   614→
+   615→export default function ContactsPage() {
+   616→  const { user } = useAppStore()
+   617→
+   618→  /* ---- State ---- */
+   619→  const [activeTab, setActiveTab] = useState<TabKey>('all')
+   620→  const [searchQuery, setSearchQuery] = useState('')
+   621→  const debouncedSearch = useDebounce(searchQuery, 300)
+   622→  const [contacts, setContacts] = useState<Contact[]>([])
+   623→  const [loading, setLoading] = useState(true)
+   624→
+   625→  /* Form dialog */
+   626→  const [formDialogOpen, setFormDialogOpen] = useState(false)
+   627→  const [editingContact, setEditingContact] = useState<Contact | null>(null)
+   628→  const [saving, setSaving] = useState(false)
+   629→
+   630→  /* Delete dialog */
+   631→  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+   632→  const [contactToDelete, setContactToDelete] = useState<Contact | null>(null)
+   633→  const [deleting, setDeleting] = useState(false)
+   634→
+   635→  /* ---- Fetch contacts ---- */
+   636→  const fetchContacts = useCallback(async () => {
+   637→    if (!user) return
+   638→    setLoading(true)
+   639→    try {
+   640→      const params = new URLSearchParams()
+   641→      const tabConfig = TAB_CONFIG[activeTab]
+   642→      if (tabConfig.apiValue) {
+   643→        params.set('type', tabConfig.apiValue)
+   644→      }
+   645→      if (debouncedSearch.trim()) {
+   646→        params.set('search', debouncedSearch.trim())
+   647→      }
+   648→      const res = await fetch(`/api/contacts?${params.toString()}`, {
+   649→        headers: { 'x-user-id': user.id },
+   650→      })
+   651→      if (!res.ok) throw new Error('Error fetching contacts')
+   652→      const data = await res.json()
+   653→      setContacts(Array.isArray(data) ? data : [])
+   654→    } catch {
+   655→      toast.error('Error al cargar contactos')
+   656→    } finally {
+   657→      setLoading(false)
+   658→    }
+   659→  }, [user, activeTab, debouncedSearch])
+   660→
+   661→  useEffect(() => {
+   662→    fetchContacts()
+   663→  }, [fetchContacts])
+   664→
+   665→  /* ---- Client-side search fallback ---- */
+   666→  const filteredContacts = contacts.filter((c) => {
+   667→    if (!debouncedSearch.trim()) return true
+   668→    const q = debouncedSearch.toLowerCase()
+   669→    return (
+   670→      c.name.toLowerCase().includes(q) ||
+   671→      c.contactType.toLowerCase().includes(q) ||
+   672→      c.documentNumber.toLowerCase().includes(q) ||
+   673→      c.companyName.toLowerCase().includes(q) ||
+   674→      c.city.toLowerCase().includes(q) ||
+   675→      c.email.toLowerCase().includes(q)
+   676→    )
+   677→  })
+   678→
+   679→  /* ---- Create / Update ---- */
+   680→  const handleSave = async (formData: ContactFormData) => {
+   681→    if (!user) return
+   682→    setSaving(true)
+   683→    try {
+   684→      const isEdit = !!formData.id
+   685→      const method = isEdit ? 'PUT' : 'POST'
+   686→      const res = await fetch('/api/contacts', {
+   687→        method,
+   688→        headers: {
+   689→          'Content-Type': 'application/json',
+   690→          'x-user-id': user.id,
+   691→        },
+   692→        body: JSON.stringify(formData),
+   693→      })
+   694→      if (!res.ok) throw new Error('Error saving contact')
+   695→      toast.success(
+   696→        isEdit
+   697→          ? 'Contacto actualizado correctamente'
+   698→          : 'Contacto creado correctamente'
+   699→      )
+   700→      setFormDialogOpen(false)
+   701→      setEditingContact(null)
+   702→      fetchContacts()
+   703→    } catch {
+   704→      toast.error('Error al guardar el contacto')
+   705→    } finally {
+   706→      setSaving(false)
+   707→    }
+   708→  }
+   709→
+   710→  /* ---- Delete ---- */
+   711→  const handleDelete = async () => {
+   712→    if (!user || !contactToDelete) return
+   713→    setDeleting(true)
+   714→    try {
+   715→      const res = await fetch(
+   716→        `/api/contacts?id=${contactToDelete.id}`,
+   717→        {
+   718→          method: 'DELETE',
+   719→          headers: { 'x-user-id': user.id },
+   720→        }
+   721→      )
+   722→      if (!res.ok) throw new Error('Error deleting contact')
+   723→      toast.success('Contacto eliminado correctamente')
+   724→      setDeleteDialogOpen(false)
+   725→      setContactToDelete(null)
+   726→      fetchContacts()
+   727→    } catch {
+   728→      toast.error('Error al eliminar el contacto')
+   729→    } finally {
+   730→      setDeleting(false)
+   731→    }
+   732→  }
+   733→
+   734→  /* ---- Handlers ---- */
+   735→  const openNewContact = () => {
+   736→    setEditingContact(null)
+   737→    setFormDialogOpen(true)
+   738→  }
+   739→
+   740→  const openEditContact = (contact: Contact) => {
+   741→    setEditingContact(contact)
+   742→    setFormDialogOpen(true)
+   743→  }
+   744→
+   745→  const openDeleteContact = (contact: Contact) => {
+   746→    setContactToDelete(contact)
+   747→    setDeleteDialogOpen(true)
+   748→  }
+   749→
+   750→  /* ---- Render ---- */
+   751→  return (
+   752→    <div className="flex h-full flex-col overflow-hidden bg-[#0A1628]">
+   753→      {/* Header */}
+   754→      <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-6 py-4">
+   755→        <div>
+   756→          <h1 className="text-lg font-semibold text-white">
+   757→            Mis Datos
+   758→          </h1>
+   759→          <p className="mt-0.5 text-xs text-white/40">
+   760→            Gestiona tus contactos y partes para documentos legales
+   761→          </p>
+   762→        </div>
+   763→        <Button
+   764→          onClick={openNewContact}
+   765→          className="bg-[#C9A94E] text-[#0A1628] font-semibold hover:bg-[#B8983E] focus:ring-[#C9A94E]/50"
+   766→        >
+   767→          <Plus className="mr-1.5 h-4 w-4" />
+   768→          Nuevo contacto
+   769→        </Button>
+   770→      </div>
+   771→
+   772→      {/* Toolbar: search + tabs */}
+   773→      <div className="shrink-0 space-y-3 border-b border-white/[0.06] px-6 py-4">
+   774→        {/* Search bar */}
+   775→        <div className="relative">
+   776→          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+   777→          <Input
+   778→            value={searchQuery}
+   779→            onChange={(e) => setSearchQuery(e.target.value)}
+   780→            placeholder="Buscar por nombre, documento, ciudad, empresa..."
+   781→            className="border-white/10 bg-white/[0.03] pl-9 text-sm text-white placeholder:text-white/25 focus-visible:border-[#C9A94E]/40 focus-visible:ring-[#C9A94E]/20"
+   782→          />
+   783→        </div>
+   784→
+   785→        {/* Type filter tabs */}
+   786→        <Tabs
+   787→          value={activeTab}
+   788→          onValueChange={(v) => setActiveTab(v as TabKey)}
+   789→        >
+   790→          <TabsList className="h-9 bg-white/[0.04] p-0.5">
+   791→            {(Object.keys(TAB_CONFIG) as TabKey[]).map((key) => (
+   792→              <TabsTrigger
+   793→                key={key}
+   794→                value={key}
+   795→                className="h-7 rounded-md px-3 text-xs data-[state=active]:bg-[#C9A94E]/15 data-[state=active]:text-[#C9A94E] data-[state=active]:shadow-none text-white/40 hover:text-white/60"
+   796→              >
+   797→                {TAB_CONFIG[key].label}
+   798→              </TabsTrigger>
+   799→            ))}
+   800→          </TabsList>
+   801→        </Tabs>
+   802→      </div>
+   803→
+   804→      {/* Contact grid */}
+   805→      <div className="flex-1 overflow-y-auto px-6 py-5">
+   806→        {loading ? (
+   807→          <div className="flex items-center justify-center py-20">
+   808→            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#C9A94E]/30 border-t-[#C9A94E]" />
+   809→          </div>
+   810→        ) : filteredContacts.length === 0 ? (
+   811→          <EmptyState />
+   812→        ) : (
+   813→          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   814→            {filteredContacts.map((contact) => (
+   815→              <ContactCard
+   816→                key={contact.id}
+   817→                contact={contact}
+   818→                onEdit={openEditContact}
+   819→                onDelete={openDeleteContact}
+   820→              />
+   821→            ))}
+   822→          </div>
+   823→        )}
+   824→      </div>
+   825→
+   826→      {/* Form Dialog */}
+   827→      <ContactFormDialog
+   828→        open={formDialogOpen}
+   829→        onOpenChange={setFormDialogOpen}
+   830→        contact={editingContact}
+   831→        onSave={handleSave}
+   832→        saving={saving}
+   833→      />
+   834→
+   835→      {/* Delete Dialog */}
+   836→      <DeleteDialog
+   837→        open={deleteDialogOpen}
+   838→        onOpenChange={setDeleteDialogOpen}
+   839→        contactName={contactToDelete?.name ?? ''}
+   840→        onConfirm={handleDelete}
+   841→        loading={deleting}
+   842→      />
+   843→    </div>
+   844→  )
+   845→}
+   846→

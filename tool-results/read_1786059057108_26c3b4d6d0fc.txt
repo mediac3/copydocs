@@ -1,0 +1,861 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback, useRef } from 'react'
+     4→import {
+     5→  Search,
+     6→  LayoutGrid,
+     7→  List,
+     8→  Clock,
+     9→  HelpCircle,
+    10→  Star,
+    11→  ArrowRight,
+    12→  Plus,
+    13→  Scale,
+    14→  Building,
+    15→  HardHat,
+    16→  Home,
+    17→  FileText,
+    18→} from 'lucide-react'
+    19→import { Card, CardContent } from '@/components/ui/card'
+    20→import { Button } from '@/components/ui/button'
+    21→import { Badge } from '@/components/ui/badge'
+    22→import { Input } from '@/components/ui/input'
+    23→import {
+    24→  Select,
+    25→  SelectContent,
+    26→  SelectItem,
+    27→  SelectTrigger,
+    28→  SelectValue,
+    29→} from '@/components/ui/select'
+    30→import {
+    31→  Dialog,
+    32→  DialogContent,
+    33→  DialogHeader,
+    34→  DialogTitle,
+    35→  DialogDescription,
+    36→} from '@/components/ui/dialog'
+    37→import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+    38→import { useAppStore } from '@/store/app-store'
+    39→
+    40→/* -------------------------------------------------------------------------- */
+    41→/*  Types                                                                    */
+    42→/* -------------------------------------------------------------------------- */
+    43→
+    44→interface NormativityItem {
+    45→  lawName: string
+    46→  lawReference: string
+    47→}
+    48→
+    49→interface Template {
+    50→  id: string
+    51→  name: string
+    52→  description: string
+    53→  category: string
+    54→  legalArea: string
+    55→  audience: string
+    56→  price: number | null
+    57→  estimatedQuestions: number
+    58→  estimatedMinutes: number
+    59→  rating: number
+    60→  ratingCount: number
+    61→  normativity: NormativityItem[]
+    62→  _count: {
+    63→    documents: number
+    64→  }
+    65→}
+    66→
+    67→/* -------------------------------------------------------------------------- */
+    68→/*  Constants                                                                */
+    69→/* -------------------------------------------------------------------------- */
+    70→
+    71→const LEGAL_AREA_EMOJI: Record<string, string> = {
+    72→  Civil: '⚖️',
+    73→  Mercantil: '🏢',
+    74→  Laboral: '👷',
+    75→  Inmobiliario: '🏠',
+    76→  Administrativo: '📝',
+    77→  Constitucional: '📜',
+    78→  'Derechos de Petición': '📋',
+    79→  Penal: '🔒',
+    80→  Familia: '👨‍👩‍👧‍👦',
+    81→  Tributario: '💰',
+    82→}
+    83→
+    84→const LEGAL_AREA_ICON: Record<string, React.ReactNode> = {
+    85→  Civil: <Scale className="h-5 w-5" />,
+    86→  Mercantil: <Building className="h-5 w-5" />,
+    87→  Laboral: <HardHat className="h-5 w-5" />,
+    88→  Inmobiliario: <Home className="h-5 w-5" />,
+    89→  Administrativo: <FileText className="h-5 w-5" />,
+    90→}
+    91→
+    92→/* -------------------------------------------------------------------------- */
+    93→/*  Helpers                                                                  */
+    94→/* -------------------------------------------------------------------------- */
+    95→
+    96→function formatPrice(price: number | null): string {
+    97→  if (price === null || price === 0) return 'GRATUITO'
+    98→  return `COP $${price.toLocaleString('es-CO')}`
+    99→}
+   100→
+   101→function getLegalAreaEmoji(legalArea: string): string {
+   102→  return LEGAL_AREA_EMOJI[legalArea] || '📄'
+   103→}
+   104→
+   105→function renderStars(rating: number, size: string = 'h-3.5 w-3.5') {
+   106→  return (
+   107→    <div className="flex items-center gap-0.5">
+   108→      {[1, 2, 3, 4, 5].map((s) => (
+   109→        <Star
+   110→          key={s}
+   111→          className={`${size} ${
+   112→            s <= Math.round(rating)
+   113→              ? 'fill-[#C9A94E] text-[#C9A94E]'
+   114→              : 'fill-transparent text-white/20'
+   115→          }`}
+   116→        />
+   117→      ))}
+   118→    </div>
+   119→  )
+   120→}
+   121→
+   122→/* -------------------------------------------------------------------------- */
+   123→/*  Skeleton card                                                            */
+   124→/* -------------------------------------------------------------------------- */
+   125→
+   126→function SkeletonCard() {
+   127→  return (
+   128→    <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm animate-pulse">
+   129→      <CardContent className="p-5 space-y-4">
+   130→        <div className="flex items-center gap-3">
+   131→          <div className="h-10 w-10 rounded-lg bg-white/5" />
+   132→          <div className="flex-1 space-y-2">
+   133→            <div className="h-4 w-3/4 rounded bg-white/5" />
+   134→            <div className="h-3 w-1/2 rounded bg-white/5" />
+   135→          </div>
+   136→        </div>
+   137→        <div className="space-y-2">
+   138→          <div className="h-3 w-full rounded bg-white/5" />
+   139→          <div className="h-3 w-2/3 rounded bg-white/5" />
+   140→        </div>
+   141→        <div className="flex gap-2">
+   142→          <div className="h-6 w-20 rounded-full bg-white/5" />
+   143→          <div className="h-6 w-24 rounded-full bg-white/5" />
+   144→        </div>
+   145→        <div className="flex gap-4">
+   146→          <div className="h-4 w-16 rounded bg-white/5" />
+   147→          <div className="h-4 w-16 rounded bg-white/5" />
+   148→          <div className="h-4 w-16 rounded bg-white/5" />
+   149→        </div>
+   150→        <div className="h-9 w-full rounded-lg bg-white/5" />
+   151→      </CardContent>
+   152→    </Card>
+   153→  )
+   154→}
+   155→
+   156→function SkeletonRow() {
+   157→  return (
+   158→    <div className="flex items-center gap-4 rounded-xl border border-white/5 bg-[#0F1D32]/80 p-4 backdrop-blur-sm animate-pulse">
+   159→      <div className="h-10 w-10 shrink-0 rounded-lg bg-white/5" />
+   160→      <div className="flex-1 space-y-2">
+   161→        <div className="h-4 w-1/3 rounded bg-white/5" />
+   162→        <div className="h-3 w-2/3 rounded bg-white/5" />
+   163→      </div>
+   164→      <div className="hidden sm:flex gap-2">
+   165→        <div className="h-6 w-20 rounded-full bg-white/5" />
+   166→        <div className="h-6 w-24 rounded-full bg-white/5" />
+   167→      </div>
+   168→      <div className="hidden md:flex gap-4">
+   169→        <div className="h-4 w-12 rounded bg-white/5" />
+   170→        <div className="h-4 w-12 rounded bg-white/5" />
+   171→        <div className="h-4 w-12 rounded bg-white/5" />
+   172→      </div>
+   173→      <div className="h-8 w-24 rounded-lg bg-white/5" />
+   174→    </div>
+   175→  )
+   176→}
+   177→
+   178→/* -------------------------------------------------------------------------- */
+   179→/*  Grid card                                                                */
+   180→/* -------------------------------------------------------------------------- */
+   181→
+   182→function TemplateCard({
+   183→  template,
+   184→  onSelect,
+   185→}: {
+   186→  template: Template
+   187→  onSelect: (t: Template) => void
+   188→}) {
+   189→  const { startWizard } = useAppStore()
+   190→  const isFree = template.price === null || template.price === 0
+   191→
+   192→  return (
+   193→    <Card className="group border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm transition-all hover:border-[#C9A94E]/20 hover:shadow-lg hover:shadow-[#C9A94E]/5">
+   194→      <CardContent className="flex flex-col gap-4 p-5">
+   195→        {/* Header: icon + name */}
+   196→        <div className="flex items-start gap-3">
+   197→          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#C9A94E]/10 text-lg transition-colors group-hover:bg-[#C9A94E]/15">
+   198→            {getLegalAreaEmoji(template.legalArea)}
+   199→          </div>
+   200→          <div className="min-w-0 flex-1">
+   201→            <h3
+   202→              className="cursor-pointer truncate text-sm font-semibold text-white/90 transition-colors group-hover:text-[#C9A94E]"
+   203→              onClick={() => onSelect(template)}
+   204→            >
+   205→              {template.name}
+   206→            </h3>
+   207→            <p className="text-xs text-white/40">{template.legalArea}</p>
+   208→          </div>
+   209→        </div>
+   210→
+   211→        {/* Description */}
+   212→        <p
+   213→          className="line-clamp-2 cursor-pointer text-xs leading-relaxed text-white/50 transition-colors hover:text-white/70"
+   214→          onClick={() => onSelect(template)}
+   215→        >
+   216→          {template.description}
+   217→        </p>
+   218→
+   219→        {/* Badges */}
+   220→        <div className="flex flex-wrap gap-2">
+   221→          <Badge
+   222→            variant="outline"
+   223→            className={
+   224→              isFree
+   225→                ? 'border-[#C9A94E]/30 bg-[#C9A94E]/10 text-[#C9A94E] text-[10px] font-semibold hover:bg-[#C9A94E]/20'
+   226→                : 'border-green-500/30 bg-green-500/10 text-green-400 text-[10px] font-semibold hover:bg-green-500/20'
+   227→            }
+   228→          >
+   229→            {isFree ? '✦ GRATUITO' : formatPrice(template.price)}
+   230→          </Badge>
+   231→          <Badge
+   232→            variant="outline"
+   233→            className="border-white/10 bg-white/5 text-white/50 text-[10px] hover:bg-white/10"
+   234→          >
+   235→            {template.audience === 'Profesionales' ? '👨‍💼' : '👤'} {template.audience}
+   236→          </Badge>
+   237→        </div>
+   238→
+   239→        {/* Stats row */}
+   240→        <div className="flex items-center gap-4 text-[11px] text-white/40">
+   241→          <span className="flex items-center gap-1">
+   242→            <Clock className="h-3 w-3" /> {template.estimatedMinutes} min
+   243→          </span>
+   244→          <span className="flex items-center gap-1">
+   245→            <HelpCircle className="h-3 w-3" /> {template.estimatedQuestions} preguntas
+   246→          </span>
+   247→          <span className="flex items-center gap-1">
+   248→            <Star className="h-3 w-3 fill-[#C9A94E] text-[#C9A94E]" /> {template.rating.toFixed(1)}
+   249→          </span>
+   250→        </div>
+   251→
+   252→        {/* CTA */}
+   253→        <Button
+   254→          className="mt-auto w-full bg-[#C9A94E]/15 text-[#C9A94E] border border-[#C9A94E]/20 text-xs font-semibold transition-all hover:bg-[#C9A94E]/25 hover:border-[#C9A94E]/40 hover:text-[#D4B965]"
+   255→          variant="outline"
+   256→          onClick={() => startWizard(template.id)}
+   257→        >
+   258→          Comenzar
+   259→          <ArrowRight className="ml-1 h-3 w-3" />
+   260→        </Button>
+   261→      </CardContent>
+   262→    </Card>
+   263→  )
+   264→}
+   265→
+   266→/* -------------------------------------------------------------------------- */
+   267→/*  List row                                                                 */
+   268→/* -------------------------------------------------------------------------- */
+   269→
+   270→function TemplateRow({
+   271→  template,
+   272→  onSelect,
+   273→}: {
+   274→  template: Template
+   275→  onSelect: (t: Template) => void
+   276→}) {
+   277→  const { startWizard } = useAppStore()
+   278→  const isFree = template.price === null || template.price === 0
+   279→
+   280→  return (
+   281→    <div className="group flex flex-col gap-3 rounded-xl border border-white/5 bg-[#0F1D32]/80 p-4 backdrop-blur-sm transition-all hover:border-[#C9A94E]/20 hover:shadow-md hover:shadow-[#C9A94E]/5 sm:flex-row sm:items-center sm:gap-4">
+   282→      {/* Icon */}
+   283→      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#C9A94E]/10 text-lg transition-colors group-hover:bg-[#C9A94E]/15">
+   284→        {getLegalAreaEmoji(template.legalArea)}
+   285→      </div>
+   286→
+   287→      {/* Name + description */}
+   288→      <div className="min-w-0 flex-1">
+   289→        <h3
+   290→          className="cursor-pointer truncate text-sm font-semibold text-white/90 transition-colors group-hover:text-[#C9A94E]"
+   291→          onClick={() => onSelect(template)}
+   292→        >
+   293→          {template.name}
+   294→        </h3>
+   295→        <p className="mt-0.5 line-clamp-1 text-xs text-white/40">
+   296→          {template.description}
+   297→        </p>
+   298→      </div>
+   299→
+   300→      {/* Badges */}
+   301→      <div className="flex flex-wrap gap-2">
+   302→        <Badge
+   303→          variant="outline"
+   304→          className={
+   305→            isFree
+   306→              ? 'border-[#C9A94E]/30 bg-[#C9A94E]/10 text-[#C9A94E] text-[10px] font-semibold hover:bg-[#C9A94E]/20'
+   307→              : 'border-green-500/30 bg-green-500/10 text-green-400 text-[10px] font-semibold hover:bg-green-500/20'
+   308→          }
+   309→        >
+   310→          {isFree ? '✦ GRATUITO' : formatPrice(template.price)}
+   311→        </Badge>
+   312→        <Badge
+   313→          variant="outline"
+   314→          className="border-white/10 bg-white/5 text-white/50 text-[10px] hover:bg-white/10"
+   315→        >
+   316→          {template.audience === 'Profesionales' ? '👨‍💼' : '👤'} {template.audience}
+   317→        </Badge>
+   318→      </div>
+   319→
+   320→      {/* Stats */}
+   321→      <div className="hidden md:flex shrink-0 items-center gap-3 text-[11px] text-white/40">
+   322→        <span className="flex items-center gap-1">
+   323→          <Clock className="h-3 w-3" /> {template.estimatedMinutes} min
+   324→        </span>
+   325→        <span className="flex items-center gap-1">
+   326→          <HelpCircle className="h-3 w-3" /> {template.estimatedQuestions}
+   327→        </span>
+   328→        <span className="flex items-center gap-1">
+   329→          <Star className="h-3 w-3 fill-[#C9A94E] text-[#C9A94E]" /> {template.rating.toFixed(1)}
+   330→        </span>
+   331→      </div>
+   332→
+   333→      {/* CTA */}
+   334→      <Button
+   335→        className="shrink-0 bg-[#C9A94E]/15 text-[#C9A94E] border border-[#C9A94E]/20 text-xs font-semibold transition-all hover:bg-[#C9A94E]/25 hover:border-[#C9A94E]/40 hover:text-[#D4B965]"
+   336→        variant="outline"
+   337→        onClick={() => startWizard(template.id)}
+   338→      >
+   339→        Comenzar
+   340→      </Button>
+   341→    </div>
+   342→  )
+   343→}
+   344→
+   345→/* -------------------------------------------------------------------------- */
+   346→/*  Detail dialog                                                            */
+   347→/* -------------------------------------------------------------------------- */
+   348→
+   349→function TemplateDetailDialog({
+   350→  template,
+   351→  open,
+   352→  onOpenChange,
+   353→}: {
+   354→  template: Template | null
+   355→  open: boolean
+   356→  onOpenChange: (open: boolean) => void
+   357→}) {
+   358→  const { startWizard } = useAppStore()
+   359→
+   360→  if (!template) return null
+   361→
+   362→  const isFree = template.price === null || template.price === 0
+   363→
+   364→  return (
+   365→    <Dialog open={open} onOpenChange={onOpenChange}>
+   366→      <DialogContent className="max-h-[85vh] overflow-y-auto border-white/10 bg-[#0F1D32] sm:max-w-lg">
+   367→        <DialogHeader>
+   368→          <div className="flex items-center gap-3">
+   369→            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#C9A94E]/10 text-2xl">
+   370→              {getLegalAreaEmoji(template.legalArea)}
+   371→            </div>
+   372→            <div>
+   373→              <DialogTitle className="text-base font-semibold text-white">
+   374→                {template.name}
+   375→              </DialogTitle>
+   376→              <DialogDescription className="text-xs text-white/40">
+   377→                {template.category} · {template.legalArea}
+   378→              </DialogDescription>
+   379→            </div>
+   380→          </div>
+   381→        </DialogHeader>
+   382→
+   383→        <div className="space-y-5 pt-2">
+   384→          {/* Description */}
+   385→          <div>
+   386→            <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-white/30">
+   387→              Descripción
+   388→            </h4>
+   389→            <p className="text-sm leading-relaxed text-white/60">
+   390→              {template.description}
+   391→            </p>
+   392→          </div>
+   393→
+   394→          {/* Badges */}
+   395→          <div className="flex flex-wrap gap-2">
+   396→            <Badge
+   397→              variant="outline"
+   398→              className={
+   399→                isFree
+   400→                  ? 'border-[#C9A94E]/30 bg-[#C9A94E]/10 text-[#C9A94E] text-[10px] font-semibold'
+   401→                  : 'border-green-500/30 bg-green-500/10 text-green-400 text-[10px] font-semibold'
+   402→              }
+   403→            >
+   404→              {isFree ? '✦ GRATUITO' : formatPrice(template.price)}
+   405→            </Badge>
+   406→            <Badge
+   407→              variant="outline"
+   408→              className="border-white/10 bg-white/5 text-white/50 text-[10px]"
+   409→            >
+   410→              {template.audience === 'Profesionales' ? '👨‍💼' : '👤'} {template.audience}
+   411→            </Badge>
+   412→            <Badge
+   413→              variant="outline"
+   414→              className="border-white/10 bg-white/5 text-white/50 text-[10px]"
+   415→            >
+   416→              {template._count?.documents ?? 0} documentos generados
+   417→            </Badge>
+   418→          </div>
+   419→
+   420→          {/* Stats */}
+   421→          <div className="grid grid-cols-3 gap-3">
+   422→            <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-center">
+   423→              <Clock className="mx-auto mb-1 h-4 w-4 text-[#C9A94E]" />
+   424→              <p className="text-sm font-bold text-white">{template.estimatedMinutes} min</p>
+   425→              <p className="text-[10px] text-white/40">Tiempo estimado</p>
+   426→            </div>
+   427→            <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-center">
+   428→              <HelpCircle className="mx-auto mb-1 h-4 w-4 text-[#C9A94E]" />
+   429→              <p className="text-sm font-bold text-white">{template.estimatedQuestions}</p>
+   430→              <p className="text-[10px] text-white/40">Preguntas</p>
+   431→            </div>
+   432→            <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-center">
+   433→              <Star className="mx-auto mb-1 h-4 w-4 fill-[#C9A94E] text-[#C9A94E]" />
+   434→              <p className="text-sm font-bold text-white">{template.rating.toFixed(1)}</p>
+   435→              <p className="text-[10px] text-white/40">
+   436→                {template.ratingCount} {template.ratingCount === 1 ? 'reseña' : 'reseñas'}
+   437→              </p>
+   438→            </div>
+   439→          </div>
+   440→
+   441→          {/* Rating with stars */}
+   442→          <div className="flex items-center gap-2">
+   443→            {renderStars(template.rating)}
+   444→            <span className="text-xs text-white/40">
+   445→              {template.rating.toFixed(1)} de 5 · {template.ratingCount} calificaciones
+   446→            </span>
+   447→          </div>
+   448→
+   449→          {/* Normativity */}
+   450→          {template.normativity && template.normativity.length > 0 && (
+   451→            <div>
+   452→              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/30">
+   453→                Normativa aplicable
+   454→              </h4>
+   455→              <div className="space-y-1.5">
+   456→                {template.normativity.map((norm, i) => (
+   457→                  <div
+   458→                    key={i}
+   459→                    className="flex items-start gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2"
+   460→                  >
+   461→                    <Scale className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#C9A94E]/60" />
+   462→                    <div className="min-w-0">
+   463→                      <p className="text-xs font-medium text-white/70">{norm.lawName}</p>
+   464→                      <p className="text-[10px] text-white/40">{norm.lawReference}</p>
+   465→                    </div>
+   466→                  </div>
+   467→                ))}
+   468→              </div>
+   469→            </div>
+   470→          )}
+   471→
+   472→          {/* CTA */}
+   473→          <Button
+   474→            className="w-full bg-[#C9A94E] text-[#0A1628] font-semibold text-sm transition-all hover:bg-[#D4B965] hover:shadow-lg hover:shadow-[#C9A94E]/20"
+   475→            size="lg"
+   476→            onClick={() => {
+   477→              onOpenChange(false)
+   478→              startWizard(template.id)
+   479→            }}
+   480→          >
+   481→            Comenzar con esta plantilla
+   482→            <ArrowRight className="ml-1 h-4 w-4" />
+   483→          </Button>
+   484→        </div>
+   485→      </DialogContent>
+   486→    </Dialog>
+   487→  )
+   488→}
+   489→
+   490→/* -------------------------------------------------------------------------- */
+   491→/*  Empty state                                                              */
+   492→/* -------------------------------------------------------------------------- */
+   493→
+   494→function EmptyState({ hasFilters }: { hasFilters: boolean }) {
+   495→  const { setCurrentPage } = useAppStore()
+   496→
+   497→  return (
+   498→    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-[#0F1D32]/40 px-6 py-16 text-center">
+   499→      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/5">
+   500→        <Search className="h-6 w-6 text-white/20" />
+   501→      </div>
+   502→      <h3 className="text-base font-semibold text-white/60">
+   503→        {hasFilters ? 'Sin resultados' : 'No hay plantillas disponibles'}
+   504→      </h3>
+   505→      <p className="mt-1 max-w-sm text-sm text-white/30">
+   506→        {hasFilters
+   507→          ? 'Intenta ajustar los filtros o el término de búsqueda.'
+   508→          : 'Aún no hay plantillas en el catálogo. Vuelve más tarde.'}
+   509→      </p>
+   510→      <Button
+   511→        className="mt-6 bg-[#C9A94E]/15 text-[#C9A94E] border border-[#C9A94E]/20 text-xs font-semibold hover:bg-[#C9A94E]/25 hover:border-[#C9A94E]/40"
+   512→        variant="outline"
+   513→        onClick={() => setCurrentPage('documents')}
+   514→      >
+   515→        <Plus className="mr-1 h-3.5 w-3.5" />
+   516→        Solicitar documento personalizado
+   517→      </Button>
+   518→    </div>
+   519→  )
+   520→}
+   521→
+   522→/* -------------------------------------------------------------------------- */
+   523→/*  CatalogPage                                                              */
+   524→/* -------------------------------------------------------------------------- */
+   525→
+   526→export default function CatalogPage() {
+   527→  const { user, startWizard } = useAppStore()
+   528→
+   529→  /* ---- State ---- */
+   530→  const [templates, setTemplates] = useState<Template[]>([])
+   531→  const [loading, setLoading] = useState(true)
+   532→  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+   533→
+   534→  // Filters
+   535→  const [searchInput, setSearchInput] = useState('')
+   536→  const [debouncedSearch, setDebouncedSearch] = useState('')
+   537→  const [category, setCategory] = useState('all')
+   538→  const [legalArea, setLegalArea] = useState('all')
+   539→  const [audience, setAudience] = useState('all')
+   540→  const [priceFilter, setPriceFilter] = useState('all')
+   541→
+   542→  // Dialog
+   543→  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+   544→  const [dialogOpen, setDialogOpen] = useState(false)
+   545→
+   546→  // Debounce timer ref
+   547→  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+   548→
+   549→  /* ---- Debounced search ---- */
+   550→  const updateDebouncedSearch = useCallback((value: string) => {
+   551→    if (debounceTimerRef.current) {
+   552→      clearTimeout(debounceTimerRef.current)
+   553→    }
+   554→    debounceTimerRef.current = setTimeout(() => {
+   555→      setDebouncedSearch(value)
+   556→    }, 300)
+   557→  }, [])
+   558→
+   559→  // Sync search input to debounced value
+   560→  useEffect(() => {
+   561→    updateDebouncedSearch(searchInput)
+   562→    return () => {
+   563→      if (debounceTimerRef.current) {
+   564→        clearTimeout(debounceTimerRef.current)
+   565→      }
+   566→    }
+   567→  }, [searchInput, updateDebouncedSearch])
+   568→
+   569→  /* ---- Fetch templates ---- */
+   570→  const fetchTemplates = useCallback(async () => {
+   571→    if (!user) return
+   572→
+   573→    setLoading(true)
+   574→    try {
+   575→      const params = new URLSearchParams()
+   576→
+   577→      if (category !== 'all') params.set('category', category)
+   578→      if (legalArea !== 'all') params.set('legalArea', legalArea)
+   579→      if (audience !== 'all') params.set('audience', audience)
+   580→      if (priceFilter === 'free') params.set('price', 'free')
+   581→      if (priceFilter === 'paid') params.set('price', 'paid')
+   582→      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
+   583→
+   584→      const query = params.toString() ? `?${params.toString()}` : ''
+   585→      const res = await fetch(`/api/templates${query}`, {
+   586→        headers: { 'x-user-id': user.id },
+   587→      })
+   588→
+   589→      if (res.ok) {
+   590→        const data = await res.json()
+   591→        setTemplates(Array.isArray(data) ? data : [])
+   592→      }
+   593→    } catch {
+   594→      // keep empty on error
+   595→    } finally {
+   596→      setLoading(false)
+   597→    }
+   598→  }, [user, category, legalArea, audience, priceFilter, debouncedSearch])
+   599→
+   600→  useEffect(() => {
+   601→    fetchTemplates()
+   602→  }, [fetchTemplates])
+   603→
+   604→  /* ---- Handlers ---- */
+   605→  const handleSelectTemplate = useCallback((template: Template) => {
+   606→    setSelectedTemplate(template)
+   607→    setDialogOpen(true)
+   608→  }, [])
+   609→
+   610→  const handleDialogClose = useCallback((open: boolean) => {
+   611→    setDialogOpen(open)
+   612→    if (!open) {
+   613→      // Keep template reference for animation but can clear if desired
+   614→    }
+   615→  }, [])
+   616→
+   617→  const hasActiveFilters =
+   618→    searchInput.trim() !== '' ||
+   619→    category !== 'all' ||
+   620→    legalArea !== 'all' ||
+   621→    audience !== 'all' ||
+   622→    priceFilter !== 'all'
+   623→
+   624→  /* ---- Render ---- */
+   625→  return (
+   626→    <main className="min-h-screen bg-[#0A1628]">
+   627→      <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+   628→        {/* ---------- Header ---------- */}
+   629→        <div>
+   630→          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+   631→            Catálogo de Plantillas
+   632→          </h1>
+   633→          <p className="mt-1 text-sm text-white/50">
+   634→            Explora y genera documentos legales colombianos con plantillas profesionales.
+   635→          </p>
+   636→        </div>
+   637→
+   638→        {/* ---------- Search bar ---------- */}
+   639→        <div className="relative">
+   640→          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-white/30" />
+   641→          <Input
+   642→            placeholder="Buscar plantillas por nombre, tipo o palabra clave..."
+   643→            value={searchInput}
+   644→            onChange={(e) => setSearchInput(e.target.value)}
+   645→            className="h-11 w-full border-white/10 bg-[#0F1D32] pl-10 pr-4 text-sm text-white placeholder:text-white/30 focus-visible:border-[#C9A94E]/40 focus-visible:ring-[#C9A94E]/20"
+   646→          />
+   647→        </div>
+   648→
+   649→        {/* ---------- Filters row ---------- */}
+   650→        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+   651→          {/* Category */}
+   652→          <Select value={category} onValueChange={setCategory}>
+   653→            <SelectTrigger
+   654→              className="w-full border-white/10 bg-[#0F1D32] text-white/70 text-xs sm:w-[155px]"
+   655→              size="sm"
+   656→            >
+   657→              <SelectValue placeholder="Categoría" />
+   658→            </SelectTrigger>
+   659→            <SelectContent className="border-white/10 bg-[#0F1D32]">
+   660→              <SelectItem value="all" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   661→                Todas
+   662→              </SelectItem>
+   663→              <SelectItem value="Contratos" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   664→                Contratos
+   665→              </SelectItem>
+   666→              <SelectItem value="Actas" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   667→                Actas
+   668→              </SelectItem>
+   669→              <SelectItem value="Derechos de Petición" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   670→                Derechos de Petición
+   671→              </SelectItem>
+   672→            </SelectContent>
+   673→          </Select>
+   674→
+   675→          {/* Legal Area */}
+   676→          <Select value={legalArea} onValueChange={setLegalArea}>
+   677→            <SelectTrigger
+   678→              className="w-full border-white/10 bg-[#0F1D32] text-white/70 text-xs sm:w-[165px]"
+   679→              size="sm"
+   680→            >
+   681→              <SelectValue placeholder="Área del Derecho" />
+   682→            </SelectTrigger>
+   683→            <SelectContent className="border-white/10 bg-[#0F1D32]">
+   684→              <SelectItem value="all" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   685→                Todos
+   686→              </SelectItem>
+   687→              <SelectItem value="Civil" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   688→                Civil
+   689→              </SelectItem>
+   690→              <SelectItem value="Mercantil" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   691→                Mercantil
+   692→              </SelectItem>
+   693→              <SelectItem value="Laboral" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   694→                Laboral
+   695→              </SelectItem>
+   696→              <SelectItem value="Constitucional" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   697→                Constitucional
+   698→              </SelectItem>
+   699→            </SelectContent>
+   700→          </Select>
+   701→
+   702→          {/* Audience */}
+   703→          <Select value={audience} onValueChange={setAudience}>
+   704→            <SelectTrigger
+   705→              className="w-full border-white/10 bg-[#0F1D32] text-white/70 text-xs sm:w-[155px]"
+   706→              size="sm"
+   707→            >
+   708→              <SelectValue placeholder="Audiencia" />
+   709→            </SelectTrigger>
+   710→            <SelectContent className="border-white/10 bg-[#0F1D32]">
+   711→              <SelectItem value="all" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   712→                Todos
+   713→              </SelectItem>
+   714→              <SelectItem value="Profesionales" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   715→                Profesionales
+   716→              </SelectItem>
+   717→              <SelectItem value="Particulares" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   718→                Particulares
+   719→              </SelectItem>
+   720→            </SelectContent>
+   721→          </Select>
+   722→
+   723→          {/* Price */}
+   724→          <Select value={priceFilter} onValueChange={setPriceFilter}>
+   725→            <SelectTrigger
+   726→              className="w-full border-white/10 bg-[#0F1D32] text-white/70 text-xs sm:w-[135px]"
+   727→              size="sm"
+   728→            >
+   729→              <SelectValue placeholder="Precio" />
+   730→            </SelectTrigger>
+   731→            <SelectContent className="border-white/10 bg-[#0F1D32]">
+   732→              <SelectItem value="all" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   733→                Todos
+   734→              </SelectItem>
+   735→              <SelectItem value="free" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   736→                Gratuito
+   737→              </SelectItem>
+   738→              <SelectItem value="paid" className="text-white/70 focus:bg-[#C9A94E]/10 focus:text-[#C9A94E]">
+   739→                De Pago
+   740→              </SelectItem>
+   741→            </SelectContent>
+   742→          </Select>
+   743→
+   744→          {/* Spacer */}
+   745→          <div className="flex-1" />
+   746→
+   747→          {/* View toggle */}
+   748→          <ToggleGroup
+   749→            type="single"
+   750→            value={viewMode}
+   751→            onValueChange={(v) => {
+   752→              if (v) setViewMode(v as 'grid' | 'list')
+   753→            }}
+   754→            className="border-white/10 bg-[#0F1D32]"
+   755→          >
+   756→            <ToggleGroupItem
+   757→              value="grid"
+   758→              aria-label="Vista de cuadrícula"
+   759→              className="data-[state=on]:bg-[#C9A94E]/15 data-[state=on]:text-[#C9A94E] text-white/40 hover:bg-white/5 hover:text-white/60 h-8 w-8 rounded-l-md"
+   760→            >
+   761→              <LayoutGrid className="h-4 w-4" />
+   762→            </ToggleGroupItem>
+   763→            <ToggleGroupItem
+   764→              value="list"
+   765→              aria-label="Vista de lista"
+   766→              className="data-[state=on]:bg-[#C9A94E]/15 data-[state=on]:text-[#C9A94E] text-white/40 hover:bg-white/5 hover:text-white/60 h-8 w-8 rounded-r-md"
+   767→            >
+   768→              <List className="h-4 w-4" />
+   769→            </ToggleGroupItem>
+   770→          </ToggleGroup>
+   771→        </div>
+   772→
+   773→        {/* ---------- Results count ---------- */}
+   774→        <div className="flex items-center justify-between">
+   775→          <p className="text-xs text-white/40">
+   776→            {loading
+   777→              ? 'Cargando...'
+   778→              : `${templates.length} plantilla${templates.length !== 1 ? 's' : ''} encontrada${templates.length !== 1 ? 's' : ''}`}
+   779→          </p>
+   780→          {hasActiveFilters && (
+   781→            <button
+   782→              onClick={() => {
+   783→                setSearchInput('')
+   784→                setCategory('all')
+   785→                setLegalArea('all')
+   786→                setAudience('all')
+   787→                setPriceFilter('all')
+   788→              }}
+   789→              className="text-[11px] font-medium text-[#C9A94E]/70 transition-colors hover:text-[#C9A94E]"
+   790→            >
+   791→              Limpiar filtros
+   792→            </button>
+   793→          )}
+   794→        </div>
+   795→
+   796→        {/* ---------- Content ---------- */}
+   797→        {loading ? (
+   798→          viewMode === 'grid' ? (
+   799→            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+   800→              {Array.from({ length: 6 }).map((_, i) => (
+   801→                <SkeletonCard key={i} />
+   802→              ))}
+   803→            </div>
+   804→          ) : (
+   805→            <div className="flex flex-col gap-3">
+   806→              {Array.from({ length: 6 }).map((_, i) => (
+   807→                <SkeletonRow key={i} />
+   808→              ))}
+   809→            </div>
+   810→          )
+   811→        ) : templates.length === 0 ? (
+   812→          <EmptyState hasFilters={hasActiveFilters} />
+   813→        ) : viewMode === 'grid' ? (
+   814→          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+   815→            {templates.map((t) => (
+   816→              <TemplateCard key={t.id} template={t} onSelect={handleSelectTemplate} />
+   817→            ))}
+   818→          </div>
+   819→        ) : (
+   820→          <div className="flex flex-col gap-3">
+   821→            {templates.map((t) => (
+   822→              <TemplateRow key={t.id} template={t} onSelect={handleSelectTemplate} />
+   823→            ))}
+   824→          </div>
+   825→        )}
+   826→
+   827→        {/* ---------- Bottom CTA ---------- */}
+   828→        <div className="flex items-center justify-center pt-4">
+   829→          <button
+   830→            onClick={() => {
+   831→              // Navigate to a request page or open a dialog for custom document
+   832→              // For now, we'll set page to documents where a request flow might exist
+   833→            }}
+   834→            className="group flex items-center gap-3 rounded-xl border border-[#C9A94E]/15 bg-[#0F1D32]/60 px-6 py-4 text-left backdrop-blur-sm transition-all hover:border-[#C9A94E]/30 hover:bg-[#C9A94E]/5 hover:shadow-lg hover:shadow-[#C9A94E]/5"
+   835→          >
+   836→            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#C9A94E]/15 text-[#C9A94E] transition-colors group-hover:bg-[#C9A94E]/25">
+   837→              <Plus className="h-5 w-5" />
+   838→            </div>
+   839→            <div className="min-w-0 flex-1">
+   840→              <p className="text-sm font-semibold text-white/80 group-hover:text-white">
+   841→                ¿No encuentras lo que buscas?
+   842→              </p>
+   843→              <p className="text-xs text-white/40">
+   844→                Solicita un documento personalizado y nuestro equipo lo preparará para ti.
+   845→              </p>
+   846→            </div>
+   847→            <ArrowRight className="h-4 w-4 shrink-0 text-white/20 transition-transform group-hover:translate-x-0.5 group-hover:text-[#C9A94E]" />
+   848→          </button>
+   849→        </div>
+   850→      </div>
+   851→
+   852→      {/* ---------- Detail Dialog ---------- */}
+   853→      <TemplateDetailDialog
+   854→        template={selectedTemplate}
+   855→        open={dialogOpen}
+   856→        onOpenChange={handleDialogClose}
+   857→      />
+   858→    </main>
+   859→  )
+   860→}
+   861→

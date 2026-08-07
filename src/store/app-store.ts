@@ -1,0 +1,47 @@
+import { create } from 'zustand';
+
+export type Page = 'dashboard' | 'catalog' | 'wizard' | 'documents' | 'contacts' | 'admin' | 'admin-templates' | 'admin-clauses' | 'admin-users' | 'admin-requests' | 'admin-pricing' | 'payments' | 'profile';
+
+interface AppState {
+  user: {
+    id: string;
+    username: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    role: string;
+    status: string;
+    subscriptionPlan: string | null;
+    subscriptionEnd: string | null;
+  } | null;
+  token: string | null;
+  currentPage: Page;
+  focusMode: boolean;
+  sidebarOpen: boolean;
+  wizardTemplateId: string | null;
+  wizardDocumentId: string | null;
+  
+  setUser: (user: AppState['user'], token: string) => void;
+  logout: () => void;
+  setCurrentPage: (page: Page) => void;
+  toggleFocusMode: () => void;
+  setSidebarOpen: (open: boolean) => void;
+  startWizard: (templateId: string, documentId?: string) => void;
+}
+
+export const useAppStore = create<AppState>((set) => ({
+  user: null,
+  token: null,
+  currentPage: 'dashboard',
+  focusMode: false,
+  sidebarOpen: true,
+  wizardTemplateId: null,
+  wizardDocumentId: null,
+  
+  setUser: (user, token) => set({ user, token }),
+  logout: () => set({ user: null, token: null, currentPage: 'dashboard' }),
+  setCurrentPage: (page) => set({ currentPage: page, focusMode: false }),
+  toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode, sidebarOpen: !s.focusMode })),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  startWizard: (templateId, documentId) => set({ currentPage: 'wizard', wizardTemplateId: templateId, wizardDocumentId: documentId || null }),
+}));
