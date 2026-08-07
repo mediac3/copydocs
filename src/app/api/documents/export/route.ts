@@ -16,9 +16,12 @@ function renderContent(content: string, answers: Record<string, string>): string
   let rendered = content;
   for (const [key, value] of Object.entries(answers)) {
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\$\\{\\{${escaped}\\}\\}`, 'g');
+    // Match both {{key}} and the escaped ${{key}} variants
+    const regex = new RegExp(`\\$?\\{\\{${escaped}\\}\\}`, 'g');
     rendered = rendered.replace(regex, value || `[${key}]`);
   }
+  // Clean any remaining unresolved placeholders
+  rendered = rendered.replace(/\$?\{\{[^}]+\}\}/g, '');
   return rendered;
 }
 
@@ -58,13 +61,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 });
     }
 
+    // Always render from template + answers (authoritative source of truth).
+    // generatedContent may be a stale placeholder — ignore it.
+    const answers: Record<string, string> =
+      typeof doc.answers === 'string' ? JSON.parse(doc.answers) : (doc.answers as Record<string, string>) || {};
+
     let content: string;
-    if (doc.generatedContent) {
+    if (doc.template?.baseContent && Object.keys(answers).length > 0) {
+      content = renderContent(doc.template.baseContent, answers);
+    } else if (doc.generatedContent && doc.generatedContent.length > 100) {
+      // Only trust generatedContent if it's substantial (real content, not placeholder)
       content = doc.generatedContent;
     } else {
-      const answers: Record<string, string> =
-        typeof doc.answers === 'string' ? JSON.parse(doc.answers) : (doc.answers as Record<string, string>) || {};
-      content = renderContent(doc.template?.baseContent || `Documento: ${doc.title}`, answers);
+      content = `Documento: ${doc.title}\n\n[No se encontró contenido para exportar. El documento puede estar incompleto.]`;
     }
 
     if (format === 'pdf') {
