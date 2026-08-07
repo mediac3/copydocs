@@ -11,6 +11,7 @@ import {
   HeadingLevel,
 } from 'docx';
 import { readFileSync } from 'fs';
+import { Buffer } from 'node:buffer';
 
 function renderContent(content: string, answers: Record<string, string>): string {
   let rendered = content;
@@ -89,13 +90,22 @@ export async function GET(request: Request) {
 
 async function generatePDF(content: string, title: string): Promise<NextResponse> {
   const pdfDoc = await PDFDocument.create();
-  pdfDoc.registerFontkit(fontkit);
 
-  // Embed DejaVu Serif for full Unicode/Spanish support
-  const fontBytes = readFileSync('/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf');
-  const fontBoldBytes = readFileSync('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf');
-  const font = await pdfDoc.embedFont(fontBytes);
-  const fontBold = await pdfDoc.embedFont(fontBoldBytes);
+  let font: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
+  let fontBold: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
+
+  try {
+    // Try system fonts (DejaVu Serif) for full Unicode/Spanish support
+    pdfDoc.registerFontkit(fontkit);
+    const fontBytes = readFileSync('/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf');
+    const fontBoldBytes = readFileSync('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf');
+    font = await pdfDoc.embedFont(fontBytes);
+    fontBold = await pdfDoc.embedFont(fontBoldBytes);
+  } catch {
+    // Fallback to built-in standard fonts (work in any environment)
+    font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  }
 
   const pageWidth = 612; // Letter
   const pageHeight = 792;
@@ -211,7 +221,7 @@ async function generatePDF(content: string, title: string): Promise<NextResponse
 
   const pdfBytes = await pdfDoc.save();
 
-  return new NextResponse(pdfBytes, {
+  return new NextResponse(Buffer.from(pdfBytes), {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',

@@ -1,3 +1,230 @@
+    93→function detectContactType(fieldKey: string): string | null {
+    94→  const lower = fieldKey.toLowerCase()
+    95→  for (const [contactType, prefixes] of Object.entries(CONTACT_TYPE_MAP)) {
+    96→    for (const prefix of prefixes) {
+    97→      if (lower.includes(prefix)) return contactType
+    98→    }
+    99→  }
+   100→  return null
+   101→}
+   102→
+   103→/* -------------------------------------------------------------------------- */
+   104→/*  Component                                                                */
+   105→/* -------------------------------------------------------------------------- */
+   106→
+   107→export default function WizardPage() {
+   108→  const { user, wizardTemplateId, wizardDocumentId, setCurrentPage } = useAppStore()
+   109→
+   110→  /* ---- state ---- */
+   111→  const [template, setTemplate] = useState<Template | null>(null)
+   112→  const [wizardConfig, setWizardConfig] = useState<WizardConfig | null>(null)
+   113→  const [currentStep, setCurrentStep] = useState(0)
+   114→  const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({})
+   115→  const [loading, setLoading] = useState(true)
+   116→  const [generating, setGenerating] = useState(false)
+   117→  const [saving, setSaving] = useState(false)
+   118→  const [docId, setDocId] = useState<string | null>(wizardDocumentId)
+   119→  const [contactsCache, setContactsCache] = useState<Record<string, Contact[]>>({})
+   120→  const [showContacts, setShowContacts] = useState<string | null>(null)
+   121→  const previewRef = useRef<HTMLDivElement>(null)
+   122→  const hasLoadedDraft = useRef(false)
+   123→
+   124→  /* ---- fetch template ---- */
+   125→  useEffect(() => {
+   126→    if (!wizardTemplateId) {
+   127→      setCurrentPage('catalog')
+   128→      return
+   129→    }
+   130→    async function load() {
+   131→      try {
+   132→        const res = await fetch('/api/templates')
+   133→        const data = await res.json()
+   134→        const found: Template | undefined = data.templates?.find(
+   135→          (t: Template) => t.id === wizardTemplateId
+   136→        )
+   137→        if (!found) {
+   138→          toast.error('Plantilla no encontrada')
+   139→          setCurrentPage('catalog')
+   140→          return
+   141→        }
+   142→        setTemplate(found)
+   143→        try {
+   144→          const config: WizardConfig = typeof found.wizardConfig === 'string' 
+   145→            ? JSON.parse(found.wizardConfig) 
+   146→            : found.wizardConfig
+   147→          setWizardConfig(config)
+   148→        } catch {
+   149→          toast.error('Error al leer configuración de la plantilla')
+   150→          setCurrentPage('catalog')
+   151→          return
+   152→        }
+   153→
+   154→        // Load existing draft if editing
+   155→        if (wizardDocumentId && !hasLoadedDraft.current) {
+   156→          hasLoadedDraft.current = true
+   157→          const docRes = await fetch('/api/documents')
+   158→          if (docRes.ok) {
+   159→            const docData = await docRes.json()
+   160→            const existing = docData.documents?.find(
+   161→              (d: { id: string; templateId: string }) => d.id === wizardDocumentId
+   162→            )
+   163→            if (existing && existing.answers) {
+   164→              try {
+   165→                const parsed = typeof existing.answers === 'string' 
+   166→                  ? JSON.parse(existing.answers) 
+   167→                  : existing.answers
+   168→                setAnswers(parsed)
+   169→                setDocId(existing.id)
+   170→              } catch { /* ignore */ }
+   171→            }
+   172→          }
+   173→        }
+   174→      } catch {
+   175→        toast.error('Error al cargar la plantilla')
+   176→        setCurrentPage('catalog')
+   177→      } finally {
+   178→        setLoading(false)
+   179→      }
+   180→    }
+   181→    load()
+   182→  }, [wizardTemplateId])
+   183→
+   184→  /* ---- fetch contacts for a field ---- */
+   185→  const fetchContacts = useCallback(async (contactType: string) => {
+   186→    if (contactsCache[contactType]) return contactsCache[contactType]
+   187→    if (!user) return []
+   188→    try {
+   189→      const res = await fetch(`/api/contacts?type=${encodeURIComponent(contactType)}`, {
+   190→        headers: { 'x-user-id': user.id },
+   191→      })
+   192→      if (!res.ok) return []
+   193→      const data = await res.json()
+   194→      const contacts: Contact[] = data.contacts || []
+   195→      setContactsCache((prev) => ({ ...prev, [contactType]: contacts }))
+   196→      return contacts
+   197→    } catch {
+   198→      return []
+   199→    }
+   200→  }, [contactsCache, user])
+   201→
+   202→  /* ---- auto-open contacts dropdown on focus ---- */
+   203→  const handleFieldFocus = useCallback(async (fieldKey: string) => {
+   204→    const contactType = detectContactType(fieldKey)
+   205→    if (!contactType) return
+   206→    const contacts = await fetchContacts(contactType)
+   207→    if (contacts.length > 0) {
+   208→      setShowContacts(fieldKey)
+   209→    }
+   210→  }, [fetchContacts])
+   211→
+   212→  /* ---- apply contact data ---- */
+   213→  const applyContact = useCallback((contact: Contact, fieldKey: string) => {
+   214→    const updates: Record<string, string> = {}
+   215→    // Map contact fields to wizard answer keys
+   216→    if (contact.name) {
+   217→      const nameKey = fieldKey.includes('nombre') ? fieldKey : fieldKey.replace(/_cc$|_cedula$|_nit$|_direccion$|_ciudad$|_telefono$|_email$/, '_nombre')
+   218→      updates[nameKey] = contact.name
+   219→    }
+   220→    if (contact.documentNumber) {
+   221→      const ccKey = fieldKey.replace(/_nombre$|_direccion$|_ciudad$|_telefono$|_email$/, '_cc').replace(/_nombre$/, '_cc')
+   222→      // Try common patterns
+   223→      for (const suffix of ['_cc', '_cedula', '_nit', '_documento']) {
+   224→        const candidate = fieldKey.replace(/_nombre.*$/, suffix)
+   225→        updates[candidate] = contact.documentNumber
+   226→      }
+   227→    }
+   228→    if (contact.address) {
+   229→      updates[fieldKey.replace(/_nombre.*$/, '_direccion')] = contact.address
+   230→    }
+   231→    if (contact.city) {
+   232→      updates[fieldKey.replace(/_nombre.*$/, '_ciudad')] = contact.city
+   233→    }
+   234→    if (contact.phone) {
+   235→      updates[fieldKey.replace(/_nombre.*$/, '_telefono')] = contact.phone
+   236→    }
+   237→    if (contact.email) {
+   238→      updates[fieldKey.replace(/_nombre.*$/, '_email')] = contact.email
+   239→    }
+   240→
+   241→    // For the current field itself, just set the name
+   242→    if (contact.name && ['text'].includes(wizardConfig?.steps.flatMap(s => s.fields).find(f => f.key === fieldKey)?.type || '')) {
+   243→      updates[fieldKey] = contact.name
+   244→    }
+   245→
+   246→    setAnswers((prev) => {
+   247→      const next = { ...prev }
+   248→      for (const [k, v] of Object.entries(updates)) {
+   249→        // Only set if the key exists in wizard config
+   250→        const allFields = wizardConfig?.steps.flatMap((s) => s.fields) || []
+   251→        if (allFields.some((f) => f.key === k)) {
+   252→          next[k] = v
+   253→        }
+   254→      }
+   255→      return next
+   256→    })
+   257→    setShowContacts(null)
+   258→    toast.success(`Datos de ${contact.name} aplicados`)
+   259→  }, [wizardConfig])
+   260→
+   261→  /* ---- update answer ---- */
+   262→  const updateAnswer = useCallback((key: string, value: string | number | boolean) => {
+   263→    setAnswers((prev) => ({ ...prev, [key]: value }))
+   264→  }, [])
+   265→
+   266→  /* ---- check condition ---- */
+   267→  const isFieldVisible = useCallback(
+   268→    (field: WizardField) => {
+   269→      if (!field.condition) return true
+   270→      return answers[field.condition.field] === field.condition.value
+   271→    },
+   272→    [answers]
+   273→  )
+   274→
+   275→  /* ---- navigation ---- */
+   276→  const totalSteps = wizardConfig ? wizardConfig.steps.length : 0
+   277→  const isReviewStep = currentStep === totalSteps
+   278→
+   279→  const goToStep = useCallback(
+   280→    (step: number) => {
+   281→      if (step < 0 || step > totalSteps) return
+   282→      setCurrentStep(step)
+   283→    },
+   284→    [totalSteps]
+   285→  )
+   286→
+   287→  const goNext = useCallback(() => {
+   288→    if (currentStep < totalSteps) setCurrentStep((s) => s + 1)
+   289→  }, [currentStep, totalSteps])
+   290→
+   291→  const goPrev = useCallback(() => {
+   292→    if (currentStep > 0) setCurrentStep((s) => s - 1)
+   293→  }, [currentStep])
+   294→
+   295→  /* ---- save draft ---- */
+   296→  const saveDraft = useCallback(async () => {
+   297→    if (!user || !template) return
+   298→    setSaving(true)
+   299→    try {
+   300→      const headers: HeadersInit = {
+   301→        'Content-Type': 'application/json',
+   302→        'x-user-id': user.id,
+   303→      }
+   304→      if (docId) {
+   305→        await fetch('/api/documents', {
+   306→          method: 'PUT',
+   307→          headers,
+   308→          body: JSON.stringify({
+   309→            id: docId,
+   310→            title: template.name,
+   311→            answers,
+   312→            status: 'draft',
+   313→          }),
+   314→        })
+   315→      } else {
+   316→        const res = await fetch('/api/documents', {
+   317→          method: 'POST',
+   318→          headers,
+   319→          body: JSON.stringify({
    320→            templateId: template.id,
    321→            title: template.name,
    322→            answers,

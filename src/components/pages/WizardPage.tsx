@@ -144,6 +144,16 @@ export default function WizardPage() {
           const config: WizardConfig = typeof found.wizardConfig === 'string' 
             ? JSON.parse(found.wizardConfig) 
             : found.wizardConfig
+          // Normalize: seed data may use 'id' instead of 'key' for field identifiers
+          if (config && config.steps) {
+            for (const step of config.steps) {
+              for (const field of step.fields) {
+                if (!field.key && (field as Record<string, unknown>).id) {
+                  field.key = String((field as Record<string, unknown>).id)
+                }
+              }
+            }
+          }
           setWizardConfig(config)
         } catch {
           toast.error('Error al leer configuración de la plantilla')
