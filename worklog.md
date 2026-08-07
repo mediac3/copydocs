@@ -1,34 +1,32 @@
-# LexDoc Worklog
-
 ---
 Task ID: 1
-Agent: Main Agent
-Task: 6 actualizaciones frontend para LexDoc
+Agent: main
+Task: Fix 'Sun is not defined' error and replace plan system with credit system
 
 Work Log:
-- Removed demo/admin credentials section from LoginPage.tsx
-- Added 'Documento Borrador' diagonal watermark overlay to WizardPage preview panel
-- Disabled right-click (contextmenu) and copy events on preview for visitor users
-- Modified Prisma schema to make userId optional on UserDocument, added visitorPhone/visitorName fields
-- Created /api/documents/visitor POST endpoint for visitor document saving
-- Created /api/documents/visitor-list GET endpoint for admin to fetch visitor documents
-- Updated /api/documents/export to support admin export via x-admin-export header
-- Modified WizardPage sendWhatsApp to save visitor document before opening WhatsApp
-- Added VisitorDocument interface and visitor documents table to AdminPage solicitudes tab with PDF/DOCX download buttons
-- Created warm theme (.warm CSS class) with cream/amber palette as default
-- Updated ThemeProvider default from 'dark' to 'warm'
-- Updated AppLayout theme toggle to cycle warm → dark → light
-- Added comprehensive CSS overrides in globals.css for hardcoded navy/gold classes under .warm
-- Changed default store state: isVisitor=true, showLogin=false, focusMode=false
-- Updated page.tsx to show catalog first for visitors, login on showLogin flag
-- Updated CatalogPage visitor header with theme toggle + 'Iniciar sesion' button using CSS variables
-- Updated LoginPage to use CSS variables, accept onBack prop, and show back button
-- Added showLoginPage/hideLoginPage actions to Zustand store
+- Fixed 'Sun is not defined' error by adding Sun to lucide-react imports in CatalogPage.tsx
+- Updated Prisma schema: removed SubscriptionPlan model, added credits field to User, added CreditTransaction model
+- Ran prisma db push to migrate database
+- Updated seed.ts: replaced subscriptionPlan/subscriptionEnd with credits (admin: 999, demo: 10)
+- Re-seeded database successfully
+- Created /api/credits/route.ts (GET: balance+transactions, POST: deduct credits)
+- Created /api/admin/credits/route.ts (GET: all users credits, POST: add credits to user)
+- Updated app-store.ts: replaced subscriptionPlan/subscriptionEnd with credits in user type
+- Updated /api/auth/me and login to return credits
+- Updated /api/admin/users to return credits
+- Rewrote PaymentsPage.tsx as credit balance page with transaction history
+- Updated AppLayout.tsx: sidebar nav labels (Pagos→Créditos, Precios→Créditos), icons (CreditCard→Coins), credit badge
+- Updated AdminPage.tsx: replaced Plan interface with CreditUser/CreditTransaction, replaced plan state/fetchers/actions with credit equivalents, replaced Precios tab UI with credit management table, add credits dialog, transaction history view
+- Updated admin users table: subscription column → credits column
+- Updated /api/admin route: totalRevenue → totalCredits aggregation
+- Updated WizardPage.tsx: credit check before generating document, credit deduction on completion
+- Disabled /api/plans endpoint (returns empty plans array)
+- Added Coins import to DashboardPage.tsx
+- Build verified successful
 
 Stage Summary:
-- All 6 updates implemented and build verified successfully
-- New API endpoints: /api/documents/visitor, /api/documents/visitor-list
-- DB schema updated with visitorPhone, visitorName fields on UserDocument
-- Warm theme (cream/amber) is now the default, dark theme accessible via theme toggle
-- Visitors land on catalog first with login button in header
-- Admin can see and download visitor documents from Solicitudes section
+- Sun is not defined error: FIXED (added import)
+- Plan system replaced with credit system: COMPLETE
+- Each user gets X credits, admin can add more via Créditos tab
+- 1 credit = 1 completed document by registered user
+- Build passes successfully

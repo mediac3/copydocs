@@ -16,12 +16,13 @@ model User {
   phone         String?
   role          String    @default("client")
   status        String    @default("active")
-  subscriptionPlan String?
-  subscriptionEnd   DateTime?
+  credits       Int       @default(10)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   documents     UserDocument[]
   contacts      Contact[]
+  creditTransactions CreditTransaction[]
+  creditGrants     CreditTransaction[] @relation("CreditAdmin")
 }
 
 model DocumentTemplate {
@@ -140,15 +141,14 @@ model Payment {
   updatedAt       DateTime  @updatedAt
 }
 
-model SubscriptionPlan {
+model CreditTransaction {
   id              String    @id @default(cuid())
-  name            String
-  price           Float
-  currency        String    @default("COP")
-  interval        String    @default("monthly")
-  features        String
-  maxDocuments    Int
-  isActive        Boolean   @default(true)
+  userId          String
+  amount          Int
+  type            String
+  description     String?
+  adminId         String?
   createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admin           User?     @relation("CreditAdmin", fields: [adminId], references: [id], onDelete: SetNull)
 }

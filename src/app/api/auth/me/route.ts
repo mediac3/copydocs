@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   const { db } = await import('@/lib/db');
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { id: true, username: true, name: true, email: true, phone: true, role: true, status: true, subscriptionPlan: true, subscriptionEnd: true }
+    select: { id: true, username: true, name: true, email: true, phone: true, role: true, status: true, credits: true }
   });
   if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
   return NextResponse.json({ user });

@@ -8,8 +8,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  LayoutDashboard, FileText, Library, FileStack, Users, Settings, CreditCard,
-  ChevronLeft, ChevronRight, LogOut, Scale, Shield, Menu, X, Crown, Sun, Moon, Palette
+  LayoutDashboard, FileText, Library, FileStack, Users, Settings, Coins,
+  ChevronLeft, ChevronRight, LogOut, Scale, Shield, Menu, X, Sun, Moon, Palette
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
@@ -19,7 +19,7 @@ const CLIENT_NAV: { icon: typeof LayoutDashboard; label: string; page: Page; bad
   { icon: Library, label: 'Catálogo', page: 'catalog' },
   { icon: FileText, label: 'Mis Documentos', page: 'documents' },
   { icon: Users, label: 'Mis Datos', page: 'contacts' },
-  { icon: CreditCard, label: 'Pagos', page: 'payments' },
+  { icon: Coins, label: 'Créditos', page: 'payments' },
 ];
 
 const ADMIN_NAV: { icon: typeof LayoutDashboard; label: string; page: Page }[] = [
@@ -28,7 +28,7 @@ const ADMIN_NAV: { icon: typeof LayoutDashboard; label: string; page: Page }[] =
   { icon: FileStack, label: 'Cláusulas', page: 'admin-clauses' },
   { icon: Users, label: 'Usuarios', page: 'admin-users' },
   { icon: Settings, label: 'Solicitudes', page: 'admin-requests' },
-  { icon: CreditCard, label: 'Precios', page: 'admin-pricing' },
+  { icon: Coins, label: 'Créditos', page: 'admin-pricing' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -116,10 +116,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <span className="text-xs text-primary font-medium">Administrador</span>
               </div>
             )}
-            {user?.subscriptionPlan && user.subscriptionPlan !== 'Básico' && sidebarOpen && (
+            {sidebarOpen && user?.role !== 'admin' && (
               <div className="flex items-center gap-2 px-3 py-1.5">
-                <Crown className="w-4 h-4 text-primary" />
-                <span className="text-xs text-sidebar-foreground">Plan {user.subscriptionPlan}</span>
+                <Coins className="w-4 h-4 text-primary" />
+                <span className="text-xs text-sidebar-foreground">{user.credits} crédito{user.credits !== 1 ? 's' : ''}</span>
               </div>
             )}
             <Tooltip>

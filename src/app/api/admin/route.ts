@@ -8,11 +8,11 @@ export async function GET(request: Request) {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user || user.role !== 'admin') return NextResponse.json({ error: 'Sin permisos' }, { status: 403 });
 
-  const [totalUsers, totalDocuments, totalTemplates, totalRevenue, recentDocs, monthlyStats] = await Promise.all([
+  const [totalUsers, totalDocuments, totalTemplates, totalCredits, recentDocs, monthlyStats] = await Promise.all([
     db.user.count({ where: { role: 'client' } }),
     db.userDocument.count(),
     db.documentTemplate.count({ where: { status: 'published' } }),
-    db.payment.aggregate({ where: { status: 'completed' }, _sum: { amount: true } }),
+    db.user.aggregate({ _sum: { credits: true } }),
     db.userDocument.findMany({ take: 5, include: { user: { select: { name: true } }, template: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
     db.$queryRaw<Array<{month: string, count: number}>>`
       SELECT strftime('%Y-%m', createdAt) as month, COUNT(*) as count
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
       totalUsers,
       totalDocuments,
       totalTemplates,
-      totalRevenue: totalRevenue._sum.amount || 0,
+      totalCredits: totalCredits._sum.credits || 0,
       recentDocs,
       monthlyStats,
       topTemplates: templateStats

@@ -19,8 +19,7 @@ async function main() {
       phone: '3001234567',
       role: 'admin',
       status: 'active',
-      subscriptionPlan: 'Premium',
-      subscriptionEnd: new Date('2027-12-31'),
+      credits: 999,
     },
   });
 
@@ -35,27 +34,11 @@ async function main() {
       phone: '3109876543',
       role: 'client',
       status: 'active',
-      subscriptionPlan: 'Básico',
-      subscriptionEnd: new Date('2027-06-30'),
+      credits: 10,
     },
   });
 
-  // 2. Subscription Plans
-  const plans = [
-    { name: 'Básico', price: 14900, currency: 'COP', interval: 'monthly', features: JSON.stringify(['5 documentos/mes', 'Plantillas básicas', 'Soporte por email', 'Descarga PDF']), maxDocuments: 5, isActive: true },
-    { name: 'Profesional', price: 34900, currency: 'COP', interval: 'monthly', features: JSON.stringify(['25 documentos/mes', 'Todas las plantillas', 'Soporte prioritario', 'PDF y DOCX', 'Cláusulas personalizadas']), maxDocuments: 25, isActive: true },
-    { name: 'Premium', price: 59900, currency: 'COP', interval: 'monthly', features: JSON.stringify(['Documentos ilimitados', 'Todas las plantillas', 'Soporte dedicado', 'PDF y DOCX', 'Biblioteca de cláusulas', 'Facturación electrónica DIAN', 'API access']), maxDocuments: 999, isActive: true },
-  ];
-
-  for (const p of plans) {
-    await db.subscriptionPlan.upsert({
-      where: { id: `plan-${p.name.toLowerCase()}` },
-      update: {},
-      create: { id: `plan-${p.name.toLowerCase()}`, ...p },
-    });
-  }
-
-  // 3. Clauses
+  // 2. Clauses
   const clausesData = [
     { id: 'cl-1', title: 'Cláusula de Confidencialidad', content: 'Las partes acuerdan mantener en estricta confidencialidad toda la información intercambiada en el marco de este contrato, incluyendo但不限于 información comercial, financiera, técnica y operativa. Esta obligación persistirá por un período de cinco (5) años contados a partir de la terminación del contrato. El incumplimiento de esta cláusula dará lugar a indemnización de perjuicios conforme al artículo 1613 del Código Civil Colombiano.', legalArea: 'General', category: 'Confidencialidad', isDefault: true },
     { id: 'cl-2', title: 'Cláusula de Jurisdicción', content: 'Para cualquier controversia que surja con ocasión de la celebración, ejecución o terminación del presente contrato, las partes se someten a la jurisdicción de los Jueces Civiles del Circuito de Bogotá D.C., renunciando expresamente a cualquier otro fuero o competencia que pudiere corresponderles por razón de domicilio presente o futuro. En caso de controversia, las partes intentarán primero una solución amigable conforme al artículo 15 de la Ley 1561 de 2012.', legalArea: 'General', category: 'Jurisdicción', isDefault: true },

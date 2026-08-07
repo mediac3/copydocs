@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { FileText, FileEdit, Download, Clock, Plus, Search, ArrowRight, TrendingUp } from 'lucide-react'
+import { FileText, FileEdit, Download, Clock, Plus, Search, ArrowRight, TrendingUp, Coins } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAppStore } from '@/store/app-store'

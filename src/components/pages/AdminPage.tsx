@@ -8,7 +8,7 @@ import {
   BookOpen,
   Layout,
   Settings,
-  CreditCard,
+  Coins,
   MessageSquare,
   Check,
   X,
@@ -101,7 +101,7 @@ interface AdminUser {
   email: string
   role: string
   status: string
-  subscription: string
+  credits: number
   documentCount: number
   lastAccess: string
 }
@@ -126,13 +126,22 @@ interface VisitorDocument {
   template?: { name: string; category: string }
 }
 
-interface Plan {
+interface CreditUser {
   id: string
   name: string
-  price: number
-  interval: string
-  features: string[]
-  popular?: boolean
+  username: string
+  email: string
+  phone: string
+  status: string
+  credits: number
+}
+
+interface CreditTransaction {
+  id: string
+  amount: number
+  type: string
+  description: string | null
+  createdAt: string
 }
 
 interface NewTemplateForm {
@@ -331,11 +340,16 @@ export default function AdminPage() {
   const [visitorDocs, setVisitorDocs] = useState<VisitorDocument[]>([])
   const [loadingVisitorDocs, setLoadingVisitorDocs] = useState(true)
 
-  /* ---- Plans state ---- */
-  const [plans, setPlans] = useState<Plan[]>([])
-  const [loadingPlans, setLoadingPlans] = useState(true)
-  const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
-  const [planPrice, setPlanPrice] = useState('')
+  /* ---- Credits state ---- */
+  const [creditUsers, setCreditUsers] = useState<CreditUser[]>([])
+  const [loadingCreditUsers, setLoadingCreditUsers] = useState(true)
+  const [selectedCreditUser, setSelectedCreditUser] = useState<CreditUser | null>(null)
+  const [creditTransactions, setCreditTransactions] = useState<CreditTransaction[]>([])
+  const [loadingCreditTx, setLoadingCreditTx] = useState(false)
+  const [addCreditsAmount, setAddCreditsAmount] = useState('')
+  const [addCreditsDesc, setAddCreditsDesc] = useState('')
+  const [addingCredits, setAddingCredits] = useState(false)
+  const [creditDialogOpen, setCreditDialogOpen] = useState(false)
 
   /* ---- Auth header helper ---- */
   const authHeaders = useCallback(() => ({
@@ -465,18 +479,33 @@ export default function AdminPage() {
     }
   }, [])
 
-  const fetchPlans = useCallback(async () => {
-    setLoadingPlans(true)
+  const fetchCreditUsers = useCallback(async () => {
+    setLoadingCreditUsers(true)
     try {
-      const res = await fetch('/api/plans', { headers: authHeaders() })
+      const res = await fetch('/api/admin/credits', { headers: authHeaders() })
       if (res.ok) {
         const data = await res.json()
-        setPlans(Array.isArray(data) ? data : data.plans || [])
+        setCreditUsers(data.users || [])
       }
     } catch {
       // keep empty on error
     } finally {
-      setLoadingPlans(false)
+      setLoadingCreditUsers(false)
+    }
+  }, [authHeaders])
+
+  const fetchCreditTransactions = useCallback(async (userId: string) => {
+    setLoadingCreditTx(true)
+    try {
+      const res = await fetch(`/api/admin/credits?userId=${userId}`, { headers: authHeaders() })
+      if (res.ok) {
+        const data = await res.json()
+        setCreditTransactions(data.transactions || [])
+      }
+    } catch {
+      // keep empty on error
+    } finally {
+      setLoadingCreditTx(false)
     }
   }, [authHeaders])
 
@@ -501,8 +530,8 @@ export default function AdminPage() {
   }, [activeTab, fetchRequests, fetchVisitorDocs])
 
   useEffect(() => {
-    if (activeTab === 'precios') fetchPlans()
-  }, [activeTab, fetchPlans])
+    if (activeTab === 'precios') fetchCreditUsers()
+  }, [activeTab, fetchCreditUsers])
 
   /* ========================================================================== */
   /*  ACTION HANDLERS                                                           */
@@ -699,29 +728,48 @@ export default function AdminPage() {
     }
   }
 
-  /* ---- Plan actions ---- */
-  const handleOpenEditPlan = (plan: Plan) => {
-    setEditingPlan(plan)
-    setPlanPrice(String(plan.price))
+  /* ---- Credit actions ---- */
+  const handleOpenCreditDialog = (user: CreditUser) => {
+    setSelectedCreditUser(user)
+    setAddCreditsAmount('')
+    setAddCreditsDesc('')
+    setCreditDialogOpen(true)
   }
 
-  const handleSavePlanPrice = async () => {
-    if (!editingPlan) return
+  const handleViewCreditHistory = (user: CreditUser) => {
+    setSelectedCreditUser(user)
+    fetchCreditTransactions(user.id)
+  }
+
+  const handleAddCredits = async () => {
+    if (!selectedCreditUser || !addCreditsAmount || Number(addCreditsAmount) <= 0) {
+      toast.error('Ingresa una cantidad válida')
+      return
+    }
+    setAddingCredits(true)
     try {
-      const res = await fetch('/api/admin', {
+      const res = await fetch('/api/admin/credits', {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ action: 'update_plan', planId: editingPlan.id, price: Number(planPrice) || 0 }),
+        body: JSON.stringify({
+          userId: selectedCreditUser.id,
+          amount: Number(addCreditsAmount),
+          description: addCreditsDesc || undefined,
+        }),
       })
       if (res.ok) {
-        toast.success('Precio actualizado')
-        setEditingPlan(null)
-        fetchPlans()
+        const data = await res.json()
+        toast.success(data.message || 'Créditos agregados')
+        setCreditDialogOpen(false)
+        fetchCreditUsers()
+        if (selectedCreditUser) fetchCreditTransactions(selectedCreditUser.id)
       } else {
-        toast.error('Error al actualizar precio')
+        toast.error('Error al agregar créditos')
       }
     } catch {
       toast.error('Error de conexión')
+    } finally {
+      setAddingCredits(false)
     }
   }
 
@@ -756,7 +804,7 @@ export default function AdminPage() {
     { value: 'clausulas', label: 'Cláusulas', icon: BookOpen },
     { value: 'usuarios', label: 'Usuarios', icon: Users },
     { value: 'solicitudes', label: 'Solicitudes', icon: MessageSquare },
-    { value: 'precios', label: 'Precios', icon: CreditCard },
+    { value: 'precios', label: 'Créditos', icon: Coins },
   ]
 
   /* ========================================================================== */
@@ -1307,7 +1355,7 @@ export default function AdminPage() {
                               <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Email</TableHead>
                               <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Rol</TableHead>
                               <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
-                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Suscripción</TableHead>
+                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Créditos</TableHead>
                               <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Docs</TableHead>
                               <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 xl:table-cell">Último acceso</TableHead>
                               <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
@@ -1345,7 +1393,7 @@ export default function AdminPage() {
                                 <TableCell>
                                   <StatusBadge status={u.status} config={USER_STATUS_CONFIG} />
                                 </TableCell>
-                                <TableCell className="hidden text-white/40 sm:table-cell">{u.subscription || '—'}</TableCell>
+                                <TableCell className="hidden text-white/40 sm:table-cell"><span className="font-semibold text-[#C9A94E]">{u.credits}</span></TableCell>
                                 <TableCell className="hidden text-right text-white/40 lg:table-cell">{u.documentCount}</TableCell>
                                 <TableCell className="hidden text-right text-white/40 xl:table-cell">{u.lastAccess ? formatDate(u.lastAccess) : '—'}</TableCell>
                                 <TableCell className="text-right">
@@ -1579,82 +1627,170 @@ export default function AdminPage() {
             </TabsContent>
 
             {/* ============================================================ */}
-            {/*  6. CONFIGURACIÓN DE PRECIOS                                */}
+            {/*  6. GESTION DE CREDITOS                                     */}
             {/* ============================================================ */}
             <TabsContent value="precios" className="mt-0 flex-1 lg:ml-6">
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Configuración de Precios</h2>
-                  <p className="text-xs text-white/40">Gestiona los planes de suscripción</p>
+                  <h2 className="text-lg font-semibold text-white">Gestión de Créditos</h2>
+                  <p className="text-xs text-white/40">Administra los créditos de los usuarios. Cada crédito equivale a un documento.</p>
                 </div>
 
-                {loadingPlans ? (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="h-64 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
-                    ))}
-                  </div>
-                ) : plans.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {plans.map((plan) => (
-                      <Card
-                        key={plan.id}
-                        className={`relative border ${plan.popular ? 'border-[#C9A94E]/40' : 'border-white/5'} bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5`}
-                      >
-                        {plan.popular && (
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                            <Badge className="bg-[#C9A94E] text-[#0A1628] border-0 font-semibold">
-                              Popular
-                            </Badge>
-                          </div>
-                        )}
-                        <CardHeader className="pb-3 pt-6">
-                          <CardTitle className="text-base font-semibold text-white">{plan.name}</CardTitle>
-                          <div className="mt-2">
-                            {editingPlan?.id === plan.id ? (
-                              <div className="flex items-center gap-2">
-                                <Input
-                                  type="number"
-                                  value={planPrice}
-                                  onChange={(e) => setPlanPrice(e.target.value)}
-                                  className="h-9 w-32 border-white/10 bg-white/5 text-lg font-bold text-white"
-                                />
-                                <Button size="sm" onClick={handleSavePlanPrice} className="h-9 bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]">
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                                <Button size="sm" variant="ghost" onClick={() => setEditingPlan(null)} className="h-9 text-white/50 hover:text-white hover:bg-white/5">
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => handleOpenEditPlan(plan)}
-                                className="group flex items-baseline gap-1"
-                              >
-                                <span className="text-3xl font-bold text-white">{formatCurrency(plan.price)}</span>
-                                <span className="text-xs text-white/40">/{plan.interval}</span>
-                                <Edit className="ml-2 h-3.5 w-3.5 text-white/20 transition-colors group-hover:text-[#C9A94E]" />
-                              </button>
-                            )}
-                          </div>
-                        </CardHeader>
-                        <CardContent className="pt-0">
-                          <ul className="space-y-2.5">
-                            {plan.features.map((feature, idx) => (
-                              <li key={idx} className="flex items-start gap-2 text-sm text-white/60">
-                                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#C9A94E]" />
-                                {feature}
-                              </li>
+                {loadingCreditUsers ? (
+                  <TableSkeleton rows={4} cols={5} />
+                ) : creditUsers.length > 0 ? (
+                  <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-white/5 hover:bg-transparent">
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Usuario</TableHead>
+                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Email</TableHead>
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30 text-center">Créditos</TableHead>
+                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody className="divide-y divide-white/5">
+                            {creditUsers.map((cu) => (
+                              <TableRow key={cu.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+                                <TableCell>
+                                  <div>
+                                    <p className="text-sm font-medium text-white/90">{cu.name}</p>
+                                    <p className="text-xs text-white/40">@{cu.username}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="hidden text-white/40 text-sm md:table-cell">{cu.email || '—'}</TableCell>
+                                <TableCell>
+                                  <Badge className={cu.status === 'active' ? 'bg-green-500/15 text-green-400 border-green-500/25' : 'bg-red-500/15 text-red-400 border-red-500/25'} variant="outline">
+                                    {cu.status === 'active' ? 'Activo' : 'Suspendido'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <span className={`text-lg font-bold ${cu.credits > 5 ? 'text-[#C9A94E]' : cu.credits > 0 ? 'text-amber-400' : 'text-red-400'}`}>{cu.credits}</span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+                                      onClick={() => handleOpenCreditDialog(cu)}
+                                    >
+                                      <Plus className="mr-1 h-3 w-3" />
+                                      Agregar
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs text-blue-400 hover:bg-blue-400/10"
+                                      onClick={() => handleViewCreditHistory(cu)}
+                                    >
+                                      <Eye className="mr-1 h-3 w-3" />
+                                      Historial
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </ul>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ) : (
-                  <EmptyState icon={CreditCard} message="No hay planes de suscripción configurados" />
+                  <EmptyState icon={Coins} message="No hay usuarios registrados" />
+                )}
+
+                {selectedCreditUser && (
+                  <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base font-semibold text-white">
+                          Historial de {selectedCreditUser.name}
+                        </CardTitle>
+                        <button onClick={() => setSelectedCreditUser(null)} className="text-white/30 hover:text-white/60">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {loadingCreditTx ? (
+                        <TableSkeleton rows={3} cols={4} />
+                      ) : creditTransactions.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="border-white/5 hover:bg-transparent">
+                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Descripción</TableHead>
+                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30 text-center">Tipo</TableHead>
+                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30 text-right">Cantidad</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody className="divide-y divide-white/5">
+                              {creditTransactions.map((tx) => (
+                                <TableRow key={tx.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+                                  <TableCell className="text-white/40 text-sm">{formatDate(tx.createdAt)}</TableCell>
+                                  <TableCell className="text-white/80 text-sm">{tx.description || tx.type}</TableCell>
+                                  <TableCell className="text-center">
+                                    <Badge variant="outline" className={tx.type === 'admin_grant' ? 'bg-green-500/15 text-green-400 border-green-500/25' : 'bg-red-500/15 text-red-400 border-red-500/25'}>
+                                      {tx.type === 'admin_grant' ? 'Recarga' : 'Uso'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className={`text-right font-mono font-semibold ${tx.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {tx.amount > 0 ? '+' : ''}{tx.amount}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                          <Coins className="h-8 w-8 text-white/10 mb-2" />
+                          <p className="text-sm text-white/30">Sin movimientos</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
               </div>
+
+              <Dialog open={creditDialogOpen} onOpenChange={setCreditDialogOpen}>
+                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-white flex items-center gap-2">
+                      <Coins className="h-5 w-5 text-[#C9A94E]" />
+                      Agregar Créditos
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="rounded-lg bg-white/5 p-3 border border-white/10">
+                      <p className="text-sm text-white/70">Usuario:</p>
+                      <p className="text-base font-semibold text-white">{selectedCreditUser?.name} <span className="text-white/40 font-normal">(@{selectedCreditUser?.username})</span></p>
+                      <p className="text-xs text-white/40 mt-1">Saldo actual: <span className="font-semibold text-[#C9A94E]">{selectedCreditUser?.credits}</span> crédito{selectedCreditUser?.credits !== 1 ? 's' : ''}</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-white/70">Cantidad de créditos *</Label>
+                      <Input type="number" min="1" value={addCreditsAmount} onChange={(e) => setAddCreditsAmount(e.target.value)} placeholder="Ej: 10" className="border-white/10 bg-white/5 text-white placeholder:text-white/30" />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-white/70">Nota / Descripción (opcional)</Label>
+                      <Input value={addCreditsDesc} onChange={(e) => setAddCreditsDesc(e.target.value)} placeholder="Ej: Recarga mensual" className="border-white/10 bg-white/5 text-white placeholder:text-white/30" />
+                    </div>
+                  </div>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button variant="ghost" onClick={() => setCreditDialogOpen(false)} className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</Button>
+                    <Button onClick={handleAddCredits} disabled={addingCredits} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965] font-semibold min-w-[120px]">
+                      {addingCredits ? (
+                        <span className="flex items-center gap-2"><span className="animate-spin rounded-full h-4 w-4 border-2 border-[#0A1628] border-t-transparent" />Procesando…</span>
+                      ) : 'Agregar'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </TabsContent>
           </Tabs>
         </div>

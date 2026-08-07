@@ -353,6 +353,11 @@ export default function WizardPage() {
   /* ---- generate document ---- */
   const generateDocument = useCallback(async () => {
     if (!user || !template) return
+    // Check credits for new documents (not re-generations)
+    if (!docId && user.credits <= 0) {
+      toast.error('No tienes créditos disponibles. Contacta al administrador.')
+      return
+    }
     setGenerating(true)
     try {
       const generated = replaceVariables(template.baseContent, true)
@@ -382,6 +387,12 @@ export default function WizardPage() {
         setDocId(data.document.id)
       }
       toast.success('¡Documento generado exitosamente!')
+      // Deduct 1 credit
+      fetch('/api/credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        body: JSON.stringify({ action: 'deduct', amount: 1, description: `Documento: ${template.name}` }),
+      }).catch(() => {}) // silently fail - document is already saved
       setTimeout(() => setCurrentPage('documents'), 800)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al generar documento')

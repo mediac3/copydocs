@@ -1,7 +1,7 @@
-import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+// Plans have been replaced by the credit system.
+// This endpoint is kept for backwards compatibility.
 export async function GET() {
-  const plans = await db.subscriptionPlan.findMany({ where: { isActive: true }, orderBy: { price: 'asc' } });
-  return NextResponse.json({ plans });
+  return NextResponse.json({ plans: [] });
 }

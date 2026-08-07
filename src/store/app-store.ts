@@ -11,8 +11,7 @@ interface AppState {
     phone: string | null;
     role: string;
     status: string;
-    subscriptionPlan: string | null;
-    subscriptionEnd: string | null;
+    credits: number;
   } | null;
   token: string | null;
   currentPage: Page;
