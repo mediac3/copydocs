@@ -1,0 +1,854 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback, useRef } from 'react'
+     4→import {
+     5→  Search,
+     6→  FileText,
+     7→  MoreVertical,
+     8→  Edit,
+     9→  Copy,
+    10→  Download,
+    11→  Archive,
+    12→  Trash2,
+    13→  Plus,
+    14→  FileCheck,
+    15→  FileEdit,
+    16→  FileArchive,
+    17→} from 'lucide-react'
+    18→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    19→import { Card, CardContent } from '@/components/ui/card'
+    20→import { Badge } from '@/components/ui/badge'
+    21→import { Button } from '@/components/ui/button'
+    22→import {
+    23→  DropdownMenu,
+    24→  DropdownMenuContent,
+    25→  DropdownMenuItem,
+    26→  DropdownMenuSeparator,
+    27→  DropdownMenuTrigger,
+    28→} from '@/components/ui/dropdown-menu'
+    29→import {
+    30→  AlertDialog,
+    31→  AlertDialogAction,
+    32→  AlertDialogCancel,
+    33→  AlertDialogContent,
+    34→  AlertDialogDescription,
+    35→  AlertDialogFooter,
+    36→  AlertDialogHeader,
+    37→  AlertDialogTitle,
+    38→} from '@/components/ui/alert-dialog'
+    39→import { Input } from '@/components/ui/input'
+    40→import { useAppStore } from '@/store/app-store'
+    41→import { toast } from 'sonner'
+    42→
+    43→/* -------------------------------------------------------------------------- */
+    44→/*  Types                                                                    */
+    45→/* -------------------------------------------------------------------------- */
+    46→
+    47→type DocumentStatus = 'draft' | 'completed' | 'archived'
+    48→
+    49→interface DocumentTemplate {
+    50→  name: string
+    51→  category: string
+    52→}
+    53→
+    54→interface Document {
+    55→  id: string
+    56→  title: string
+    57→  status: DocumentStatus
+    58→  createdAt: string
+    59→  updatedAt: string
+    60→  template: DocumentTemplate
+    61→}
+    62→
+    63→type TabFilter = 'draft' | 'completed' | 'archived' | 'all'
+    64→
+    65→/* -------------------------------------------------------------------------- */
+    66→/*  Helpers                                                                  */
+    67→/* -------------------------------------------------------------------------- */
+    68→
+    69→const STATUS_BADGE_CONFIG: Record<
+    70→  DocumentStatus,
+    71→  { label: string; className: string }
+    72→> = {
+    73→  draft: {
+    74→    label: 'Borrador',
+    75→    className:
+    76→      'bg-yellow-500/15 text-yellow-400 border-yellow-500/25 hover:bg-yellow-500/25',
+    77→  },
+    78→  completed: {
+    79→    label: 'Completado',
+    80→    className:
+    81→      'bg-green-500/15 text-green-400 border-green-500/25 hover:bg-green-500/25',
+    82→  },
+    83→  archived: {
+    84→    label: 'Archivado',
+    85→    className:
+    86→      'bg-gray-500/15 text-gray-400 border-gray-500/25 hover:bg-gray-500/25',
+    87→  },
+    88→}
+    89→
+    90→const TAB_CONFIG: Record<
+    91→  TabFilter,
+    92→  { label: string; emptyIcon: React.ElementType; emptyTitle: string; emptyDesc: string }
+    93→> = {
+    94→  draft: {
+    95→    label: 'Borradores',
+    96→    emptyIcon: FileEdit,
+    97→    emptyTitle: 'No hay borradores',
+    98→    emptyDesc:
+    99→      'Los documentos que inicies pero no completes aparecerán aquí.',
+   100→  },
+   101→  completed: {
+   102→    label: 'Completados',
+   103→    emptyIcon: FileCheck,
+   104→    emptyTitle: 'No hay documentos completados',
+   105→    emptyDesc:
+   106→      'Cuando finalices un documento, lo encontrarás en esta sección.',
+   107→  },
+   108→  archived: {
+   109→    label: 'Archivados',
+   110→    emptyIcon: FileArchive,
+   111→    emptyTitle: 'No hay documentos archivados',
+   112→    emptyDesc: 'Los documentos que archives se mostrarán aquí.',
+   113→  },
+   114→  all: {
+   115→    label: 'Todos',
+   116→    emptyIcon: FileText,
+   117→    emptyTitle: 'No hay documentos',
+   118→    emptyDesc: 'Crea tu primer documento para comenzar.',
+   119→  },
+   120→}
+   121→
+   122→function formatDate(iso: string): string {
+   123→  try {
+   124→    const d = new Date(iso)
+   125→    return d.toLocaleDateString('es-CO', {
+   126→      day: '2-digit',
+   127→      month: 'short',
+   128→      year: 'numeric',
+   129→    })
+   130→  } catch {
+   131→    return '—'
+   132→  }
+   133→}
+   134→
+   135→function useDebounce<T>(value: T, delayMs: number): T {
+   136→  const [debounced, setDebounced] = useState(value)
+   137→  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+   138→
+   139→  useEffect(() => {
+   140→    if (timerRef.current) clearTimeout(timerRef.current)
+   141→    timerRef.current = setTimeout(() => setDebounced(value), delayMs)
+   142→    return () => {
+   143→      if (timerRef.current) clearTimeout(timerRef.current)
+   144→    }
+   145→  }, [value, delayMs])
+   146→
+   147→  return debounced
+   148→}
+   149→
+   150→/* -------------------------------------------------------------------------- */
+   151→/*  Status Badge                                                             */
+   152→/* -------------------------------------------------------------------------- */
+   153→
+   154→function StatusBadge({ status }: { status: DocumentStatus }) {
+   155→  const config = STATUS_BADGE_CONFIG[status]
+   156→  return (
+   157→    <Badge variant="outline" className={config.className}>
+   158→      {config.label}
+   159→    </Badge>
+   160→  )
+   161→}
+   162→
+   163→/* -------------------------------------------------------------------------- */
+   164→/*  Empty State                                                              */
+   165→/* -------------------------------------------------------------------------- */
+   166→
+   167→function EmptyState({ tab }: { tab: TabFilter }) {
+   168→  const config = TAB_CONFIG[tab]
+   169→  const Icon = config.emptyIcon
+   170→  return (
+   171→    <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-white/10 px-6 py-16 text-center">
+   172→      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#C9A94E]/10">
+   173→        <Icon className="h-8 w-8 text-[#C9A94E]/60" />
+   174→      </div>
+   175→      <div className="space-y-1">
+   176→        <p className="text-sm font-semibold text-white/70">{config.emptyTitle}</p>
+   177→        <p className="max-w-sm text-xs text-white/40">{config.emptyDesc}</p>
+   178→      </div>
+   179→    </div>
+   180→  )
+   181→}
+   182→
+   183→/* -------------------------------------------------------------------------- */
+   184→/*  Document Row Actions                                                     */
+   185→/* -------------------------------------------------------------------------- */
+   186→
+   187→interface DocumentRowActionsProps {
+   188→  doc: Document
+   189→  onEdit: (doc: Document) => void
+   190→  onDuplicate: (doc: Document) => void
+   191→  onDownloadPdf: (doc: Document) => void
+   192→  onDownloadDocx: (doc: Document) => void
+   193→  onArchive: (doc: Document) => void
+   194→  onDelete: (doc: Document) => void
+   195→}
+   196→
+   197→function DocumentRowActions({
+   198→  doc,
+   199→  onEdit,
+   200→  onDuplicate,
+   201→  onDownloadPdf,
+   202→  onDownloadDocx,
+   203→  onArchive,
+   204→  onDelete,
+   205→}: DocumentRowActionsProps) {
+   206→  const isDraft = doc.status === 'draft'
+   207→  const isCompleted = doc.status === 'completed'
+   208→  const isArchived = doc.status === 'archived'
+   209→
+   210→  return (
+   211→    <DropdownMenu>
+   212→      <DropdownMenuTrigger asChild>
+   213→        <Button
+   214→          variant="ghost"
+   215→          size="icon"
+   216→          className="h-8 w-8 text-white/40 hover:bg-white/5 hover:text-white/70"
+   217→        >
+   218→          <MoreVertical className="h-4 w-4" />
+   219→          <span className="sr-only">Acciones</span>
+   220→        </Button>
+   221→      </DropdownMenuTrigger>
+   222→      <DropdownMenuContent
+   223→        align="end"
+   224→        className="w-48 border-white/10 bg-[#0F1D32]/95 backdrop-blur-sm"
+   225→      >
+   226→        {isDraft && (
+   227→          <DropdownMenuItem
+   228→            onClick={() => onEdit(doc)}
+   229→            className="text-white/70 focus:bg-white/5 focus:text-white cursor-pointer"
+   230→          >
+   231→            <Edit className="mr-2 h-4 w-4" />
+   232→            Editar
+   233→          </DropdownMenuItem>
+   234→        )}
+   235→
+   236→        <DropdownMenuItem
+   237→          onClick={() => onDuplicate(doc)}
+   238→          className="text-white/70 focus:bg-white/5 focus:text-white cursor-pointer"
+   239→        >
+   240→          <Copy className="mr-2 h-4 w-4" />
+   241→          Duplicar
+   242→        </DropdownMenuItem>
+   243→
+   244→        {isCompleted && (
+   245→          <>
+   246→            <DropdownMenuSeparator className="bg-white/10" />
+   247→            <DropdownMenuItem
+   248→              onClick={() => onDownloadPdf(doc)}
+   249→              className="text-white/70 focus:bg-white/5 focus:text-white cursor-pointer"
+   250→            >
+   251→              <Download className="mr-2 h-4 w-4" />
+   252→              Descargar PDF
+   253→            </DropdownMenuItem>
+   254→            <DropdownMenuItem
+   255→              onClick={() => onDownloadDocx(doc)}
+   256→              className="text-white/70 focus:bg-white/5 focus:text-white cursor-pointer"
+   257→            >
+   258→              <Download className="mr-2 h-4 w-4" />
+   259→              Descargar DOCX
+   260→            </DropdownMenuItem>
+   261→          </>
+   262→        )}
+   263→
+   264→        <DropdownMenuSeparator className="bg-white/10" />
+   265→        <DropdownMenuItem
+   266→          onClick={() => onArchive(doc)}
+   267→          className="text-white/70 focus:bg-white/5 focus:text-white cursor-pointer"
+   268→        >
+   269→          <Archive className="mr-2 h-4 w-4" />
+   270→          {isArchived ? 'Desarchivar' : 'Archivar'}
+   271→        </DropdownMenuItem>
+   272→
+   273→        <DropdownMenuSeparator className="bg-white/10" />
+   274→        <DropdownMenuItem
+   275→          onClick={() => onDelete(doc)}
+   276→          className="text-red-400/70 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
+   277→        >
+   278→          <Trash2 className="mr-2 h-4 w-4" />
+   279→          Eliminar
+   280→        </DropdownMenuItem>
+   281→      </DropdownMenuContent>
+   282→    </DropdownMenu>
+   283→  )
+   284→}
+   285→
+   286→/* -------------------------------------------------------------------------- */
+   287→/*  Delete Confirmation Dialog                                                */
+   288→/* -------------------------------------------------------------------------- */
+   289→
+   290→interface DeleteDialogProps {
+   291→  open: boolean
+   292→  onOpenChange: (open: boolean) => void
+   293→  docTitle: string
+   294→  onConfirm: () => void
+   295→  loading: boolean
+   296→}
+   297→
+   298→function DeleteDialog({
+   299→  open,
+   300→  onOpenChange,
+   301→  docTitle,
+   302→  onConfirm,
+   303→  loading,
+   304→}: DeleteDialogProps) {
+   305→  return (
+   306→    <AlertDialog open={open} onOpenChange={onOpenChange}>
+   307→      <AlertDialogContent className="border-white/10 bg-[#0F1D32] text-white sm:max-w-md">
+   308→        <AlertDialogHeader>
+   309→          <AlertDialogTitle className="text-white">
+   310→            ¿Eliminar documento?
+   311→          </AlertDialogTitle>
+   312→          <AlertDialogDescription className="text-white/50">
+   313→            Esta acción no se puede deshacer. Se eliminará permanentemente{' '}
+   314→            <span className="font-medium text-white/70">
+   315→              &quot;{docTitle}&quot;
+   316→            </span>
+   317→            .
+   318→          </AlertDialogDescription>
+   319→        </AlertDialogHeader>
+   320→        <AlertDialogFooter className="gap-2 sm:gap-0">
+   321→          <AlertDialogCancel
+   322→            disabled={loading}
+   323→            className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+   324→          >
+   325→            Cancelar
+   326→          </AlertDialogCancel>
+   327→          <AlertDialogAction
+   328→            onClick={(e) => {
+   329→              e.preventDefault()
+   330→              onConfirm()
+   331→            }}
+   332→            disabled={loading}
+   333→            className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
+   334→          >
+   335→            {loading ? 'Eliminando…' : 'Eliminar'}
+   336→          </AlertDialogAction>
+   337→        </AlertDialogFooter>
+   338→      </AlertDialogContent>
+   339→    </AlertDialog>
+   340→  )
+   341→}
+   342→
+   343→/* -------------------------------------------------------------------------- */
+   344→/*  DocumentsPage                                                            */
+   345→/* -------------------------------------------------------------------------- */
+   346→
+   347→export default function DocumentsPage() {
+   348→  const { user, setCurrentPage, startWizard } = useAppStore()
+   349→
+   350→  /* ---- State ---- */
+   351→  const [activeTab, setActiveTab] = useState<TabFilter>('all')
+   352→  const [searchQuery, setSearchQuery] = useState('')
+   353→  const debouncedSearch = useDebounce(searchQuery, 300)
+   354→  const [documents, setDocuments] = useState<Document[]>([])
+   355→  const [loading, setLoading] = useState(true)
+   356→
+   357→  /* Delete dialog */
+   358→  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+   359→  const [docToDelete, setDocToDelete] = useState<Document | null>(null)
+   360→  const [deleting, setDeleting] = useState(false)
+   361→
+   362→  /* Action loading helpers */
+   363→  const [actionLoading, setActionLoading] = useState<string | null>(null)
+   364→
+   365→  /* ---- Fetch documents ---- */
+   366→  const fetchDocuments = useCallback(async () => {
+   367→    if (!user) return
+   368→    setLoading(true)
+   369→    try {
+   370→      const params = new URLSearchParams()
+   371→      params.set('status', activeTab)
+   372→      if (debouncedSearch.trim()) {
+   373→        params.set('search', debouncedSearch.trim())
+   374→      }
+   375→      const res = await fetch(`/api/documents?${params.toString()}`, {
+   376→        headers: { 'x-user-id': user.id },
+   377→      })
+   378→      if (!res.ok) throw new Error('Error fetching documents')
+   379→      const data = await res.json()
+   380→      setDocuments(Array.isArray(data) ? data : data.documents || [])
+   381→    } catch {
+   382→      toast.error('Error al cargar documentos')
+   383→    } finally {
+   384→      setLoading(false)
+   385→    }
+   386→  }, [user, activeTab, debouncedSearch])
+   387→
+   388→  useEffect(() => {
+   389→    fetchDocuments()
+   390→  }, [fetchDocuments])
+   391→
+   392→  /* ---- Filtered documents for client-side (API may not support search) ---- */
+   393→  const filteredDocuments = documents.filter((doc) => {
+   394→    if (!debouncedSearch.trim()) return true
+   395→    const q = debouncedSearch.toLowerCase()
+   396→    return (
+   397→      doc.title.toLowerCase().includes(q) ||
+   398→      doc.template?.name?.toLowerCase().includes(q) ||
+   399→      doc.template?.category?.toLowerCase().includes(q)
+   400→    )
+   401→  })
+   402→
+   403→  /* ---- Action handlers ---- */
+   404→
+   405→  const handleEdit = (doc: Document) => {
+   406→    // Edit opens wizard with existing document
+   407→    startWizard(doc.template?.name || '', doc.id)
+   408→  }
+   409→
+   410→  const handleDuplicate = async (doc: Document) => {
+   411→    if (!user) return
+   412→    setActionLoading(doc.id)
+   413→    try {
+   414→      const res = await fetch('/api/documents', {
+   415→        method: 'POST',
+   416→        headers: {
+   417→          'Content-Type': 'application/json',
+   418→          'x-user-id': user.id,
+   419→        },
+   420→        body: JSON.stringify({
+   421→          duplicateFromId: doc.id,
+   422→        }),
+   423→      })
+   424→      if (!res.ok) throw new Error('Error duplicando documento')
+   425→      const newDoc = await res.json()
+   426→      toast.success('Documento duplicado', {
+   427→        description: `"${doc.title}" se copió como borrador.`,
+   428→      })
+   429→      // If we're on 'all' or 'draft', refetch to show new item
+   430→      if (activeTab === 'all' || activeTab === 'draft') {
+   431→        fetchDocuments()
+   432→      }
+   433→    } catch {
+   434→      toast.error('Error al duplicar', {
+   435→        description: 'No se pudo crear la copia del documento.',
+   436→      })
+   437→    } finally {
+   438→      setActionLoading(null)
+   439→    }
+   440→  }
+   441→
+   442→  const handleDownloadPdf = async (doc: Document) => {
+   443→    setActionLoading(doc.id)
+   444→    try {
+   445→      const res = await fetch(
+   446→        `/api/documents/export?id=${doc.id}&format=pdf`,
+   447→        {
+   448→          headers: { 'x-user-id': user!.id },
+   449→        }
+   450→      )
+   451→      if (!res.ok) throw new Error('Error generando PDF')
+   452→      const blob = await res.blob()
+   453→      const url = URL.createObjectURL(blob)
+   454→      const a = document.createElement('a')
+   455→      a.href = url
+   456→      a.download = `${doc.title}.pdf`
+   457→      document.body.appendChild(a)
+   458→      a.click()
+   459→      a.remove()
+   460→      URL.revokeObjectURL(url)
+   461→      toast.success('PDF descargado', {
+   462→        description: `"${doc.title}.pdf" se descargó correctamente.`,
+   463→      })
+   464→    } catch {
+   465→      toast.error('Error al descargar PDF')
+   466→    } finally {
+   467→      setActionLoading(null)
+   468→    }
+   469→  }
+   470→
+   471→  const handleDownloadDocx = async (doc: Document) => {
+   472→    setActionLoading(doc.id)
+   473→    try {
+   474→      const res = await fetch(
+   475→        `/api/documents/export?id=${doc.id}&format=docx`,
+   476→        {
+   477→          headers: { 'x-user-id': user!.id },
+   478→        }
+   479→      )
+   480→      if (!res.ok) throw new Error('Error generando DOCX')
+   481→      const blob = await res.blob()
+   482→      const url = URL.createObjectURL(blob)
+   483→      const a = document.createElement('a')
+   484→      a.href = url
+   485→      a.download = `${doc.title}.docx`
+   486→      document.body.appendChild(a)
+   487→      a.click()
+   488→      a.remove()
+   489→      URL.revokeObjectURL(url)
+   490→      toast.success('DOCX descargado', {
+   491→        description: `"${doc.title}.docx" se descargó correctamente.`,
+   492→      })
+   493→    } catch {
+   494→      toast.error('Error al descargar DOCX')
+   495→    } finally {
+   496→      setActionLoading(null)
+   497→    }
+   498→  }
+   499→
+   500→  const handleArchive = async (doc: Document) => {
+   501→    if (!user) return
+   502→    const newStatus: DocumentStatus =
+   503→      doc.status === 'archived' ? 'draft' : 'archived'
+   504→    setActionLoading(doc.id)
+   505→    try {
+   506→      const res = await fetch('/api/documents', {
+   507→        method: 'PUT',
+   508→        headers: {
+   509→          'Content-Type': 'application/json',
+   510→          'x-user-id': user.id,
+   511→        },
+   512→        body: JSON.stringify({
+   513→          id: doc.id,
+   514→          status: newStatus,
+   515→        }),
+   516→      })
+   517→      if (!res.ok) throw new Error('Error actualizando estado')
+   518→      toast.success(
+   519→        newStatus === 'archived'
+   520→          ? 'Documento archivado'
+   521→          : 'Documento desarchivado',
+   522→        {
+   523→          description: `"${doc.title}" ${
+   524→            newStatus === 'archived' ? 'se movió a archivados' : 'volvió a borradores'
+   525→          }.`,
+   526→        }
+   527→      )
+   528→      fetchDocuments()
+   529→    } catch {
+   530→      toast.error('Error al actualizar estado')
+   531→    } finally {
+   532→      setActionLoading(null)
+   533→    }
+   534→  }
+   535→
+   536→  const handleDeleteRequest = (doc: Document) => {
+   537→    setDocToDelete(doc)
+   538→    setDeleteDialogOpen(true)
+   539→  }
+   540→
+   541→  const handleDeleteConfirm = async () => {
+   542→    if (!user || !docToDelete) return
+   543→    setDeleting(true)
+   544→    try {
+   545→      const res = await fetch(
+   546→        `/api/documents?id=${docToDelete.id}`,
+   547→        {
+   548→          method: 'DELETE',
+   549→          headers: { 'x-user-id': user.id },
+   550→        }
+   551→      )
+   552→      if (!res.ok) throw new Error('Error eliminando documento')
+   553→      toast.success('Documento eliminado', {
+   554→        description: `"${docToDelete.title}" fue eliminado permanentemente.`,
+   555→      })
+   556→      setDeleteDialogOpen(false)
+   557→      setDocToDelete(null)
+   558→      fetchDocuments()
+   559→    } catch {
+   560→      toast.error('Error al eliminar documento')
+   561→    } finally {
+   562→      setDeleting(false)
+   563→    }
+   564→  }
+   565→
+   566→  /* ---- Tab counts ---- */
+   567→  const tabCounts: Record<TabFilter, number> = {
+   568→    all: documents.length,
+   569→    draft: documents.filter((d) => d.status === 'draft').length,
+   570→    completed: documents.filter((d) => d.status === 'completed').length,
+   571→    archived: documents.filter((d) => d.status === 'archived').length,
+   572→  }
+   573→
+   574→  /* ---- Render ---- */
+   575→  return (
+   576→    <main className="min-h-screen bg-[#0A1628]">
+   577→      <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+   578→        {/* ---------- Header ---------- */}
+   579→        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+   580→          <div>
+   581→            <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+   582→              Mis Documentos
+   583→            </h1>
+   584→            <p className="mt-1 text-sm text-white/50">
+   585→              Gestiona, edita y descarga tus documentos legales.
+   586→            </p>
+   587→          </div>
+   588→          <Button
+   589→            onClick={() => setCurrentPage('catalog')}
+   590→            className="self-start bg-[#C9A94E] text-[#0A1628] font-semibold hover:bg-[#D4B965] focus-visible:ring-[#C9A94E]/50"
+   591→          >
+   592→            <Plus className="mr-2 h-4 w-4" />
+   593→            Nuevo Documento
+   594→          </Button>
+   595→        </div>
+   596→
+   597→        {/* ---------- Search + Tabs ---------- */}
+   598→        <div className="space-y-4">
+   599→          {/* Search bar */}
+   600→          <div className="relative max-w-md">
+   601→            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+   602→            <Input
+   603→              placeholder="Buscar por título, plantilla o categoría…"
+   604→              value={searchQuery}
+   605→              onChange={(e) => setSearchQuery(e.target.value)}
+   606→              className="border-white/10 bg-[#0F1D32]/80 pl-10 text-white placeholder:text-white/30 focus-visible:ring-[#C9A94E]/30 focus-visible:border-[#C9A94E]/40"
+   607→            />
+   608→          </div>
+   609→
+   610→          {/* Tabs */}
+   611→          <Tabs
+   612→            value={activeTab}
+   613→            onValueChange={(v) => setActiveTab(v as TabFilter)}
+   614→          >
+   615→            <TabsList className="border-white/10 bg-[#0F1D32]/80">
+   616→              {(['all', 'draft', 'completed', 'archived'] as TabFilter[]).map(
+   617→                (tab) => (
+   618→                  <TabsTrigger
+   619→                    key={tab}
+   620→                    value={tab}
+   621→                    className="data-[state=active]:bg-[#C9A94E]/15 data-[state=active]:text-[#C9A94E] text-white/50 data-[state=active]:shadow-none"
+   622→                  >
+   623→                    {TAB_CONFIG[tab].label}
+   624→                    <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/5 px-1.5 text-[10px] font-medium tabular-nums">
+   625→                      {loading ? '…' : tabCounts[tab]}
+   626→                    </span>
+   627→                  </TabsTrigger>
+   628→                )
+   629→              )}
+   630→            </TabsList>
+   631→
+   632→            {/* Each tab renders the same content filtered by status */}
+   633→            {(['all', 'draft', 'completed', 'archived'] as TabFilter[]).map(
+   634→              (tab) => (
+   635→                <TabsContent key={tab} value={tab} className="mt-4">
+   636→                  {/* Loading skeleton */}
+   637→                  {loading ? (
+   638→                    <Card className="border-white/5 bg-[#0F1D32]/80">
+   639→                      <CardContent className="space-y-4 p-6">
+   640→                        {[1, 2, 3, 4, 5].map((i) => (
+   641→                          <div
+   642→                            key={i}
+   643→                            className="flex items-center gap-4 animate-pulse"
+   644→                          >
+   645→                            <div className="h-10 w-10 rounded-lg bg-white/5" />
+   646→                            <div className="flex-1 space-y-2">
+   647→                              <div className="h-4 w-3/4 rounded bg-white/5" />
+   648→                              <div className="h-3 w-1/2 rounded bg-white/5" />
+   649→                            </div>
+   650→                            <div className="h-6 w-20 rounded-full bg-white/5" />
+   651→                            <div className="h-6 w-6 rounded bg-white/5" />
+   652→                          </div>
+   653→                        ))}
+   654→                      </CardContent>
+   655→                    </Card>
+   656→                  ) : filteredDocuments.length === 0 ? (
+   657→                    <EmptyState tab={tab} />
+   658→                  ) : (
+   659→                    <Card className="overflow-hidden border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   660→                      <CardContent className="p-0">
+   661→                        {/* Desktop table */}
+   662→                        <div className="hidden sm:block overflow-x-auto">
+   663→                          <table className="w-full text-left text-sm">
+   664→                            <thead>
+   665→                              <tr className="border-b border-white/5">
+   666→                                <th className="whitespace-nowrap px-5 py-3 text-xs font-medium uppercase tracking-wider text-white/30">
+   667→                                  Documento
+   668→                                </th>
+   669→                                <th className="whitespace-nowrap px-5 py-3 text-xs font-medium uppercase tracking-wider text-white/30 hidden md:table-cell">
+   670→                                  Plantilla / Categoría
+   671→                                </th>
+   672→                                <th className="whitespace-nowrap px-5 py-3 text-xs font-medium uppercase tracking-wider text-white/30 hidden lg:table-cell">
+   673→                                  Creado
+   674→                                </th>
+   675→                                <th className="whitespace-nowrap px-5 py-3 text-xs font-medium uppercase tracking-wider text-white/30 hidden lg:table-cell">
+   676→                                  Modificado
+   677→                                </th>
+   678→                                <th className="whitespace-nowrap px-5 py-3 text-xs font-medium uppercase tracking-wider text-white/30">
+   679→                                  Estado
+   680→                                </th>
+   681→                                <th className="relative px-5 py-3 w-10">
+   682→                                  <span className="sr-only">Acciones</span>
+   683→                                </th>
+   684→                              </tr>
+   685→                            </thead>
+   686→                            <tbody className="divide-y divide-white/5">
+   687→                              {filteredDocuments.map((doc) => (
+   688→                                <tr
+   689→                                  key={doc.id}
+   690→                                  className="group transition-colors hover:bg-white/[0.02]"
+   691→                                >
+   692→                                  {/* Title */}
+   693→                                  <td className="max-w-[260px] px-5 py-3.5">
+   694→                                    <div className="flex items-center gap-3">
+   695→                                      <div
+   696→                                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+   697→                                          doc.status === 'draft'
+   698→                                            ? 'bg-yellow-500/10 text-yellow-400/60'
+   699→                                            : doc.status === 'completed'
+   700→                                              ? 'bg-green-500/10 text-green-400/60'
+   701→                                              : 'bg-gray-500/10 text-gray-400/60'
+   702→                                        }`}
+   703→                                      >
+   704→                                        <FileText className="h-4 w-4" />
+   705→                                      </div>
+   706→                                      <div className="min-w-0">
+   707→                                        <p className="truncate text-sm font-medium text-white/80 group-hover:text-white">
+   708→                                          {doc.title}
+   709→                                        </p>
+   710→                                        <p className="mt-0.5 truncate text-xs text-white/30 md:hidden">
+   711→                                          {doc.template?.name} · {doc.template?.category}
+   712→                                        </p>
+   713→                                      </div>
+   714→                                    </div>
+   715→                                  </td>
+   716→
+   717→                                  {/* Template / Category */}
+   718→                                  <td className="whitespace-nowrap px-5 py-3.5 hidden md:table-cell">
+   719→                                    <p className="text-sm text-white/60">
+   720→                                      {doc.template?.name || '—'}
+   721→                                    </p>
+   722→                                    <p className="text-xs text-white/30">
+   723→                                      {doc.template?.category || '—'}
+   724→                                    </p>
+   725→                                  </td>
+   726→
+   727→                                  {/* Created */}
+   728→                                  <td className="whitespace-nowrap px-5 py-3.5 text-xs text-white/40 hidden lg:table-cell">
+   729→                                    {formatDate(doc.createdAt)}
+   730→                                  </td>
+   731→
+   732→                                  {/* Modified */}
+   733→                                  <td className="whitespace-nowrap px-5 py-3.5 text-xs text-white/40 hidden lg:table-cell">
+   734→                                    {formatDate(doc.updatedAt)}
+   735→                                  </td>
+   736→
+   737→                                  {/* Status */}
+   738→                                  <td className="whitespace-nowrap px-5 py-3.5">
+   739→                                    <StatusBadge status={doc.status} />
+   740→                                  </td>
+   741→
+   742→                                  {/* Actions */}
+   743→                                  <td className="px-5 py-3.5">
+   744→                                    {actionLoading === doc.id ? (
+   745→                                      <div className="flex h-8 w-8 items-center justify-center">
+   746→                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#C9A94E]/30 border-t-[#C9A94E]" />
+   747→                                      </div>
+   748→                                    ) : (
+   749→                                      <DocumentRowActions
+   750→                                        doc={doc}
+   751→                                        onEdit={handleEdit}
+   752→                                        onDuplicate={handleDuplicate}
+   753→                                        onDownloadPdf={handleDownloadPdf}
+   754→                                        onDownloadDocx={handleDownloadDocx}
+   755→                                        onArchive={handleArchive}
+   756→                                        onDelete={handleDeleteRequest}
+   757→                                      />
+   758→                                    )}
+   759→                                  </td>
+   760→                                </tr>
+   761→                              ))}
+   762→                            </tbody>
+   763→                          </table>
+   764→                        </div>
+   765→
+   766→                        {/* Mobile card list */}
+   767→                        <div className="block sm:hidden divide-y divide-white/5">
+   768→                          {filteredDocuments.map((doc) => (
+   769→                            <div
+   770→                              key={doc.id}
+   771→                              className="flex items-start gap-3 p-4"
+   772→                            >
+   773→                              <div
+   774→                                className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+   775→                                  doc.status === 'draft'
+   776→                                    ? 'bg-yellow-500/10 text-yellow-400/60'
+   777→                                    : doc.status === 'completed'
+   778→                                      ? 'bg-green-500/10 text-green-400/60'
+   779→                                      : 'bg-gray-500/10 text-gray-400/60'
+   780→                                }`}
+   781→                              >
+   782→                                <FileText className="h-5 w-5" />
+   783→                              </div>
+   784→                              <div className="min-w-0 flex-1">
+   785→                                <p className="truncate text-sm font-medium text-white/80">
+   786→                                  {doc.title}
+   787→                                </p>
+   788→                                <p className="mt-0.5 text-xs text-white/40">
+   789→                                  {doc.template?.name}
+   790→                                </p>
+   791→                                <div className="mt-2 flex flex-wrap items-center gap-2">
+   792→                                  <StatusBadge status={doc.status} />
+   793→                                  <span className="text-[11px] text-white/30">
+   794→                                    {formatDate(doc.updatedAt)}
+   795→                                  </span>
+   796→                                </div>
+   797→                              </div>
+   798→                              <div className="shrink-0">
+   799→                                {actionLoading === doc.id ? (
+   800→                                  <div className="flex h-8 w-8 items-center justify-center">
+   801→                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#C9A94E]/30 border-t-[#C9A94E]" />
+   802→                                  </div>
+   803→                                ) : (
+   804→                                  <DocumentRowActions
+   805→                                    doc={doc}
+   806→                                    onEdit={handleEdit}
+   807→                                    onDuplicate={handleDuplicate}
+   808→                                    onDownloadPdf={handleDownloadPdf}
+   809→                                    onDownloadDocx={handleDownloadDocx}
+   810→                                    onArchive={handleArchive}
+   811→                                    onDelete={handleDeleteRequest}
+   812→                                  />
+   813→                                )}
+   814→                              </div>
+   815→                            </div>
+   816→                          ))}
+   817→                        </div>
+   818→                      </CardContent>
+   819→                    </Card>
+   820→                  )}
+   821→                </TabsContent>
+   822→              )
+   823→            )}
+   824→          </Tabs>
+   825→        </div>
+   826→
+   827→        {/* ---------- Footer summary ---------- */}
+   828→        {!loading && documents.length > 0 && (
+   829→          <p className="text-center text-xs text-white/25">
+   830→            Mostrando {filteredDocuments.length} de{' '}
+   831→            {documents.length} documento
+   832→            {documents.length !== 1 ? 's' : ''}
+   833→            {debouncedSearch.trim() && (
+   834→              <span>
+   835→                {' '}
+   836→                para &quot;{debouncedSearch.trim()}&quot;
+   837→              </span>
+   838→            )}
+   839→          </p>
+   840→        )}
+   841→      </div>
+   842→
+   843→      {/* ---------- Delete Confirmation Dialog ---------- */}
+   844→      <DeleteDialog
+   845→        open={deleteDialogOpen}
+   846→        onOpenChange={setDeleteDialogOpen}
+   847→        docTitle={docToDelete?.title || ''}
+   848→        onConfirm={handleDeleteConfirm}
+   849→        loading={deleting}
+   850→      />
+   851→    </main>
+   852→  )
+   853→}
+   854→
