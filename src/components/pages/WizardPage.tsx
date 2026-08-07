@@ -22,7 +22,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
-import { ArrowLeft, ArrowRight, Save, FileText, Check, Info, Eye, Download } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Save, FileText, Check, Info, Eye, Download, MessageCircle, Phone } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/app-store'
 
@@ -105,7 +105,7 @@ function detectContactType(fieldKey: string): string | null {
 /* -------------------------------------------------------------------------- */
 
 export default function WizardPage() {
-  const { user, wizardTemplateId, wizardDocumentId, setCurrentPage } = useAppStore()
+  const { user, wizardTemplateId, wizardDocumentId, setCurrentPage, isVisitor, exitVisitorMode } = useAppStore()
 
   /* ---- state ---- */
   const [template, setTemplate] = useState<Template | null>(null)
@@ -120,6 +120,10 @@ export default function WizardPage() {
   const [showContacts, setShowContacts] = useState<string | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
   const hasLoadedDraft = useRef(false)
+
+  // WhatsApp modal state (visitor mode)
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
+  const [visitorPhone, setVisitorPhone] = useState('')
 
   /* ---- fetch template ---- */
   useEffect(() => {
@@ -209,15 +213,16 @@ export default function WizardPage() {
     }
   }, [contactsCache, user])
 
-  /* ---- auto-open contacts dropdown on focus ---- */
+  /* ---- auto-open contacts dropdown on focus (logged-in only) ---- */
   const handleFieldFocus = useCallback(async (fieldKey: string) => {
+    if (isVisitor || !user) return
     const contactType = detectContactType(fieldKey)
     if (!contactType) return
     const contacts = await fetchContacts(contactType)
     if (contacts.length > 0) {
       setShowContacts(fieldKey)
     }
-  }, [fetchContacts])
+  }, [fetchContacts, isVisitor, user])
 
   /* ---- apply contact data ---- */
   const applyContact = useCallback((contact: Contact, fieldKey: string) => {
@@ -384,6 +389,26 @@ export default function WizardPage() {
       setGenerating(false)
     }
   }, [user, template, docId, answers, setCurrentPage])
+
+  /* ---- visitor: send WhatsApp ---- */
+  const handleVisitorSubmit = useCallback(() => {
+    if (!template) return
+    setShowWhatsAppModal(true)
+  }, [template])
+
+  const sendWhatsApp = useCallback(() => {
+    if (!template || !visitorPhone.trim()) return
+    // Find the user's name from answers (first field containing 'nombre')
+    const allFields = wizardConfig?.steps.flatMap((s) => s.fields) || []
+    const nombreField = allFields.find((f) => f.key.toLowerCase().includes('nombre'))
+    const userName = nombreField ? String(answers[nombreField.key] || 'sin nombre') : 'sin nombre'
+    const message = encodeURIComponent(`Generé un nuevo documento ${template.name} a nombre de ${userName}`)
+    const phone = visitorPhone.replace(/[^0-9]/g, '')
+    const url = `https://wa.me/573226575422?text=${message}`
+    window.open(url, '_blank')
+    toast.success('Solicitud enviada por WhatsApp')
+    setShowWhatsAppModal(false)
+  }, [template, wizardConfig, answers, visitorPhone])
 
   /* ---- live preview ---- */
   const replaceVariables = useCallback(
@@ -588,7 +613,6 @@ export default function WizardPage() {
                 {/* Step Content / Review */}
                 <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-6">
                   {isReviewStep ? (
-                    /* ---- REVIEW STEP ---- */
                     <div className="space-y-6 animate-fade-in-up">
                       <div className="mb-6">
                         <h2 className="text-lg font-semibold text-white">Revisión Final</h2>
@@ -627,30 +651,29 @@ export default function WizardPage() {
                         )
                       })}
 
-                      {/* Generate Button */}
+
+                      {/* Generate / WhatsApp Button */}
                       <div className="pt-4">
                         <Button
-                          className="w-full bg-[#C9A94E] text-[#0A1628] font-semibold hover:bg-[#D4BA6A] shadow-lg shadow-[#C9A94E]/20"
+                          className={isVisitor
+                            ? "w-full bg-[#25D366] text-white font-semibold hover:bg-[#20BD5A] shadow-lg shadow-[#25D366]/20"
+                            : "w-full bg-[#C9A94E] text-[#0A1628] font-semibold hover:bg-[#D4BA6A] shadow-lg shadow-[#C9A94E]/20"}
                           size="lg"
-                          onClick={generateDocument}
-                          disabled={generating}
+                          onClick={isVisitor ? handleVisitorSubmit : generateDocument}
+                          disabled={!isVisitor && generating}
                         >
                           {generating ? (
-                            <>
-                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-[#0A1628] border-t-transparent" />
-                              Generando...
-                            </>
+                            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-[#0A1628] border-t-transparent" />
+                          ) : isVisitor ? (
+                            <MessageCircle className="mr-2 h-5 w-5" />
                           ) : (
-                            <>
-                              <FileText className="mr-2 h-5 w-5" />
-                              Generar Documento
-                            </>
+                            <FileText className="mr-2 h-5 w-5" />
                           )}
+                          {generating ? "Generando..." : isVisitor ? "Enviar por WhatsApp" : "Generar Documento"}
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    /* ---- FORM STEP ---- */
                     <div className="space-y-5 animate-fade-in-up">
                       <div className="mb-2">
                         <h2 className="text-lg font-semibold text-white">
@@ -719,15 +742,25 @@ export default function WizardPage() {
                       <ArrowLeft className="mr-1.5 h-4 w-4" />
                       Anterior
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="border-[#C9A94E]/30 text-[#C9A94E] hover:bg-[#C9A94E]/10"
-                      onClick={saveDraft}
-                      disabled={saving}
-                    >
-                      <Save className="mr-1.5 h-3.5 w-3.5" />
-                      {saving ? 'Guardando...' : 'Guardar borrador'}
-                    </Button>
+                    {isVisitor ? (
+                      <Button
+                        variant="outline"
+                        className="border-white/10 text-white/50 hover:bg-white/5"
+                        onClick={exitVisitorMode}
+                      >
+                        Volver al catalogo
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        className="border-[#C9A94E]/30 text-[#C9A94E] hover:bg-[#C9A94E]/10"
+                        onClick={saveDraft}
+                        disabled={saving}
+                      >
+                        <Save className="mr-1.5 h-3.5 w-3.5" />
+                        {saving ? 'Guardando...' : 'Guardar borrador'}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -772,6 +805,59 @@ export default function WizardPage() {
           </ResizablePanelGroup>
         </div>
       </div>
+
+      {/* ---- WhatsApp Modal (visitor) ---- */}
+      {showWhatsAppModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md animate-fade-in-up rounded-2xl border border-white/10 bg-[#0F1D32] p-6 shadow-2xl">
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366]/15">
+                <MessageCircle className="h-7 w-7 text-[#25D366]" />
+              </div>
+              <h2 className="text-lg font-bold text-white">Enviar solicitud por WhatsApp</h2>
+              <p className="mt-2 text-sm text-white/50">
+                Ingresa tu numero de telefono para enviar la solicitud del documento
+                <span className="font-semibold text-[#C9A94E]"> {template?.name}</span>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label className="mb-1.5 block text-xs font-medium text-[#CBD5E1]">
+                  Tu numero de telefono
+                </Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+                  <Input
+                    type="tel"
+                    placeholder="Ej: 300 123 4567"
+                    value={visitorPhone}
+                    onChange={(e) => setVisitorPhone(e.target.value)}
+                    className="h-11 border-white/10 bg-[#0A1628] pl-10 text-white placeholder:text-white/30 focus-visible:border-[#25D366]/40 focus-visible:ring-[#25D366]/20"
+                  />
+                </div>
+              </div>
+
+              <Button
+                className="w-full bg-[#25D366] text-white font-semibold hover:bg-[#20BD5A]"
+                size="lg"
+                onClick={sendWhatsApp}
+                disabled={!visitorPhone.trim()}
+              >
+                <MessageCircle className="mr-2 h-5 w-5" />
+                Enviar por WhatsApp
+              </Button>
+
+              <button
+                onClick={() => setShowWhatsAppModal(false)}
+                className="w-full text-center text-xs text-white/40 transition-colors hover:text-white/60"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </TooltipProvider>
   )
 }

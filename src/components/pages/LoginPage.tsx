@@ -10,7 +10,7 @@ import { Scale, Eye, EyeOff, Loader2, Shield, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
-  const { setUser, setCurrentPage } = useAppStore();
+  const { setUser, setCurrentPage, enterVisitorCatalog } = useAppStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -138,8 +138,16 @@ export default function LoginPage() {
         </Card>
 
         <p className="text-center text-[#475569] text-xs mt-6">
- Protegido con encriptación de extremo a extremo · Conforme a la Ley 1581 de 2012
+          Protegido con encriptacion de extremo a extremo Conforme a la Ley 1581 de 2012
         </p>
+
+        <button
+          onClick={enterVisitorCatalog}
+          className="mx-auto mt-4 flex items-center gap-1.5 text-xs text-[#C9A94E]/70 transition-colors hover:text-[#C9A94E]"
+        >
+          Ver plantillas sin registrarme
+          <ArrowRight className="h-3 w-3" />
+        </button>
       </div>
     </div>
   );

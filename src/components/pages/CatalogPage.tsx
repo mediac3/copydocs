@@ -186,8 +186,9 @@ function TemplateCard({
   template: Template
   onSelect: (t: Template) => void
 }) {
-  const { startWizard } = useAppStore()
+  const { startWizard, startVisitorWizard, user } = useAppStore()
   const isFree = template.price === null || template.price === 0
+  const handleUse = () => { if (user) startWizard(template.id); else startVisitorWizard(template.id) }
 
   return (
     <Card className="group border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm transition-all hover:border-[#C9A94E]/20 hover:shadow-lg hover:shadow-[#C9A94E]/5">
@@ -253,7 +254,7 @@ function TemplateCard({
         <Button
           className="mt-auto w-full bg-[#C9A94E]/15 text-[#C9A94E] border border-[#C9A94E]/20 text-xs font-semibold transition-all hover:bg-[#C9A94E]/25 hover:border-[#C9A94E]/40 hover:text-[#D4B965]"
           variant="outline"
-          onClick={() => startWizard(template.id)}
+          onClick={handleUse}
         >
           Comenzar
           <ArrowRight className="ml-1 h-3 w-3" />
@@ -274,8 +275,9 @@ function TemplateRow({
   template: Template
   onSelect: (t: Template) => void
 }) {
-  const { startWizard } = useAppStore()
+  const { startWizard, startVisitorWizard, user } = useAppStore()
   const isFree = template.price === null || template.price === 0
+  const handleUse = () => { if (user) startWizard(template.id); else startVisitorWizard(template.id) }
 
   return (
     <div className="group flex flex-col gap-3 rounded-xl border border-white/5 bg-[#0F1D32]/80 p-4 backdrop-blur-sm transition-all hover:border-[#C9A94E]/20 hover:shadow-md hover:shadow-[#C9A94E]/5 sm:flex-row sm:items-center sm:gap-4">
@@ -334,7 +336,7 @@ function TemplateRow({
       <Button
         className="shrink-0 bg-[#C9A94E]/15 text-[#C9A94E] border border-[#C9A94E]/20 text-xs font-semibold transition-all hover:bg-[#C9A94E]/25 hover:border-[#C9A94E]/40 hover:text-[#D4B965]"
         variant="outline"
-        onClick={() => startWizard(template.id)}
+        onClick={handleUse}
       >
         Comenzar
       </Button>
@@ -355,11 +357,19 @@ function TemplateDetailDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { startWizard } = useAppStore()
+  const { user, startWizard, startVisitorWizard } = useAppStore()
 
   if (!template) return null
 
   const isFree = template.price === null || template.price === 0
+  const handleStart = () => {
+    onOpenChange(false)
+    if (user) {
+      startWizard(template.id)
+    } else {
+      startVisitorWizard(template.id)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -473,10 +483,7 @@ function TemplateDetailDialog({
           <Button
             className="w-full bg-[#C9A94E] text-[#0A1628] font-semibold text-sm transition-all hover:bg-[#D4B965] hover:shadow-lg hover:shadow-[#C9A94E]/20"
             size="lg"
-            onClick={() => {
-              onOpenChange(false)
-              startWizard(template.id)
-            }}
+            onClick={handleStart}
           >
             Comenzar con esta plantilla
             <ArrowRight className="ml-1 h-4 w-4" />
@@ -524,7 +531,7 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
 /* -------------------------------------------------------------------------- */
 
 export default function CatalogPage() {
-  const { user, startWizard } = useAppStore()
+  const { user, isVisitor } = useAppStore()
 
   /* ---- State ---- */
   const [templates, setTemplates] = useState<Template[]>([])
@@ -568,8 +575,6 @@ export default function CatalogPage() {
 
   /* ---- Fetch templates ---- */
   const fetchTemplates = useCallback(async () => {
-    if (!user) return
-
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -582,9 +587,9 @@ export default function CatalogPage() {
       if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
 
       const query = params.toString() ? `?${params.toString()}` : ''
-      const res = await fetch(`/api/templates${query}`, {
-        headers: { 'x-user-id': user.id },
-      })
+      const headers: HeadersInit = {}
+      if (user) headers['x-user-id'] = user.id
+      const res = await fetch(`/api/templates${query}`, { headers })
 
       if (res.ok) {
         const data = await res.json()
@@ -624,14 +629,33 @@ export default function CatalogPage() {
   /* ---- Render ---- */
   return (
     <main className="min-h-screen bg-[#0A1628]">
+      {/* Visitor header bar */}
+      {isVisitor && (
+        <div className="border-b border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-2">
+              <Scale className="h-5 w-5 text-[#C9A94E]" />
+              <span className="text-sm font-bold text-white">LexDoc</span>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="text-xs font-medium text-[#C9A94E] transition-colors hover:text-[#D4B965]"
+            >
+              Iniciar sesion
+            </button>
+          </div>
+        </div>
+      )}
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         {/* ---------- Header ---------- */}
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Catálogo de Plantillas
+            {isVisitor ? 'Genera tu Documento Legal' : 'Catálogo de Plantillas'}
           </h1>
           <p className="mt-1 text-sm text-white/50">
-            Explora y genera documentos legales colombianos con plantillas profesionales.
+            {isVisitor
+              ? 'Selecciona una plantilla, completa los campos y envia tu solicitud por WhatsApp.'
+              : 'Explora y genera documentos legales colombianos con plantillas profesionales.'}
           </p>
         </div>
 
@@ -824,13 +848,10 @@ export default function CatalogPage() {
           </div>
         )}
 
-        {/* ---------- Bottom CTA ---------- */}
+        {/* ---------- Bottom CTA (logged-in only) ---------- */}
+        {!isVisitor && (
         <div className="flex items-center justify-center pt-4">
           <button
-            onClick={() => {
-              // Navigate to a request page or open a dialog for custom document
-              // For now, we'll set page to documents where a request flow might exist
-            }}
             className="group flex items-center gap-3 rounded-xl border border-[#C9A94E]/15 bg-[#0F1D32]/60 px-6 py-4 text-left backdrop-blur-sm transition-all hover:border-[#C9A94E]/30 hover:bg-[#C9A94E]/5 hover:shadow-lg hover:shadow-[#C9A94E]/5"
           >
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#C9A94E]/15 text-[#C9A94E] transition-colors group-hover:bg-[#C9A94E]/25">
@@ -838,15 +859,16 @@ export default function CatalogPage() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-white/80 group-hover:text-white">
-                ¿No encuentras lo que buscas?
+                No encuentras lo que buscas?
               </p>
               <p className="text-xs text-white/40">
-                Solicita un documento personalizado y nuestro equipo lo preparará para ti.
+                Solicita un documento personalizado y nuestro equipo lo preparara para ti.
               </p>
             </div>
             <ArrowRight className="h-4 w-4 shrink-0 text-white/20 transition-transform group-hover:translate-x-0.5 group-hover:text-[#C9A94E]" />
           </button>
         </div>
+        )}
       </div>
 
       {/* ---------- Detail Dialog ---------- */}

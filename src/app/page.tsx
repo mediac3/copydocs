@@ -14,9 +14,20 @@ const AdminPage = dynamic(() => import('@/components/pages/AdminPage'), { ssr: f
 const PaymentsPage = dynamic(() => import('@/components/pages/PaymentsPage'), { ssr: false });
 
 export default function Home() {
-  const { user, currentPage, focusMode } = useAppStore();
+  const { user, currentPage, focusMode, isVisitor } = useAppStore();
 
+  // Visitor mode: allow catalog and wizard without authentication
   if (!user) {
+    if (isVisitor && (currentPage === 'catalog' || currentPage === 'wizard')) {
+      const renderPage = () => {
+        switch (currentPage) {
+          case 'catalog': return <CatalogPage />;
+          case 'wizard': return <WizardPage />;
+          default: return <CatalogPage />;
+        }
+      };
+      return renderPage();
+    }
     return <LoginPage />;
   }
 

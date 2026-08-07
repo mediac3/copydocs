@@ -1,0 +1,986 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+     4→import { Button } from '@/components/ui/button'
+     5→import { Input } from '@/components/ui/input'
+     6→import { Label } from '@/components/ui/label'
+     7→import { Textarea } from '@/components/ui/textarea'
+     8→import {
+     9→  Select,
+    10→  SelectContent,
+    11→  SelectItem,
+    12→  SelectTrigger,
+    13→  SelectValue,
+    14→} from '@/components/ui/select'
+    15→import {
+    16→  Tooltip,
+    17→  TooltipContent,
+    18→  TooltipProvider,
+    19→  TooltipTrigger,
+    20→} from '@/components/ui/tooltip'
+    21→import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+    22→import { Card, CardContent } from '@/components/ui/card'
+    23→import { Badge } from '@/components/ui/badge'
+    24→import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
+    25→import { ArrowLeft, ArrowRight, Save, FileText, Check, Info, Eye, Download } from 'lucide-react'
+    26→import { toast } from 'sonner'
+    27→import { useAppStore } from '@/store/app-store'
+    28→
+    29→/* -------------------------------------------------------------------------- */
+    30→/*  Types                                                                    */
+    31→/* -------------------------------------------------------------------------- */
+    32→
+    33→interface WizardField {
+    34→  key: string
+    35→  label: string
+    36→  type: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'boolean'
+    37→  options?: string[]
+    38→  tooltip?: string
+    39→  condition?: { field: string; value: boolean | string | number }
+    40→}
+    41→
+    42→interface WizardStep {
+    43→  title: string
+    44→  fields: WizardField[]
+    45→}
+    46→
+    47→interface WizardConfig {
+    48→  steps: WizardStep[]
+    49→}
+    50→
+    51→interface Template {
+    52→  id: string
+    53→  name: string
+    54→  description: string
+    55→  category: string
+    56→  legalArea: string
+    57→  baseContent: string
+    58→  wizardConfig: string
+    59→  status: string
+    60→}
+    61→
+    62→interface Contact {
+    63→  id: string
+    64→  name: string
+    65→  contactType: string
+    66→  documentType?: string | null
+    67→  documentNumber?: string | null
+    68→  companyName?: string | null
+    69→  email?: string | null
+    70→  phone?: string | null
+    71→  address?: string | null
+    72→  city?: string | null
+    73→}
+    74→
+    75→/* -------------------------------------------------------------------------- */
+    76→/*  Contact type mapping - field name prefix → contact type                   */
+    77→/* -------------------------------------------------------------------------- */
+    78→
+    79→const CONTACT_TYPE_MAP: Record<string, string[]> = {
+    80→  arrendador: ['arrendador', 'propietario'],
+    81→  arrendatario: ['arrendatario', 'inquilino'],
+    82→  fiador: ['fiador', 'codeudor'],
+    83→  comprador: ['comprador', 'adquirente'],
+    84→  vendedor: ['vendedor', 'enajenante'],
+    85→  empleador: ['empleador', 'patrono', 'empresa'],
+    86→  trabajador: ['trabajador', 'empleado'],
+    87→  demandante: ['demandante', 'actor'],
+    88→  demandado: ['demandado'],
+    89→  deudor: ['deudor'],
+    90→  acreedor: ['acreedor'],
+    91→}
+    92→
+    93→function detectContactType(fieldKey: string): string | null {
+    94→  const lower = fieldKey.toLowerCase()
+    95→  for (const [contactType, prefixes] of Object.entries(CONTACT_TYPE_MAP)) {
+    96→    for (const prefix of prefixes) {
+    97→      if (lower.includes(prefix)) return contactType
+    98→    }
+    99→  }
+   100→  return null
+   101→}
+   102→
+   103→/* -------------------------------------------------------------------------- */
+   104→/*  Component                                                                */
+   105→/* -------------------------------------------------------------------------- */
+   106→
+   107→export default function WizardPage() {
+   108→  const { user, wizardTemplateId, wizardDocumentId, setCurrentPage } = useAppStore()
+   109→
+   110→  /* ---- state ---- */
+   111→  const [template, setTemplate] = useState<Template | null>(null)
+   112→  const [wizardConfig, setWizardConfig] = useState<WizardConfig | null>(null)
+   113→  const [currentStep, setCurrentStep] = useState(0)
+   114→  const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({})
+   115→  const [loading, setLoading] = useState(true)
+   116→  const [generating, setGenerating] = useState(false)
+   117→  const [saving, setSaving] = useState(false)
+   118→  const [docId, setDocId] = useState<string | null>(wizardDocumentId)
+   119→  const [contactsCache, setContactsCache] = useState<Record<string, Contact[]>>({})
+   120→  const [showContacts, setShowContacts] = useState<string | null>(null)
+   121→  const previewRef = useRef<HTMLDivElement>(null)
+   122→  const hasLoadedDraft = useRef(false)
+   123→
+   124→  /* ---- fetch template ---- */
+   125→  useEffect(() => {
+   126→    if (!wizardTemplateId) {
+   127→      setCurrentPage('catalog')
+   128→      return
+   129→    }
+   130→    async function load() {
+   131→      try {
+   132→        const res = await fetch('/api/templates')
+   133→        const data = await res.json()
+   134→        const found: Template | undefined = data.templates?.find(
+   135→          (t: Template) => t.id === wizardTemplateId
+   136→        )
+   137→        if (!found) {
+   138→          toast.error('Plantilla no encontrada')
+   139→          setCurrentPage('catalog')
+   140→          return
+   141→        }
+   142→        setTemplate(found)
+   143→        try {
+   144→          const config: WizardConfig = typeof found.wizardConfig === 'string' 
+   145→            ? JSON.parse(found.wizardConfig) 
+   146→            : found.wizardConfig
+   147→          // Normalize: seed data may use 'id' instead of 'key' for field identifiers
+   148→          if (config && config.steps) {
+   149→            for (const step of config.steps) {
+   150→              for (const field of step.fields) {
+   151→                if (!field.key && (field as Record<string, unknown>).id) {
+   152→                  field.key = String((field as Record<string, unknown>).id)
+   153→                }
+   154→              }
+   155→            }
+   156→          }
+   157→          setWizardConfig(config)
+   158→        } catch {
+   159→          toast.error('Error al leer configuración de la plantilla')
+   160→          setCurrentPage('catalog')
+   161→          return
+   162→        }
+   163→
+   164→        // Load existing draft if editing
+   165→        if (wizardDocumentId && !hasLoadedDraft.current) {
+   166→          hasLoadedDraft.current = true
+   167→          const docRes = await fetch('/api/documents')
+   168→          if (docRes.ok) {
+   169→            const docData = await docRes.json()
+   170→            const existing = docData.documents?.find(
+   171→              (d: { id: string; templateId: string }) => d.id === wizardDocumentId
+   172→            )
+   173→            if (existing && existing.answers) {
+   174→              try {
+   175→                const parsed = typeof existing.answers === 'string' 
+   176→                  ? JSON.parse(existing.answers) 
+   177→                  : existing.answers
+   178→                setAnswers(parsed)
+   179→                setDocId(existing.id)
+   180→              } catch { /* ignore */ }
+   181→            }
+   182→          }
+   183→        }
+   184→      } catch {
+   185→        toast.error('Error al cargar la plantilla')
+   186→        setCurrentPage('catalog')
+   187→      } finally {
+   188→        setLoading(false)
+   189→      }
+   190→    }
+   191→    load()
+   192→  }, [wizardTemplateId])
+   193→
+   194→  /* ---- fetch contacts for a field ---- */
+   195→  const fetchContacts = useCallback(async (contactType: string) => {
+   196→    if (contactsCache[contactType]) return contactsCache[contactType]
+   197→    if (!user) return []
+   198→    try {
+   199→      const res = await fetch(`/api/contacts?type=${encodeURIComponent(contactType)}`, {
+   200→        headers: { 'x-user-id': user.id },
+   201→      })
+   202→      if (!res.ok) return []
+   203→      const data = await res.json()
+   204→      const contacts: Contact[] = data.contacts || []
+   205→      setContactsCache((prev) => ({ ...prev, [contactType]: contacts }))
+   206→      return contacts
+   207→    } catch {
+   208→      return []
+   209→    }
+   210→  }, [contactsCache, user])
+   211→
+   212→  /* ---- auto-open contacts dropdown on focus ---- */
+   213→  const handleFieldFocus = useCallback(async (fieldKey: string) => {
+   214→    const contactType = detectContactType(fieldKey)
+   215→    if (!contactType) return
+   216→    const contacts = await fetchContacts(contactType)
+   217→    if (contacts.length > 0) {
+   218→      setShowContacts(fieldKey)
+   219→    }
+   220→  }, [fetchContacts])
+   221→
+   222→  /* ---- apply contact data ---- */
+   223→  const applyContact = useCallback((contact: Contact, fieldKey: string) => {
+   224→    const updates: Record<string, string> = {}
+   225→    // Map contact fields to wizard answer keys
+   226→    if (contact.name) {
+   227→      const nameKey = fieldKey.includes('nombre') ? fieldKey : fieldKey.replace(/_cc$|_cedula$|_nit$|_direccion$|_ciudad$|_telefono$|_email$/, '_nombre')
+   228→      updates[nameKey] = contact.name
+   229→    }
+   230→    if (contact.documentNumber) {
+   231→      const ccKey = fieldKey.replace(/_nombre$|_direccion$|_ciudad$|_telefono$|_email$/, '_cc').replace(/_nombre$/, '_cc')
+   232→      // Try common patterns
+   233→      for (const suffix of ['_cc', '_cedula', '_nit', '_documento']) {
+   234→        const candidate = fieldKey.replace(/_nombre.*$/, suffix)
+   235→        updates[candidate] = contact.documentNumber
+   236→      }
+   237→    }
+   238→    if (contact.address) {
+   239→      updates[fieldKey.replace(/_nombre.*$/, '_direccion')] = contact.address
+   240→    }
+   241→    if (contact.city) {
+   242→      updates[fieldKey.replace(/_nombre.*$/, '_ciudad')] = contact.city
+   243→    }
+   244→    if (contact.phone) {
+   245→      updates[fieldKey.replace(/_nombre.*$/, '_telefono')] = contact.phone
+   246→    }
+   247→    if (contact.email) {
+   248→      updates[fieldKey.replace(/_nombre.*$/, '_email')] = contact.email
+   249→    }
+   250→
+   251→    // For the current field itself, just set the name
+   252→    if (contact.name && ['text'].includes(wizardConfig?.steps.flatMap(s => s.fields).find(f => f.key === fieldKey)?.type || '')) {
+   253→      updates[fieldKey] = contact.name
+   254→    }
+   255→
+   256→    setAnswers((prev) => {
+   257→      const next = { ...prev }
+   258→      for (const [k, v] of Object.entries(updates)) {
+   259→        // Only set if the key exists in wizard config
+   260→        const allFields = wizardConfig?.steps.flatMap((s) => s.fields) || []
+   261→        if (allFields.some((f) => f.key === k)) {
+   262→          next[k] = v
+   263→        }
+   264→      }
+   265→      return next
+   266→    })
+   267→    setShowContacts(null)
+   268→    toast.success(`Datos de ${contact.name} aplicados`)
+   269→  }, [wizardConfig])
+   270→
+   271→  /* ---- update answer ---- */
+   272→  const updateAnswer = useCallback((key: string, value: string | number | boolean) => {
+   273→    setAnswers((prev) => ({ ...prev, [key]: value }))
+   274→  }, [])
+   275→
+   276→  /* ---- check condition ---- */
+   277→  const isFieldVisible = useCallback(
+   278→    (field: WizardField) => {
+   279→      if (!field.condition) return true
+   280→      return answers[field.condition.field] === field.condition.value
+   281→    },
+   282→    [answers]
+   283→  )
+   284→
+   285→  /* ---- navigation ---- */
+   286→  const totalSteps = wizardConfig ? wizardConfig.steps.length : 0
+   287→  const isReviewStep = currentStep === totalSteps
+   288→
+   289→  const goToStep = useCallback(
+   290→    (step: number) => {
+   291→      if (step < 0 || step > totalSteps) return
+   292→      setCurrentStep(step)
+   293→    },
+   294→    [totalSteps]
+   295→  )
+   296→
+   297→  const goNext = useCallback(() => {
+   298→    if (currentStep < totalSteps) setCurrentStep((s) => s + 1)
+   299→  }, [currentStep, totalSteps])
+   300→
+   301→  const goPrev = useCallback(() => {
+   302→    if (currentStep > 0) setCurrentStep((s) => s - 1)
+   303→  }, [currentStep])
+   304→
+   305→  /* ---- save draft ---- */
+   306→  const saveDraft = useCallback(async () => {
+   307→    if (!user || !template) return
+   308→    setSaving(true)
+   309→    try {
+   310→      const headers: HeadersInit = {
+   311→        'Content-Type': 'application/json',
+   312→        'x-user-id': user.id,
+   313→      }
+   314→      if (docId) {
+   315→        await fetch('/api/documents', {
+   316→          method: 'PUT',
+   317→          headers,
+   318→          body: JSON.stringify({
+   319→            id: docId,
+   320→            title: template.name,
+   321→            answers,
+   322→            status: 'draft',
+   323→          }),
+   324→        })
+   325→      } else {
+   326→        const res = await fetch('/api/documents', {
+   327→          method: 'POST',
+   328→          headers,
+   329→          body: JSON.stringify({
+   330→            templateId: template.id,
+   331→            title: template.name,
+   332→            answers,
+   333→          }),
+   334→        })
+   335→        const data = await res.json()
+   336→        if (data.document?.id) {
+   337→          setDocId(data.document.id)
+   338→        }
+   339→      }
+   340→      toast.success('Borrador guardado')
+   341→    } catch {
+   342→      toast.error('Error al guardar borrador')
+   343→    } finally {
+   344→      setSaving(false)
+   345→    }
+   346→  }, [user, template, docId, answers])
+   347→
+   348→  /* ---- generate document ---- */
+   349→  const generateDocument = useCallback(async () => {
+   350→    if (!user || !template) return
+   351→    setGenerating(true)
+   352→    try {
+   353→      const generated = replaceVariables(template.baseContent, true)
+   354→      const headers: HeadersInit = {
+   355→        'Content-Type': 'application/json',
+   356→        'x-user-id': user.id,
+   357→      }
+   358→      const body: Record<string, unknown> = {
+   359→        id: docId,
+   360→        title: template.name,
+   361→        answers,
+   362→        status: 'completed',
+   363→        generatedContent: generated,
+   364→      }
+   365→      if (!docId) {
+   366→        body.templateId = template.id
+   367→      }
+   368→      const method = docId ? 'PUT' : 'POST'
+   369→      const res = await fetch('/api/documents', {
+   370→        method,
+   371→        headers,
+   372→        body: JSON.stringify(body),
+   373→      })
+   374→      const data = await res.json()
+   375→      if (!res.ok) throw new Error(data.error || 'Error')
+   376→      if (!docId && data.document?.id) {
+   377→        setDocId(data.document.id)
+   378→      }
+   379→      toast.success('¡Documento generado exitosamente!')
+   380→      setTimeout(() => setCurrentPage('documents'), 800)
+   381→    } catch (err) {
+   382→      toast.error(err instanceof Error ? err.message : 'Error al generar documento')
+   383→    } finally {
+   384→      setGenerating(false)
+   385→    }
+   386→  }, [user, template, docId, answers, setCurrentPage])
+   387→
+   388→  /* ---- live preview ---- */
+   389→  const replaceVariables = useCallback(
+   390→    (content: string, final = false) => {
+   391→      let result = content
+   392→      const allFields = wizardConfig?.steps.flatMap((s) => s.fields) || []
+   393→      for (const field of allFields) {
+   394→        const placeholder = `{{${field.key}}}`
+   395→        const value = answers[field.key]
+   396→        if (value !== undefined && value !== '') {
+   397→          result = result.replaceAll(placeholder, String(value))
+   398→        }
+   399→      }
+   400→      if (final) {
+   401→        // Replace remaining placeholders with empty string
+   402→        result = result.replace(/\{\{[^}]+\}\}/g, '')
+   403→      }
+   404→      return result
+   405→    },
+   406→    [answers, wizardConfig]
+   407→  )
+   408→
+   409→  const previewContent = useMemo(() => {
+   410→    if (!template) return ''
+   411→    return replaceVariables(template.baseContent)
+   412→  }, [template, replaceVariables])
+   413→
+   414→  /* ---- auto-scroll preview ---- */
+   415→  useEffect(() => {
+   416→    if (!previewRef.current) return
+   417→    const currentFields = wizardConfig?.steps[currentStep]?.fields || []
+   418→    const visibleFields = currentFields.filter(isFieldVisible)
+   419→    if (visibleFields.length === 0) return
+   420→    const firstKey = visibleFields[0].key
+   421→    const placeholder = `{{${firstKey}}}`
+   422→    const textContent = previewRef.current.textContent || ''
+   423→    const idx = textContent.indexOf(firstKey)
+   424→    if (idx >= 0) {
+   425→      // Rough scroll proportion
+   426→      const proportion = idx / textContent.length
+   427→      previewRef.current.scrollTop = proportion * previewRef.current.scrollHeight
+   428→    }
+   429→  }, [currentStep])
+   430→
+   431→  /* ---- compute progress ---- */
+   432→  const completedSteps = useMemo(() => {
+   433→    if (!wizardConfig) return 0
+   434→    let count = 0
+   435→    for (let i = 0; i < Math.min(currentStep, wizardConfig.steps.length); i++) {
+   436→      const step = wizardConfig.steps[i]
+   437→      const visibleFields = step.fields.filter(isFieldVisible)
+   438→      if (visibleFields.length === 0 || visibleFields.every((f) => answers[f.key] !== undefined && answers[f.key] !== '')) {
+   439→        count++
+   440→      }
+   441→    }
+   442→    return count
+   443→  }, [wizardConfig, currentStep, answers, isFieldVisible])
+   444→
+   445→  /* ---- loading ---- */
+   446→  if (loading) {
+   447→    return (
+   448→      <div className="flex h-full items-center justify-center bg-[#0A1628]">
+   449→        <div className="flex flex-col items-center gap-4">
+   450→          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#C9A94E] border-t-transparent" />
+   451→          <p className="text-sm text-[#CBD5E1]">Cargando plantilla...</p>
+   452→        </div>
+   453→      </div>
+   454→    )
+   455→  }
+   456→
+   457→  if (!template || !wizardConfig) return null
+   458→
+   459→  const allFields = wizardConfig.steps.flatMap((s) => s.fields)
+   460→  const currentFields = isReviewStep ? [] : wizardConfig.steps[currentStep]?.fields || []
+   461→
+   462→  /* ====================================================================== */
+   463→  /*  RENDER                                                                 */
+   464→  /* ====================================================================== */
+   465→
+   466→  return (
+   467→    <TooltipProvider delayDuration={300}>
+   468→      <div className="flex h-full flex-col bg-[#0A1628]">
+   469→        {/* ---- Top bar ---- */}
+   470→        <div className="flex items-center justify-between border-b border-[#1E3A5F] px-6 py-3">
+   471→          <div className="flex items-center gap-3">
+   472→            <Button
+   473→              variant="ghost"
+   474→              size="sm"
+   475→              className="text-[#CBD5E1] hover:bg-[#152A4A] hover:text-white"
+   476→              onClick={() => setCurrentPage('catalog')}
+   477→            >
+   478→              <ArrowLeft className="mr-1 h-4 w-4" />
+   479→              Volver
+   480→            </Button>
+   481→            <div className="h-4 w-px bg-[#1E3A5F]" />
+   482→            <div className="flex items-center gap-2">
+   483→              <FileText className="h-4 w-4 text-[#C9A94E]" />
+   484→              <span className="text-sm font-medium text-white">{template.name}</span>
+   485→            </div>
+   486→          </div>
+   487→          <Button
+   488→            variant="outline"
+   489→            size="sm"
+   490→            className="border-[#C9A94E]/30 text-[#C9A94E] hover:bg-[#C9A94E]/10"
+   491→            onClick={saveDraft}
+   492→            disabled={saving}
+   493→          >
+   494→            <Save className="mr-1.5 h-3.5 w-3.5" />
+   495→            {saving ? 'Guardando...' : 'Guardar borrador'}
+   496→          </Button>
+   497→        </div>
+   498→
+   499→        {/* ---- Main content ---- */}
+   500→        <div className="flex-1 overflow-hidden">
+   501→          <ResizablePanelGroup direction="horizontal">
+   502→            {/* =============== LEFT PANEL - FORM =============== */}
+   503→            <ResizablePanel defaultSize={55} minSize={35}>
+   504→              <div className="flex h-full flex-col">
+   505→                {/* Progress Stepper */}
+   506→                <div className="border-b border-[#1E3A5F] px-6 py-4">
+   507→                  <div className="flex items-center justify-center">
+   508→                    {wizardConfig.steps.map((step, idx) => {
+   509→                      const isCompleted = idx < completedSteps
+   510→                      const isCurrent = idx === currentStep && !isReviewStep
+   511→                      const isFuture = idx > currentStep
+   512→
+   513→                      return (
+   514→                        <div key={step.title} className="flex items-center">
+   515→                          {/* Step circle + label */}
+   516→                          <button
+   517→                            type="button"
+   518→                            onClick={() => goToStep(idx)}
+   519→                            className="group flex flex-col items-center gap-1.5"
+   520→                          >
+   521→                            <div
+   522→                              className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300 ${
+   523→                                isCompleted
+   524→                                  ? 'bg-[#C9A94E] text-[#0A1628] shadow-lg shadow-[#C9A94E]/20'
+   525→                                  : isCurrent
+   526→                                    ? 'border-2 border-[#C9A94E] text-[#C9A94E]'
+   527→                                    : 'border border-[#1E3A5F] text-[#475569]'
+   528→                              }`}
+   529→                            >
+   530→                              {isCompleted ? <Check className="h-4 w-4" /> : idx + 1}
+   531→                            </div>
+   532→                            <span
+   533→                              className={`max-w-[80px] truncate text-center text-[10px] leading-tight ${
+   534→                                isCompleted
+   535→                                  ? 'text-[#C9A94E]'
+   536→                                  : isCurrent
+   537→                                    ? 'text-white font-medium'
+   538→                                    : 'text-[#475569]'
+   539→                              }`}
+   540→                            >
+   541→                              {step.title}
+   542→                            </span>
+   543→                          </button>
+   544→                          {/* Connector line */}
+   545→                          {idx < wizardConfig.steps.length - 1 && (
+   546→                            <div
+   547→                              className={`mx-2 h-0.5 w-8 transition-colors duration-300 ${
+   548→                                idx < completedSteps ? 'bg-[#C9A94E]' : 'bg-[#1E3A5F]'
+   549→                              }`}
+   550→                            />
+   551→                          )}
+   552→                        </div>
+   553→                      )
+   554→                    })}
+   555→                    {/* Review step */}
+   556→                    <div className="flex items-center">
+   557→                      <div
+   558→                        className={`mx-2 h-0.5 w-8 transition-colors duration-300 ${
+   559→                          currentStep >= totalSteps ? 'bg-[#C9A94E]' : 'bg-[#1E3A5F]'
+   560→                        }`}
+   561→                      />
+   562→                      <button
+   563→                        type="button"
+   564→                        onClick={() => goToStep(totalSteps)}
+   565→                        className="group flex flex-col items-center gap-1.5"
+   566→                      >
+   567→                        <div
+   568→                          className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-all duration-300 ${
+   569→                            isReviewStep
+   570→                              ? 'border-2 border-[#C9A94E] text-[#C9A94E]'
+   571→                              : 'border border-[#1E3A5F] text-[#475569]'
+   572→                          }`}
+   573→                        >
+   574→                          <Eye className="h-4 w-4" />
+   575→                        </div>
+   576→                        <span
+   577→                          className={`max-w-[80px] truncate text-center text-[10px] leading-tight ${
+   578→                            isReviewStep ? 'text-white font-medium' : 'text-[#475569]'
+   579→                          }`}
+   580→                        >
+   581→                          Revisión
+   582→                        </span>
+   583→                      </button>
+   584→                    </div>
+   585→                  </div>
+   586→                </div>
+   587→
+   588→                {/* Step Content / Review */}
+   589→                <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-6">
+   590→                  {isReviewStep ? (
+   591→                    /* ---- REVIEW STEP ---- */
+   592→                    <div className="space-y-6 animate-fade-in-up">
+   593→                      <div className="mb-6">
+   594→                        <h2 className="text-lg font-semibold text-white">Revisión Final</h2>
+   595→                        <p className="text-sm text-[#94A3B8]">Verifica tus respuestas antes de generar el documento.</p>
+   596→                      </div>
+   597→
+   598→                      {wizardConfig.steps.map((step, stepIdx) => {
+   599→                        const visibleFields = step.fields.filter(isFieldVisible)
+   600→                        if (visibleFields.length === 0) return null
+   601→                        return (
+   602→                          <Card key={step.title} className="border-[#1E3A5F] bg-[#0F1F38]">
+   603→                            <CardContent className="pt-4 pb-4">
+   604→                              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#C9A94E]">
+   605→                                <Badge variant="outline" className="border-[#C9A94E]/30 text-[#C9A94E] text-[10px]">
+   606→                                  Paso {stepIdx + 1}
+   607→                                </Badge>
+   608→                                {step.title}
+   609→                              </h3>
+   610→                              <div className="space-y-2.5">
+   611→                                {visibleFields.map((field) => (
+   612→                                  <div
+   613→                                    key={field.key}
+   614→                                    className="flex items-start justify-between gap-4 rounded-md bg-[#152A4A]/50 px-3 py-2"
+   615→                                  >
+   616→                                    <span className="text-xs text-[#94A3B8]">{field.label}</span>
+   617→                                    <span className="max-w-[60%] truncate text-right text-xs font-medium text-white">
+   618→                                      {answers[field.key] !== undefined && answers[field.key] !== ''
+   619→                                        ? String(answers[field.key])
+   620→                                        : <span className="text-[#C9A94E]/60 italic">Sin respuesta</span>}
+   621→                                    </span>
+   622→                                  </div>
+   623→                                ))}
+   624→                              </div>
+   625→                            </CardContent>
+   626→                          </Card>
+   627→                        )
+   628→                      })}
+   629→
+   630→                      {/* Generate Button */}
+   631→                      <div className="pt-4">
+   632→                        <Button
+   633→                          className="w-full bg-[#C9A94E] text-[#0A1628] font-semibold hover:bg-[#D4BA6A] shadow-lg shadow-[#C9A94E]/20"
+   634→                          size="lg"
+   635→                          onClick={generateDocument}
+   636→                          disabled={generating}
+   637→                        >
+   638→                          {generating ? (
+   639→                            <>
+   640→                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-[#0A1628] border-t-transparent" />
+   641→                              Generando...
+   642→                            </>
+   643→                          ) : (
+   644→                            <>
+   645→                              <FileText className="mr-2 h-5 w-5" />
+   646→                              Generar Documento
+   647→                            </>
+   648→                          )}
+   649→                        </Button>
+   650→                      </div>
+   651→                    </div>
+   652→                  ) : (
+   653→                    /* ---- FORM STEP ---- */
+   654→                    <div className="space-y-5 animate-fade-in-up">
+   655→                      <div className="mb-2">
+   656→                        <h2 className="text-lg font-semibold text-white">
+   657→                          {wizardConfig.steps[currentStep]?.title}
+   658→                        </h2>
+   659→                        <p className="text-sm text-[#94A3B8]">
+   660→                          Paso {currentStep + 1} de {totalSteps}
+   661→                        </p>
+   662→                      </div>
+   663→
+   664→                      {currentFields.map((field) => {
+   665→                        if (!isFieldVisible(field)) return null
+   666→
+   667→                        return (
+   668→                          <FieldRenderer
+   669→                            key={field.key}
+   670→                            field={field}
+   671→                            value={answers[field.key]}
+   672→                            onChange={(val) => updateAnswer(field.key, val)}
+   673→                            onFocus={() => handleFieldFocus(field.key)}
+   674→                            contacts={
+   675→                              showContacts === field.key
+   676→                                ? contactsCache[detectContactType(field.key) || ''] || []
+   677→                                : []
+   678→                            }
+   679→                            onApplyContact={(contact) => applyContact(contact, field.key)}
+   680→                            onDismissContacts={() => setShowContacts(null)}
+   681→                          />
+   682→                        )
+   683→                      })}
+   684→                    </div>
+   685→                  )}
+   686→                </div>
+   687→
+   688→                {/* Navigation Buttons */}
+   689→                {!isReviewStep && (
+   690→                  <div className="flex items-center justify-between border-t border-[#1E3A5F] px-6 py-4">
+   691→                    <Button
+   692→                      variant="outline"
+   693→                      className="border-[#1E3A5F] text-[#CBD5E1] hover:bg-[#152A4A] hover:text-white"
+   694→                      onClick={goPrev}
+   695→                      disabled={currentStep === 0}
+   696→                    >
+   697→                      <ArrowLeft className="mr-1.5 h-4 w-4" />
+   698→                      Anterior
+   699→                    </Button>
+   700→                    <span className="text-xs text-[#475569]">
+   701→                      {currentStep + 1} / {totalSteps}
+   702→                    </span>
+   703→                    <Button
+   704→                      className="bg-[#C9A94E] text-[#0A1628] font-semibold hover:bg-[#D4BA6A]"
+   705→                      onClick={goNext}
+   706→                    >
+   707→                      Siguiente
+   708→                      <ArrowRight className="ml-1.5 h-4 w-4" />
+   709→                    </Button>
+   710→                  </div>
+   711→                )}
+   712→                {isReviewStep && (
+   713→                  <div className="flex items-center justify-between border-t border-[#1E3A5F] px-6 py-4">
+   714→                    <Button
+   715→                      variant="outline"
+   716→                      className="border-[#1E3A5F] text-[#CBD5E1] hover:bg-[#152A4A] hover:text-white"
+   717→                      onClick={goPrev}
+   718→                    >
+   719→                      <ArrowLeft className="mr-1.5 h-4 w-4" />
+   720→                      Anterior
+   721→                    </Button>
+   722→                    <Button
+   723→                      variant="outline"
+   724→                      className="border-[#C9A94E]/30 text-[#C9A94E] hover:bg-[#C9A94E]/10"
+   725→                      onClick={saveDraft}
+   726→                      disabled={saving}
+   727→                    >
+   728→                      <Save className="mr-1.5 h-3.5 w-3.5" />
+   729→                      {saving ? 'Guardando...' : 'Guardar borrador'}
+   730→                    </Button>
+   731→                  </div>
+   732→                )}
+   733→              </div>
+   734→            </ResizablePanel>
+   735→
+   736→            {/* ---- Handle ---- */}
+   737→            <ResizableHandle withHandle className="bg-[#1E3A5F] hover:bg-[#C9A94E]/50 transition-colors" />
+   738→
+   739→            {/* =============== RIGHT PANEL - PREVIEW =============== */}
+   740→            <ResizablePanel defaultSize={45} minSize={25}>
+   741→              <div className="flex h-full flex-col bg-[#0F1F38]">
+   742→                {/* Preview header */}
+   743→                <div className="flex items-center justify-between border-b border-[#1E3A5F] px-5 py-3">
+   744→                  <div className="flex items-center gap-2">
+   745→                    <Eye className="h-4 w-4 text-[#C9A94E]" />
+   746→                    <span className="text-sm font-medium text-[#CBD5E1]">Vista Previa</span>
+   747→                  </div>
+   748→                  <Badge variant="outline" className="border-[#1E3A5F] text-[10px] text-[#475569]">
+   749→                    Actualización en tiempo real
+   750→                  </Badge>
+   751→                </div>
+   752→
+   753→                {/* Document preview */}
+   754→                <div ref={previewRef} className="flex-1 overflow-y-auto scrollbar-thin p-6">
+   755→                  <div className="mx-auto max-w-[650px] rounded-lg bg-white p-10 shadow-2xl shadow-black/30">
+   756→                    {/* Document title */}
+   757→                    <h1 className="mb-6 text-center font-serif-doc text-xl font-bold text-[#0A1628] leading-tight">
+   758→                      {template.name.toUpperCase()}
+   759→                    </h1>
+   760→
+   761→                    {/* Document body */}
+   762→                    <div
+   763→                      className="font-serif-doc text-sm leading-relaxed text-[#1a1a1a] [&_p]:mb-3 [&_p]:text-justify"
+   764→                      dangerouslySetInnerHTML={{
+   765→                        __html: formatPreviewContent(previewContent),
+   766→                      }}
+   767→                    />
+   768→                  </div>
+   769→                </div>
+   770→              </div>
+   771→            </ResizablePanel>
+   772→          </ResizablePanelGroup>
+   773→        </div>
+   774→      </div>
+   775→    </TooltipProvider>
+   776→  )
+   777→}
+   778→
+   779→/* -------------------------------------------------------------------------- */
+   780→/*  Field Renderer                                                           */
+   781→/* -------------------------------------------------------------------------- */
+   782→
+   783→interface FieldRendererProps {
+   784→  field: WizardField
+   785→  value: string | number | boolean | undefined
+   786→  onChange: (value: string | number | boolean) => void
+   787→  onFocus: () => void
+   788→  contacts: Contact[]
+   789→  onApplyContact: (contact: Contact) => void
+   790→  onDismissContacts: () => void
+   791→}
+   792→
+   793→function FieldRenderer({
+   794→  field,
+   795→  value,
+   796→  onChange,
+   797→  onFocus,
+   798→  contacts,
+   799→  onApplyContact,
+   800→  onDismissContacts,
+   801→}: FieldRendererProps) {
+   802→  const fieldRef = useRef<HTMLDivElement>(null)
+   803→
+   804→  // Close contacts dropdown on outside click
+   805→  useEffect(() => {
+   806→    if (contacts.length === 0) return
+   807→    function handleClick(e: MouseEvent) {
+   808→      if (fieldRef.current && !fieldRef.current.contains(e.target as Node)) {
+   809→        onDismissContacts()
+   810→      }
+   811→    }
+   812→    document.addEventListener('mousedown', handleClick)
+   813→    return () => document.removeEventListener('mousedown', handleClick)
+   814→  }, [contacts.length, onDismissContacts])
+   815→
+   816→  const labelElement = (
+   817→    <div className="mb-1.5 flex items-center gap-1.5">
+   818→      <Label className="text-xs font-medium text-[#CBD5E1]">{field.label}</Label>
+   819→      {field.tooltip && (
+   820→        <Tooltip>
+   821→          <TooltipTrigger asChild>
+   822→            <button type="button" className="text-[#475569] hover:text-[#C9A94E] transition-colors">
+   823→              <Info className="h-3.5 w-3.5" />
+   824→            </button>
+   825→          </TooltipTrigger>
+   826→          <TooltipContent
+   827→            side="right"
+   828→            className="max-w-[280px] border-[#1E3A5F] bg-[#152A4A] text-[#CBD5E1] text-xs shadow-xl"
+   829→          >
+   830→            <p className="leading-relaxed">{field.tooltip}</p>
+   831→          </TooltipContent>
+   832→        </Tooltip>
+   833→      )}
+   834→    </div>
+   835→  )
+   836→
+   837→  return (
+   838→    <div ref={fieldRef} className="relative animate-fade-in-up">
+   839→      {labelElement}
+   840→
+   841→      {/* Contact autocomplete dropdown */}
+   842→      {contacts.length > 0 && (
+   843→        <div className="absolute bottom-full left-0 right-0 mb-1 z-50 rounded-lg border border-[#C9A94E]/30 bg-[#152A4A] shadow-xl animate-fade-in-up">
+   844→          <div className="px-3 py-1.5 text-[10px] font-medium text-[#C9A94E] uppercase tracking-wider">
+   845→            Contactos guardados
+   846→          </div>
+   847→          {contacts.slice(0, 5).map((contact) => (
+   848→            <button
+   849→              key={contact.id}
+   850→              type="button"
+   851→              className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs text-[#CBD5E1] hover:bg-[#1E3A5F] transition-colors first:rounded-t-lg last:rounded-b-lg"
+   852→              onClick={() => onApplyContact(contact)}
+   853→            >
+   854→              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A94E]/10 text-[#C9A94E]">
+   855→                {contact.name.charAt(0).toUpperCase()}
+   856→              </div>
+   857→              <div className="flex-1 min-w-0">
+   858→                <p className="font-medium truncate">{contact.name}</p>
+   859→                <p className="text-[10px] text-[#475569] truncate">
+   860→                  {[contact.documentType, contact.documentNumber].filter(Boolean).join(': ') ||
+   861→                    contact.companyName ||
+   862→                    ''}
+   863→                </p>
+   864→              </div>
+   865→            </button>
+   866→          ))}
+   867→        </div>
+   868→      )}
+   869→
+   870→      {/* Field input */}
+   871→      {field.type === 'text' && (
+   872→        <Input
+   873→          value={String(value ?? '')}
+   874→          onChange={(e) => onChange(e.target.value)}
+   875→          onFocus={onFocus}
+   876→          placeholder={field.label}
+   877→          className="border-[#1E3A5F] bg-[#0F1F38] text-white placeholder:text-[#475569] focus:border-[#C9A94E] focus:ring-[#C9A94E]/20 h-10 text-sm"
+   878→        />
+   879→      )}
+   880→
+   881→      {field.type === 'number' && (
+   882→        <Input
+   883→          type="number"
+   884→          value={value !== undefined ? String(value) : ''}
+   885→          onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
+   886→          placeholder={field.label}
+   887→          className="border-[#1E3A5F] bg-[#0F1F38] text-white placeholder:text-[#475569] focus:border-[#C9A94E] focus:ring-[#C9A94E]/20 h-10 text-sm"
+   888→        />
+   889→      )}
+   890→
+   891→      {field.type === 'date' && (
+   892→        <Input
+   893→          type="date"
+   894→          value={String(value ?? '')}
+   895→          onChange={(e) => onChange(e.target.value)}
+   896→          className="border-[#1E3A5F] bg-[#0F1F38] text-white placeholder:text-[#475569] focus:border-[#C9A94E] focus:ring-[#C9A94E]/20 h-10 text-sm [color-scheme:dark]"
+   897→        />
+   898→      )}
+   899→
+   900→      {field.type === 'textarea' && (
+   901→        <Textarea
+   902→          value={String(value ?? '')}
+   903→          onChange={(e) => onChange(e.target.value)}
+   904→          placeholder={field.label}
+   905→          rows={3}
+   906→          className="border-[#1E3A5F] bg-[#0F1F38] text-white placeholder:text-[#475569] focus:border-[#C9A94E] focus:ring-[#C9A94E]/20 text-sm resize-none"
+   907→        />
+   908→      )}
+   909→
+   910→      {field.type === 'select' && field.options && (
+   911→        <Select
+   912→          value={value !== undefined ? String(value) : undefined}
+   913→          onValueChange={(val) => onChange(val)}
+   914→        >
+   915→          <SelectTrigger className="border-[#1E3A5F] bg-[#0F1F38] text-white focus:border-[#C9A94E] focus:ring-[#C9A94E]/20 h-10 text-sm">
+   916→            <SelectValue placeholder={`Seleccionar ${field.label.toLowerCase()}`} />
+   917→          </SelectTrigger>
+   918→          <SelectContent className="border-[#1E3A5F] bg-[#152A4A] text-[#CBD5E1]">
+   919→            {field.options.map((opt) => (
+   920→              <SelectItem key={opt} value={opt} className="text-sm focus:bg-[#1E3A5F] focus:text-white">
+   921→                {opt}
+   922→              </SelectItem>
+   923→            ))}
+   924→          </SelectContent>
+   925→        </Select>
+   926→      )}
+   927→
+   928→      {field.type === 'boolean' && (
+   929→        <RadioGroup
+   930→          value={value !== undefined ? String(value) : undefined}
+   931→          onValueChange={(val) => onChange(val === 'true')}
+   932→          className="flex gap-4"
+   933→        >
+   934→          <div className="flex items-center gap-2">
+   935→            <RadioGroupItem
+   936→              value="true"
+   937→              id={`${field.key}-yes`}
+   938→              className="border-[#1E3A5F] text-[#C9A94E] data-[state=checked]:border-[#C9A94E] data-[state=checked]:bg-[#C9A94E]"
+   939→            />
+   940→            <Label
+   941→              htmlFor={`${field.key}-yes`}
+   942→              className="text-sm text-[#CBD5E1] cursor-pointer"
+   943→            >
+   944→              Sí
+   945→            </Label>
+   946→          </div>
+   947→          <div className="flex items-center gap-2">
+   948→            <RadioGroupItem
+   949→              value="false"
+   950→              id={`${field.key}-no`}
+   951→              className="border-[#1E3A5F] text-[#C9A94E] data-[state=checked]:border-[#C9A94E] data-[state=checked]:bg-[#C9A94E]"
+   952→            />
+   953→            <Label
+   954→              htmlFor={`${field.key}-no`}
+   955→              className="text-sm text-[#CBD5E1] cursor-pointer"
+   956→            >
+   957→              No
+   958→            </Label>
+   959→          </div>
+   960→        </RadioGroup>
+   961→      )}
+   962→    </div>
+   963→  )
+   964→}
+   965→
+   966→/* -------------------------------------------------------------------------- */
+   967→/*  Preview formatting                                                       */
+   968→/* -------------------------------------------------------------------------- */
+   969→
+   970→function formatPreviewContent(content: string): string {
+   971→  // Replace newlines with paragraph breaks
+   972→  let html = content
+   973→    .split('\n')
+   974→    .filter((line) => line.trim() !== '')
+   975→    .map((line) => {
+   976→      // Highlight unresolved {{variables}} in gold
+   977→      const highlighted = line.replace(
+   978→        /\{\{([^}]+)\}\}/g,
+   979→        '<span class="inline-block rounded bg-[#C9A94E]/10 px-1.5 py-0.5 text-[#C9A94E] font-semibold text-xs mx-0.5">{{$1}}</span>'
+   980→      )
+   981→      return `<p>${highlighted}</p>`
+   982→    })
+   983→    .join('')
+   984→  return html
+   985→}
+   986→

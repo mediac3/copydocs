@@ -18,6 +18,7 @@ interface AppState {
   currentPage: Page;
   focusMode: boolean;
   sidebarOpen: boolean;
+  isVisitor: boolean;
   wizardTemplateId: string | null;
   wizardDocumentId: string | null;
   
@@ -27,21 +28,28 @@ interface AppState {
   toggleFocusMode: () => void;
   setSidebarOpen: (open: boolean) => void;
   startWizard: (templateId: string, documentId?: string) => void;
+  startVisitorWizard: (templateId: string) => void;
+  exitVisitorMode: () => void;
+  enterVisitorCatalog: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   user: null,
   token: null,
-  currentPage: 'dashboard',
-  focusMode: false,
-  sidebarOpen: true,
+  currentPage: 'catalog',
+  focusMode: true,
+  sidebarOpen: false,
+  isVisitor: false,
   wizardTemplateId: null,
   wizardDocumentId: null,
   
-  setUser: (user, token) => set({ user, token }),
-  logout: () => set({ user: null, token: null, currentPage: 'dashboard' }),
-  setCurrentPage: (page) => set({ currentPage: page, focusMode: false }),
+  setUser: (user, token) => set({ user, token, isVisitor: false }),
+  logout: () => set({ user: null, token: null, currentPage: 'dashboard', isVisitor: false }),
+  setCurrentPage: (page) => set({ currentPage: page, focusMode: page === 'wizard' }),
   toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode, sidebarOpen: !s.focusMode })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   startWizard: (templateId, documentId) => set({ currentPage: 'wizard', wizardTemplateId: templateId, wizardDocumentId: documentId || null }),
+  startVisitorWizard: (templateId) => set({ isVisitor: true, currentPage: 'wizard', wizardTemplateId: templateId, wizardDocumentId: null, focusMode: true, sidebarOpen: false }),
+  exitVisitorMode: () => set({ isVisitor: false, currentPage: 'catalog', wizardTemplateId: null, wizardDocumentId: null }),
+  enterVisitorCatalog: () => set({ isVisitor: true, currentPage: 'catalog', focusMode: false, sidebarOpen: false }),
 }));
