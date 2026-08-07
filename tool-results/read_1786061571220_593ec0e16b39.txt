@@ -1,0 +1,1346 @@
+   200→  suspended: { label: 'Suspendido', className: 'bg-red-500/15 text-red-400 border-red-500/25' },
+   201→  inactive: { label: 'Inactivo', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
+   202→}
+   203→
+   204→function StatusBadge({ status, config }: { status: string; config: Record<string, { label: string; className: string }> }) {
+   205→  const c = config[status] || { label: status, className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' }
+   206→  return (
+   207→    <Badge variant="outline" className={`${c.className} hover:${c.className}`}>
+   208→      {c.label}
+   209→    </Badge>
+   210→  )
+   211→}
+   212→
+   213→/* -------------------------------------------------------------------------- */
+   214→/*  Chart Tooltip                                                            */
+   215→/* -------------------------------------------------------------------------- */
+   216→
+   217→function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
+   218→  if (!active || !payload?.length) return null
+   219→  return (
+   220→    <div className="rounded-lg border border-[#C9A94E]/20 bg-[#0A1628]/95 px-3 py-2 shadow-xl backdrop-blur-sm">
+   221→      <p className="mb-1 text-xs font-semibold text-white/80 capitalize">{label}</p>
+   222→      {payload.map((p, i) => (
+   223→        <div key={i} className="flex items-center gap-2 text-xs">
+   224→          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
+   225→          <span className="text-white/60">{p.name}:</span>
+   226→          <span className="font-medium text-white">{p.value}</span>
+   227→        </div>
+   228→      ))}
+   229→    </div>
+   230→  )
+   231→}
+   232→
+   233→/* -------------------------------------------------------------------------- */
+   234→/*  Empty state                                                              */
+   235→/* -------------------------------------------------------------------------- */
+   236→
+   237→function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message: string }) {
+   238→  return (
+   239→    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+   240→      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/5">
+   241→        <Icon className="h-6 w-6 text-white/25" />
+   242→      </div>
+   243→      <p className="text-sm text-white/40">{message}</p>
+   244→    </div>
+   245→  )
+   246→}
+   247→
+   248→/* -------------------------------------------------------------------------- */
+   249→/*  Stat Card                                                                */
+   250→/* -------------------------------------------------------------------------- */
+   251→
+   252→function AdminStatCard({ label, value, icon, accentBg, accentText, accentBorder, sub }: {
+   253→  label: string
+   254→  value: string | number
+   255→  icon: React.ReactNode
+   256→  accentBg: string
+   257→  accentText: string
+   258→  accentBorder: string
+   259→  sub?: string
+   260→}) {
+   261→  return (
+   262→    <Card className={`border ${accentBorder} bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5`}>
+   263→      <CardContent className="flex items-center gap-4 p-5">
+   264→        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${accentBg} ${accentText}`}>
+   265→          {icon}
+   266→        </div>
+   267→        <div className="min-w-0 flex-1">
+   268→          <p className="text-2xl font-bold tabular-nums text-white">{value}</p>
+   269→          <p className="truncate text-xs text-white/50">{label}</p>
+   270→        </div>
+   271→        {sub && <p className="text-xs text-white/30">{sub}</p>}
+   272→      </CardContent>
+   273→    </Card>
+   274→  )
+   275→}
+   276→
+   277→/* -------------------------------------------------------------------------- */
+   278→/*  AdminPage                                                                */
+   279→/* -------------------------------------------------------------------------- */
+   280→
+   281→export default function AdminPage() {
+   282→  const { user } = useAppStore()
+   283→  const [activeTab, setActiveTab] = useState('resumen')
+   284→
+   285→  /* ---- Resumen state ---- */
+   286→  const [stats, setStats] = useState<AdminStats | null>(null)
+   287→  const [loadingStats, setLoadingStats] = useState(true)
+   288→
+   289→  /* ---- Templates state ---- */
+   290→  const [templates, setTemplates] = useState<Template[]>([])
+   291→  const [loadingTemplates, setLoadingTemplates] = useState(true)
+   292→  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+   293→  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
+   294→  const [templateForm, setTemplateForm] = useState<NewTemplateForm>({
+   295→    name: '', description: '', category: '', legalArea: '', audience: '',
+   296→    price: '', baseContent: '', status: 'borrador',
+   297→  })
+   298→  const [savingTemplate, setSavingTemplate] = useState(false)
+   299→
+   300→  /* ---- Clauses state ---- */
+   301→  const [clauses, setClauses] = useState<Clause[]>([])
+   302→  const [loadingClauses, setLoadingClauses] = useState(true)
+   303→  const [clauseDialogOpen, setClauseDialogOpen] = useState(false)
+   304→  const [editingClause, setEditingClause] = useState<Clause | null>(null)
+   305→  const [clauseForm, setClauseForm] = useState<NewClauseForm>({ title: '', content: '', legalArea: '' })
+   306→  const [savingClause, setSavingClause] = useState(false)
+   307→  const [deleteClauseId, setDeleteClauseId] = useState<string | null>(null)
+   308→
+   309→  /* ---- Users state ---- */
+   310→  const [users, setUsers] = useState<AdminUser[]>([])
+   311→  const [loadingUsers, setLoadingUsers] = useState(true)
+   312→
+   313→  /* ---- Requests state ---- */
+   314→  const [requests, setRequests] = useState<DocumentRequest[]>([])
+   315→  const [loadingRequests, setLoadingRequests] = useState(true)
+   316→  const [requestNotesId, setRequestNotesId] = useState<string | null>(null)
+   317→  const [requestNotes, setRequestNotes] = useState('')
+   318→
+   319→  /* ---- Plans state ---- */
+   320→  const [plans, setPlans] = useState<Plan[]>([])
+   321→  const [loadingPlans, setLoadingPlans] = useState(true)
+   322→  const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
+   323→  const [planPrice, setPlanPrice] = useState('')
+   324→
+   325→  /* ---- Auth header helper ---- */
+   326→  const authHeaders = useCallback(() => ({
+   327→    'Content-Type': 'application/json',
+   328→    'x-user-id': user?.id || '',
+   329→  }), [user?.id])
+   330→
+   331→  /* ========================================================================== */
+   332→  /*  DATA FETCHING                                                             */
+   333→  /* ========================================================================== */
+   334→
+   335→  const fetchStats = useCallback(async () => {
+   336→    setLoadingStats(true)
+   337→    try {
+   338→      const res = await fetch('/api/admin', { headers: authHeaders() })
+   339→      if (res.ok) {
+   340→        const data = await res.json()
+   341→        setStats({
+   342→          totalUsers: data.totalUsers ?? 0,
+   343→          totalDocuments: data.totalDocuments ?? 0,
+   344→          activeTemplates: data.activeTemplates ?? 0,
+   345→          totalRevenue: data.totalRevenue ?? 0,
+   346→          documentsByMonth: data.documentsByMonth ?? [],
+   347→          topTemplates: data.topTemplates ?? [],
+   348→        })
+   349→      }
+   350→    } catch {
+   351→      // keep null state on error
+   352→    } finally {
+   353→      setLoadingStats(false)
+   354→    }
+   355→  }, [authHeaders])
+   356→
+   357→  const fetchTemplates = useCallback(async () => {
+   358→    setLoadingTemplates(true)
+   359→    try {
+   360→      const res = await fetch('/api/admin/templates', { headers: authHeaders() })
+   361→      if (res.ok) {
+   362→        const data = await res.json()
+   363→        setTemplates(Array.isArray(data) ? data : data.templates || [])
+   364→      }
+   365→    } catch {
+   366→      // keep empty on error
+   367→    } finally {
+   368→      setLoadingTemplates(false)
+   369→    }
+   370→  }, [authHeaders])
+   371→
+   372→  const fetchClauses = useCallback(async () => {
+   373→    setLoadingClauses(true)
+   374→    try {
+   375→      const res = await fetch('/api/admin/clauses', { headers: authHeaders() })
+   376→      if (res.ok) {
+   377→        const data = await res.json()
+   378→        setClauses(Array.isArray(data) ? data : data.clauses || [])
+   379→      }
+   380→    } catch {
+   381→      // keep empty on error
+   382→    } finally {
+   383→      setLoadingClauses(false)
+   384→    }
+   385→  }, [authHeaders])
+   386→
+   387→  const fetchUsers = useCallback(async () => {
+   388→    setLoadingUsers(true)
+   389→    try {
+   390→      const res = await fetch('/api/admin/users', { headers: authHeaders() })
+   391→      if (res.ok) {
+   392→        const data = await res.json()
+   393→        setUsers(Array.isArray(data) ? data : data.users || [])
+   394→      }
+   395→    } catch {
+   396→      // keep empty on error
+   397→    } finally {
+   398→      setLoadingUsers(false)
+   399→    }
+   400→  }, [authHeaders])
+   401→
+   402→  const fetchRequests = useCallback(async () => {
+   403→    setLoadingRequests(true)
+   404→    try {
+   405→      const res = await fetch('/api/admin/requests', { headers: authHeaders() })
+   406→      if (res.ok) {
+   407→        const data = await res.json()
+   408→        setRequests(Array.isArray(data) ? data : data.requests || [])
+   409→      }
+   410→    } catch {
+   411→      // keep empty on error
+   412→    } finally {
+   413→      setLoadingRequests(false)
+   414→    }
+   415→  }, [authHeaders])
+   416→
+   417→  const fetchPlans = useCallback(async () => {
+   418→    setLoadingPlans(true)
+   419→    try {
+   420→      const res = await fetch('/api/plans', { headers: authHeaders() })
+   421→      if (res.ok) {
+   422→        const data = await res.json()
+   423→        setPlans(Array.isArray(data) ? data : data.plans || [])
+   424→      }
+   425→    } catch {
+   426→      // keep empty on error
+   427→    } finally {
+   428→      setLoadingPlans(false)
+   429→    }
+   430→  }, [authHeaders])
+   431→
+   432→  useEffect(() => {
+   433→    fetchStats()
+   434→  }, [fetchStats])
+   435→
+   436→  useEffect(() => {
+   437→    if (activeTab === 'plantillas') fetchTemplates()
+   438→  }, [activeTab, fetchTemplates])
+   439→
+   440→  useEffect(() => {
+   441→    if (activeTab === 'clausulas') fetchClauses()
+   442→  }, [activeTab, fetchClauses])
+   443→
+   444→  useEffect(() => {
+   445→    if (activeTab === 'usuarios') fetchUsers()
+   446→  }, [activeTab, fetchUsers])
+   447→
+   448→  useEffect(() => {
+   449→    if (activeTab === 'solicitudes') fetchRequests()
+   450→  }, [activeTab, fetchRequests])
+   451→
+   452→  useEffect(() => {
+   453→    if (activeTab === 'precios') fetchPlans()
+   454→  }, [activeTab, fetchPlans])
+   455→
+   456→  /* ========================================================================== */
+   457→  /*  ACTION HANDLERS                                                           */
+   458→  /* ========================================================================== */
+   459→
+   460→  /* ---- Template actions ---- */
+   461→  const handleOpenTemplateDialog = (template?: Template) => {
+   462→    if (template) {
+   463→      setEditingTemplate(template)
+   464→      setTemplateForm({
+   465→        name: template.name,
+   466→        description: template.description || '',
+   467→        category: template.category,
+   468→        legalArea: template.legalArea,
+   469→        audience: template.audience || '',
+   470→        price: String(template.price),
+   471→        baseContent: template.baseContent || '',
+   472→        status: template.status,
+   473→      })
+   474→    } else {
+   475→      setEditingTemplate(null)
+   476→      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', status: 'borrador' })
+   477→    }
+   478→    setTemplateDialogOpen(true)
+   479→  }
+   480→
+   481→  const handleSaveTemplate = async () => {
+   482→    if (!templateForm.name.trim()) {
+   483→      toast.error('El nombre es obligatorio')
+   484→      return
+   485→    }
+   486→    setSavingTemplate(true)
+   487→    try {
+   488→      const payload = {
+   489→        action: editingTemplate ? 'update_template_status' : 'create_template',
+   490→        templateId: editingTemplate?.id,
+   491→        ...templateForm,
+   492→        price: Number(templateForm.price) || 0,
+   493→      }
+   494→      const res = await fetch('/api/admin', {
+   495→        method: 'POST',
+   496→        headers: authHeaders(),
+   497→        body: JSON.stringify(payload),
+   498→      })
+   499→      if (res.ok) {
+   500→        toast.success(editingTemplate ? 'Plantilla actualizada' : 'Plantilla creada')
+   501→        setTemplateDialogOpen(false)
+   502→        fetchTemplates()
+   503→      } else {
+   504→        toast.error('Error al guardar la plantilla')
+   505→      }
+   506→    } catch {
+   507→      toast.error('Error de conexión')
+   508→    } finally {
+   509→      setSavingTemplate(false)
+   510→    }
+   511→  }
+   512→
+   513→  const handleUpdateTemplateStatus = async (templateId: string, newStatus: string) => {
+   514→    try {
+   515→      const res = await fetch('/api/admin', {
+   516→        method: 'POST',
+   517→        headers: authHeaders(),
+   518→        body: JSON.stringify({ action: 'update_template_status', templateId, status: newStatus }),
+   519→      })
+   520→      if (res.ok) {
+   521→        toast.success(`Estado cambiado a ${TEMPLATE_STATUS_CONFIG[newStatus]?.label || newStatus}`)
+   522→        fetchTemplates()
+   523→      } else {
+   524→        toast.error('Error al cambiar estado')
+   525→      }
+   526→    } catch {
+   527→      toast.error('Error de conexión')
+   528→    }
+   529→  }
+   530→
+   531→  /* ---- Clause actions ---- */
+   532→  const handleOpenClauseDialog = (clause?: Clause) => {
+   533→    if (clause) {
+   534→      setEditingClause(clause)
+   535→      setClauseForm({ title: clause.title, content: clause.content, legalArea: clause.legalArea })
+   536→    } else {
+   537→      setEditingClause(null)
+   538→      setClauseForm({ title: '', content: '', legalArea: '' })
+   539→    }
+   540→    setClauseDialogOpen(true)
+   541→  }
+   542→
+   543→  const handleSaveClause = async () => {
+   544→    if (!clauseForm.title.trim() || !clauseForm.content.trim()) {
+   545→      toast.error('Título y contenido son obligatorios')
+   546→      return
+   547→    }
+   548→    setSavingClause(true)
+   549→    try {
+   550→      const payload = {
+   551→        ...clauseForm,
+   552→        clauseId: editingClause?.id,
+   553→      }
+   554→      const res = await fetch('/api/admin/clauses', {
+   555→        method: 'POST',
+   556→        headers: authHeaders(),
+   557→        body: JSON.stringify(payload),
+   558→      })
+   559→      if (res.ok) {
+   560→        toast.success(editingClause ? 'Cláusula actualizada' : 'Cláusula creada')
+   561→        setClauseDialogOpen(false)
+   562→        fetchClauses()
+   563→      } else {
+   564→        toast.error('Error al guardar la cláusula')
+   565→      }
+   566→    } catch {
+   567→      toast.error('Error de conexión')
+   568→    } finally {
+   569→      setSavingClause(false)
+   570→    }
+   571→  }
+   572→
+   573→  const handleDeleteClause = async () => {
+   574→    if (!deleteClauseId) return
+   575→    try {
+   576→      const res = await fetch('/api/admin/clauses', {
+   577→        method: 'POST',
+   578→        headers: authHeaders(),
+   579→        body: JSON.stringify({ action: 'delete_clause', clauseId: deleteClauseId }),
+   580→      })
+   581→      if (res.ok) {
+   582→        toast.success('Cláusula eliminada')
+   583→        setDeleteClauseId(null)
+   584→        fetchClauses()
+   585→      } else {
+   586→        toast.error('Error al eliminar la cláusula')
+   587→      }
+   588→    } catch {
+   589→      toast.error('Error de conexión')
+   590→    }
+   591→  }
+   592→
+   593→  /* ---- User actions ---- */
+   594→  const handleUpdateUserStatus = async (userId: string, newStatus: string) => {
+   595→    try {
+   596→      const res = await fetch('/api/admin', {
+   597→        method: 'POST',
+   598→        headers: authHeaders(),
+   599→        body: JSON.stringify({ action: 'update_user_status', userId, status: newStatus }),
+   600→      })
+   601→      if (res.ok) {
+   602→        toast.success(`Usuario ${newStatus === 'active' ? 'activado' : 'suspendido'}`)
+   603→        fetchUsers()
+   604→      } else {
+   605→        toast.error('Error al actualizar usuario')
+   606→      }
+   607→    } catch {
+   608→      toast.error('Error de conexión')
+   609→    }
+   610→  }
+   611→
+   612→  const handleChangeUserRole = async (userId: string, newRole: string) => {
+   613→    try {
+   614→      const res = await fetch('/api/admin', {
+   615→        method: 'POST',
+   616→        headers: authHeaders(),
+   617→        body: JSON.stringify({ action: 'update_user_status', userId, role: newRole }),
+   618→      })
+   619→      if (res.ok) {
+   620→        toast.success('Rol actualizado')
+   621→        fetchUsers()
+   622→      } else {
+   623→        toast.error('Error al cambiar rol')
+   624→      }
+   625→    } catch {
+   626→      toast.error('Error de conexión')
+   627→    }
+   628→  }
+   629→
+   630→  /* ---- Request actions ---- */
+   631→  const handleRequestAction = async (requestId: string, action: 'aprobada' | 'rechazada' | 'en_desarrollo', notes?: string) => {
+   632→    try {
+   633→      const res = await fetch('/api/admin', {
+   634→        method: 'POST',
+   635→        headers: authHeaders(),
+   636→        body: JSON.stringify({ action: 'handle_request', requestId, status: action, notes }),
+   637→      })
+   638→      if (res.ok) {
+   639→        toast.success(`Solicitud marcada como ${REQUEST_STATUS_CONFIG[action]?.label || action}`)
+   640→        setRequestNotesId(null)
+   641→        setRequestNotes('')
+   642→        fetchRequests()
+   643→      } else {
+   644→        toast.error('Error al procesar solicitud')
+   645→      }
+   646→    } catch {
+   647→      toast.error('Error de conexión')
+   648→    }
+   649→  }
+   650→
+   651→  /* ---- Plan actions ---- */
+   652→  const handleOpenEditPlan = (plan: Plan) => {
+   653→    setEditingPlan(plan)
+   654→    setPlanPrice(String(plan.price))
+   655→  }
+   656→
+   657→  const handleSavePlanPrice = async () => {
+   658→    if (!editingPlan) return
+   659→    try {
+   660→      const res = await fetch('/api/admin', {
+   661→        method: 'POST',
+   662→        headers: authHeaders(),
+   663→        body: JSON.stringify({ action: 'update_plan', planId: editingPlan.id, price: Number(planPrice) || 0 }),
+   664→      })
+   665→      if (res.ok) {
+   666→        toast.success('Precio actualizado')
+   667→        setEditingPlan(null)
+   668→        fetchPlans()
+   669→      } else {
+   670→        toast.error('Error al actualizar precio')
+   671→      }
+   672→    } catch {
+   673→      toast.error('Error de conexión')
+   674→    }
+   675→  }
+   676→
+   677→  /* ========================================================================== */
+   678→  /*  SKELETON LOADER                                                           */
+   679→  /* ========================================================================== */
+   680→
+   681→  function TableSkeleton({ rows = 5, cols = 6 }: { rows?: number; cols?: number }) {
+   682→    return (
+   683→      <div className="space-y-3 p-4">
+   684→        {Array.from({ length: rows }).map((_, r) => (
+   685→          <div key={r} className="flex gap-4">
+   686→            {Array.from({ length: cols }).map((_, c) => (
+   687→              <div
+   688→                key={c}
+   689→                className="h-5 flex-1 animate-pulse rounded bg-white/[0.04]"
+   690→              />
+   691→            ))}
+   692→          </div>
+   693→        ))}
+   694→      </div>
+   695→    )
+   696→  }
+   697→
+   698→  /* ========================================================================== */
+   699→  /*  NAV TABS CONFIG                                                          */
+   700→  /* ========================================================================== */
+   701→
+   702→  const adminTabs = [
+   703→    { value: 'resumen', label: 'Resumen', icon: BarChart3 },
+   704→    { value: 'plantillas', label: 'Plantillas', icon: Layout },
+   705→    { value: 'clausulas', label: 'Cláusulas', icon: BookOpen },
+   706→    { value: 'usuarios', label: 'Usuarios', icon: Users },
+   707→    { value: 'solicitudes', label: 'Solicitudes', icon: MessageSquare },
+   708→    { value: 'precios', label: 'Precios', icon: CreditCard },
+   709→  ]
+   710→
+   711→  /* ========================================================================== */
+   712→  /*  RENDER                                                                   */
+   713→  /* ========================================================================== */
+   714→
+   715→  return (
+   716→    <main className="min-h-screen bg-[#0A1628]">
+   717→      <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+   718→        {/* ---------- Header ---------- */}
+   719→        <div className="mb-8">
+   720→          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+   721→            Panel de Administración
+   722→          </h1>
+   723→          <p className="mt-1 text-sm text-white/50">
+   724→            Gestiona plantillas, cláusulas, usuarios y más en LexDoc.
+   725→          </p>
+   726→        </div>
+   727→
+   728→        {/* ---------- Tabs Layout ---------- */}
+   729→        <div className="flex flex-col gap-6 lg:flex-row">
+   730→          {/* Vertical nav on lg, horizontal on mobile */}
+   731→          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex w-full flex-col lg:flex-row">
+   732→            <TabsList className="mb-4 flex h-auto w-full flex-row flex-wrap gap-1 bg-[#0F1D32]/80 p-1 lg:mb-0 lg:w-56 lg:flex-col lg:flex-nowrap lg:overflow-y-auto lg:rounded-xl lg:border lg:border-white/5">
+   733→              {adminTabs.map((tab) => (
+   734→                <TabsTrigger
+   735→                  key={tab.value}
+   736→                  value={tab.value}
+   737→                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white/50 data-[state=active]:bg-[#C9A94E]/10 data-[state=active]:text-[#C9A94E] lg:w-full justify-start"
+   738→                >
+   739→                  <tab.icon className="h-4 w-4 shrink-0" />
+   740→                  <span className="hidden sm:inline">{tab.label}</span>
+   741→                </TabsTrigger>
+   742→              ))}
+   743→            </TabsList>
+   744→
+   745→            {/* ============================================================ */}
+   746→            {/*  1. RESUMEN                                                  */}
+   747→            {/* ============================================================ */}
+   748→            <TabsContent value="resumen" className="mt-0 flex-1 lg:ml-6">
+   749→              <div className="space-y-6">
+   750→                {/* Stat Cards */}
+   751→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+   752→                  <AdminStatCard
+   753→                    label="Total usuarios"
+   754→                    value={loadingStats ? '…' : (stats?.totalUsers ?? 0)}
+   755→                    icon={<Users className="h-5 w-5" />}
+   756→                    accentBg="bg-blue-500/15"
+   757→                    accentText="text-blue-400"
+   758→                    accentBorder="border-blue-500/20"
+   759→                  />
+   760→                  <AdminStatCard
+   761→                    label="Total documentos"
+   762→                    value={loadingStats ? '…' : (stats?.totalDocuments ?? 0)}
+   763→                    icon={<FileText className="h-5 w-5" />}
+   764→                    accentBg="bg-[#C9A94E]/15"
+   765→                    accentText="text-[#C9A94E]"
+   766→                    accentBorder="border-[#C9A94E]/20"
+   767→                  />
+   768→                  <AdminStatCard
+   769→                    label="Plantillas activas"
+   770→                    value={loadingStats ? '…' : (stats?.activeTemplates ?? 0)}
+   771→                    icon={<Layout className="h-5 w-5" />}
+   772→                    accentBg="bg-green-500/15"
+   773→                    accentText="text-green-400"
+   774→                    accentBorder="border-green-500/20"
+   775→                  />
+   776→                  <AdminStatCard
+   777→                    label="Ingresos totales"
+   778→                    value={loadingStats ? '…' : formatCurrency(stats?.totalRevenue ?? 0)}
+   779→                    icon={<CreditCard className="h-5 w-5" />}
+   780→                    accentBg="bg-purple-500/15"
+   781→                    accentText="text-purple-400"
+   782→                    accentBorder="border-purple-500/20"
+   783→                  />
+   784→                </div>
+   785→
+   786→                {/* Chart */}
+   787→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   788→                  <CardHeader className="pb-2">
+   789→                    <CardTitle className="text-base font-semibold text-white">
+   790→                      Generación de documentos
+   791→                    </CardTitle>
+   792→                  </CardHeader>
+   793→                  <CardContent className="pt-0">
+   794→                    {loadingStats ? (
+   795→                      <div className="flex h-[320px] items-center justify-center">
+   796→                        <div className="h-64 w-full animate-pulse rounded-lg bg-white/[0.04]" />
+   797→                      </div>
+   798→                    ) : (stats?.documentsByMonth?.length ?? 0) > 0 ? (
+   799→                      <div className="h-[320px] w-full">
+   800→                        <ResponsiveContainer width="100%" height="100%">
+   801→                          <BarChart data={stats!.documentsByMonth} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
+   802→                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+   803→                            <XAxis
+   804→                              dataKey="month"
+   805→                              tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+   806→                              axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+   807→                              tickLine={false}
+   808→                            />
+   809→                            <YAxis
+   810→                              tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+   811→                              axisLine={false}
+   812→                              tickLine={false}
+   813→                              allowDecimals={false}
+   814→                            />
+   815→                            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(201,169,78,0.06)' }} />
+   816→                            <Bar dataKey="count" name="Documentos" fill="#C9A94E" radius={[4, 4, 0, 0]} maxBarSize={48} />
+   817→                          </BarChart>
+   818→                        </ResponsiveContainer>
+   819→                      </div>
+   820→                    ) : (
+   821→                      <EmptyState icon={BarChart3} message="No hay datos de generación disponibles" />
+   822→                    )}
+   823→                  </CardContent>
+   824→                </Card>
+   825→
+   826→                {/* Top 5 Templates */}
+   827→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   828→                  <CardHeader className="pb-3">
+   829→                    <CardTitle className="text-base font-semibold text-white">
+   830→                      Top 5 plantillas más usadas
+   831→                    </CardTitle>
+   832→                  </CardHeader>
+   833→                  <CardContent className="pt-0">
+   834→                    {loadingStats ? (
+   835→                      <TableSkeleton rows={5} cols={3} />
+   836→                    ) : (stats?.topTemplates?.length ?? 0) > 0 ? (
+   837→                      <Table>
+   838→                        <TableHeader>
+   839→                          <TableRow className="border-white/5 hover:bg-transparent">
+   840→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">#</TableHead>
+   841→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+   842→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Categoría</TableHead>
+   843→                            <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Documentos</TableHead>
+   844→                          </TableRow>
+   845→                        </TableHeader>
+   846→                        <TableBody className="divide-y divide-white/5">
+   847→                          {stats!.topTemplates.slice(0, 5).map((tpl, idx) => (
+   848→                            <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+   849→                              <TableCell className="font-medium text-[#C9A94E]">{idx + 1}</TableCell>
+   850→                              <TableCell className="font-medium text-white/80">{tpl.name}</TableCell>
+   851→                              <TableCell className="text-white/40">{tpl.category}</TableCell>
+   852→                              <TableCell className="text-right">
+   853→                                <span className="flex items-center justify-end gap-1.5 font-medium text-white/70">
+   854→                                  <TrendingUp className="h-3.5 w-3.5 text-[#C9A94E]/70" />
+   855→                                  {tpl.count}
+   856→                                </span>
+   857→                              </TableCell>
+   858→                            </TableRow>
+   859→                          ))}
+   860→                        </TableBody>
+   861→                      </Table>
+   862→                    ) : (
+   863→                      <EmptyState icon={Layout} message="No hay datos de plantillas disponibles" />
+   864→                    )}
+   865→                  </CardContent>
+   866→                </Card>
+   867→              </div>
+   868→            </TabsContent>
+   869→
+   870→            {/* ============================================================ */}
+   871→            {/*  2. GESTIÓN DE PLANTILLAS                                    */}
+   872→            {/* ============================================================ */}
+   873→            <TabsContent value="plantillas" className="mt-0 flex-1 lg:ml-6">
+   874→              <div className="space-y-6">
+   875→                <div className="flex items-center justify-between">
+   876→                  <div>
+   877→                    <h2 className="text-lg font-semibold text-white">Gestión de Plantillas</h2>
+   878→                    <p className="text-xs text-white/40">Administra todas las plantillas del sistema</p>
+   879→                  </div>
+   880→                  <Button
+   881→                    onClick={() => handleOpenTemplateDialog()}
+   882→                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+   883→                  >
+   884→                    <Plus className="mr-2 h-4 w-4" />
+   885→                    Crear Plantilla
+   886→                  </Button>
+   887→                </div>
+   888→
+   889→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   890→                  <CardContent className="p-0">
+   891→                    {loadingTemplates ? (
+   892→                      <TableSkeleton rows={6} cols={7} />
+   893→                    ) : templates.length > 0 ? (
+   894→                      <div className="overflow-x-auto">
+   895→                        <Table>
+   896→                          <TableHeader>
+   897→                            <TableRow className="border-white/5 hover:bg-transparent">
+   898→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+   899→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Categoría</TableHead>
+   900→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Área Legal</TableHead>
+   901→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+   902→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Precio</TableHead>
+   903→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Docs</TableHead>
+   904→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+   905→                            </TableRow>
+   906→                          </TableHeader>
+   907→                          <TableBody className="divide-y divide-white/5">
+   908→                            {templates.map((tpl) => (
+   909→                              <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+   910→                                <TableCell className="max-w-[200px] truncate font-medium text-white/80">{tpl.name}</TableCell>
+   911→                                <TableCell className="hidden text-white/40 md:table-cell">{tpl.category}</TableCell>
+   912→                                <TableCell className="hidden text-white/40 lg:table-cell">{tpl.legalArea}</TableCell>
+   913→                                <TableCell>
+   914→                                  <DropdownMenu>
+   915→                                    <DropdownMenuTrigger asChild>
+   916→                                      <button className="cursor-pointer">
+   917→                                        <StatusBadge status={tpl.status} config={TEMPLATE_STATUS_CONFIG} />
+   918→                                      </button>
+   919→                                    </DropdownMenuTrigger>
+   920→                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+   921→                                      {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+   922→                                        <DropdownMenuItem
+   923→                                          key={key}
+   924→                                          onClick={() => handleUpdateTemplateStatus(tpl.id, key)}
+   925→                                          disabled={key === tpl.status}
+   926→                                          className="focus:bg-white/5 focus:text-white"
+   927→                                        >
+   928→                                          {val.label}
+   929→                                        </DropdownMenuItem>
+   930→                                      ))}
+   931→                                    </DropdownMenuContent>
+   932→                                  </DropdownMenu>
+   933→                                </TableCell>
+   934→                                <TableCell className="text-right font-medium text-white/70">{formatCurrency(tpl.price)}</TableCell>
+   935→                                <TableCell className="hidden text-right text-white/40 sm:table-cell">{tpl.documentCount}</TableCell>
+   936→                                <TableCell className="text-right">
+   937→                                  <div className="flex items-center justify-end gap-1">
+   938→                                    <Button
+   939→                                      variant="ghost"
+   940→                                      size="icon"
+   941→                                      className="h-8 w-8 text-white/40 hover:text-[#C9A94E] hover:bg-[#C9A94E]/10"
+   942→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+   943→                                    >
+   944→                                      <Eye className="h-4 w-4" />
+   945→                                    </Button>
+   946→                                    <Button
+   947→                                      variant="ghost"
+   948→                                      size="icon"
+   949→                                      className="h-8 w-8 text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+   950→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+   951→                                    >
+   952→                                      <Edit className="h-4 w-4" />
+   953→                                    </Button>
+   954→                                  </div>
+   955→                                </TableCell>
+   956→                              </TableRow>
+   957→                            ))}
+   958→                          </TableBody>
+   959→                        </Table>
+   960→                      </div>
+   961→                    ) : (
+   962→                      <EmptyState icon={Layout} message="No hay plantillas registradas" />
+   963→                    )}
+   964→                  </CardContent>
+   965→                </Card>
+   966→              </div>
+   967→
+   968→              {/* Create/Edit Template Dialog */}
+   969→              <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+   970→                <DialogContent className="max-h-[90vh] overflow-y-auto border-white/10 bg-[#0F1D32] sm:max-w-2xl">
+   971→                  <DialogHeader>
+   972→                    <DialogTitle className="text-white">
+   973→                      {editingTemplate ? 'Editar Plantilla' : 'Crear Plantilla'}
+   974→                    </DialogTitle>
+   975→                  </DialogHeader>
+   976→                  <div className="grid gap-4 py-4">
+   977→                    <div className="grid gap-2">
+   978→                      <Label className="text-white/70">Nombre *</Label>
+   979→                      <Input
+   980→                        value={templateForm.name}
+   981→                        onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+   982→                        placeholder="Nombre de la plantilla"
+   983→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   984→                      />
+   985→                    </div>
+   986→                    <div className="grid gap-2">
+   987→                      <Label className="text-white/70">Descripción</Label>
+   988→                      <Textarea
+   989→                        value={templateForm.description}
+   990→                        onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))}
+   991→                        placeholder="Descripción de la plantilla"
+   992→                        rows={3}
+   993→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   994→                      />
+   995→                    </div>
+   996→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+   997→                      <div className="grid gap-2">
+   998→                        <Label className="text-white/70">Categoría</Label>
+   999→                        <Input
+  1000→                          value={templateForm.category}
+  1001→                          onChange={(e) => setTemplateForm((f) => ({ ...f, category: e.target.value }))}
+  1002→                          placeholder="Ej: Contratos"
+  1003→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1004→                        />
+  1005→                      </div>
+  1006→                      <div className="grid gap-2">
+  1007→                        <Label className="text-white/70">Área Legal</Label>
+  1008→                        <Input
+  1009→                          value={templateForm.legalArea}
+  1010→                          onChange={(e) => setTemplateForm((f) => ({ ...f, legalArea: e.target.value }))}
+  1011→                          placeholder="Ej: Derecho Civil"
+  1012→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1013→                        />
+  1014→                      </div>
+  1015→                    </div>
+  1016→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+  1017→                      <div className="grid gap-2">
+  1018→                        <Label className="text-white/70">Audiencia</Label>
+  1019→                        <Input
+  1020→                          value={templateForm.audience}
+  1021→                          onChange={(e) => setTemplateForm((f) => ({ ...f, audience: e.target.value }))}
+  1022→                          placeholder="Ej: Empresas"
+  1023→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1024→                        />
+  1025→                      </div>
+  1026→                      <div className="grid gap-2">
+  1027→                        <Label className="text-white/70">Precio (COP)</Label>
+  1028→                        <Input
+  1029→                          type="number"
+  1030→                          value={templateForm.price}
+  1031→                          onChange={(e) => setTemplateForm((f) => ({ ...f, price: e.target.value }))}
+  1032→                          placeholder="0"
+  1033→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1034→                        />
+  1035→                      </div>
+  1036→                      <div className="grid gap-2">
+  1037→                        <Label className="text-white/70">Estado</Label>
+  1038→                        <Select
+  1039→                          value={templateForm.status}
+  1040→                          onValueChange={(v) => setTemplateForm((f) => ({ ...f, status: v }))}
+  1041→                        >
+  1042→                          <SelectTrigger className="border-white/10 bg-white/5 text-white">
+  1043→                            <SelectValue />
+  1044→                          </SelectTrigger>
+  1045→                          <SelectContent className="border-white/10 bg-[#0F1D32]">
+  1046→                            {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+  1047→                              <SelectItem key={key} value={key} className="text-white focus:bg-white/5 focus:text-white">
+  1048→                                {val.label}
+  1049→                              </SelectItem>
+  1050→                            ))}
+  1051→                          </SelectContent>
+  1052→                        </Select>
+  1053→                      </div>
+  1054→                    </div>
+  1055→                    <div className="grid gap-2">
+  1056→                      <Label className="text-white/70">Contenido Base</Label>
+  1057→                      <Textarea
+  1058→                        value={templateForm.baseContent}
+  1059→                        onChange={(e) => setTemplateForm((f) => ({ ...f, baseContent: e.target.value }))}
+  1060→                        placeholder="Contenido base de la plantilla..."
+  1061→                        rows={8}
+  1062→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1063→                      />
+  1064→                    </div>
+  1065→                  </div>
+  1066→                  <DialogFooter>
+  1067→                    <Button
+  1068→                      variant="ghost"
+  1069→                      onClick={() => setTemplateDialogOpen(false)}
+  1070→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  1071→                    >
+  1072→                      Cancelar
+  1073→                    </Button>
+  1074→                    <Button
+  1075→                      onClick={handleSaveTemplate}
+  1076→                      disabled={savingTemplate}
+  1077→                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1078→                    >
+  1079→                      {savingTemplate ? 'Guardando...' : 'Guardar'}
+  1080→                    </Button>
+  1081→                  </DialogFooter>
+  1082→                </DialogContent>
+  1083→              </Dialog>
+  1084→            </TabsContent>
+  1085→
+  1086→            {/* ============================================================ */}
+  1087→            {/*  3. BIBLIOTECA DE CLÁUSULAS                                  */}
+  1088→            {/* ============================================================ */}
+  1089→            <TabsContent value="clausulas" className="mt-0 flex-1 lg:ml-6">
+  1090→              <div className="space-y-6">
+  1091→                <div className="flex items-center justify-between">
+  1092→                  <div>
+  1093→                    <h2 className="text-lg font-semibold text-white">Biblioteca de Cláusulas</h2>
+  1094→                    <p className="text-xs text-white/40">Gestiona las cláusulas legales disponibles</p>
+  1095→                  </div>
+  1096→                  <Button
+  1097→                    onClick={() => handleOpenClauseDialog()}
+  1098→                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1099→                  >
+  1100→                    <Plus className="mr-2 h-4 w-4" />
+  1101→                    Nueva Cláusula
+  1102→                  </Button>
+  1103→                </div>
+  1104→
+  1105→                {loadingClauses ? (
+  1106→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1107→                    {Array.from({ length: 6 }).map((_, i) => (
+  1108→                      <div key={i} className="h-40 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+  1109→                    ))}
+  1110→                  </div>
+  1111→                ) : clauses.length > 0 ? (
+  1112→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+  1113→                    {clauses.map((clause) => (
+  1114→                      <Card key={clause.id} className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5">
+  1115→                        <CardHeader className="pb-2">
+  1116→                          <div className="flex items-start justify-between gap-2">
+  1117→                            <CardTitle className="text-sm font-semibold text-white line-clamp-1">{clause.title}</CardTitle>
+  1118→                            <Badge variant="outline" className="shrink-0 border-[#C9A94E]/20 bg-[#C9A94E]/10 text-[#C9A94E] text-[10px]">
+  1119→                              {clause.legalArea}
+  1120→                            </Badge>
+  1121→                          </div>
+  1122→                        </CardHeader>
+  1123→                        <CardContent className="pt-0">
+  1124→                          <p className="line-clamp-3 text-xs leading-relaxed text-white/40">{clause.content}</p>
+  1125→                          <div className="mt-4 flex items-center gap-1">
+  1126→                            <Button
+  1127→                              variant="ghost"
+  1128→                              size="sm"
+  1129→                              className="h-7 text-xs text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+  1130→                              onClick={() => handleOpenClauseDialog(clause)}
+  1131→                            >
+  1132→                              <Edit className="mr-1 h-3 w-3" />
+  1133→                              Editar
+  1134→                            </Button>
+  1135→                            <Button
+  1136→                              variant="ghost"
+  1137→                              size="sm"
+  1138→                              className="h-7 text-xs text-white/40 hover:text-red-400 hover:bg-red-400/10"
+  1139→                              onClick={() => setDeleteClauseId(clause.id)}
+  1140→                            >
+  1141→                              <Trash2 className="mr-1 h-3 w-3" />
+  1142→                              Eliminar
+  1143→                            </Button>
+  1144→                          </div>
+  1145→                        </CardContent>
+  1146→                      </Card>
+  1147→                    ))}
+  1148→                  </div>
+  1149→                ) : (
+  1150→                  <EmptyState icon={BookOpen} message="No hay cláusulas registradas" />
+  1151→                )}
+  1152→              </div>
+  1153→
+  1154→              {/* Create/Edit Clause Dialog */}
+  1155→              <Dialog open={clauseDialogOpen} onOpenChange={setClauseDialogOpen}>
+  1156→                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-lg">
+  1157→                  <DialogHeader>
+  1158→                    <DialogTitle className="text-white">
+  1159→                      {editingClause ? 'Editar Cláusula' : 'Nueva Cláusula'}
+  1160→                    </DialogTitle>
+  1161→                  </DialogHeader>
+  1162→                  <div className="grid gap-4 py-4">
+  1163→                    <div className="grid gap-2">
+  1164→                      <Label className="text-white/70">Título *</Label>
+  1165→                      <Input
+  1166→                        value={clauseForm.title}
+  1167→                        onChange={(e) => setClauseForm((f) => ({ ...f, title: e.target.value }))}
+  1168→                        placeholder="Título de la cláusula"
+  1169→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1170→                      />
+  1171→                    </div>
+  1172→                    <div className="grid gap-2">
+  1173→                      <Label className="text-white/70">Área Legal</Label>
+  1174→                      <Input
+  1175→                        value={clauseForm.legalArea}
+  1176→                        onChange={(e) => setClauseForm((f) => ({ ...f, legalArea: e.target.value }))}
+  1177→                        placeholder="Ej: Derecho Laboral"
+  1178→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1179→                      />
+  1180→                    </div>
+  1181→                    <div className="grid gap-2">
+  1182→                      <Label className="text-white/70">Contenido *</Label>
+  1183→                      <Textarea
+  1184→                        value={clauseForm.content}
+  1185→                        onChange={(e) => setClauseForm((f) => ({ ...f, content: e.target.value }))}
+  1186→                        placeholder="Texto de la cláusula..."
+  1187→                        rows={8}
+  1188→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1189→                      />
+  1190→                    </div>
+  1191→                  </div>
+  1192→                  <DialogFooter>
+  1193→                    <Button
+  1194→                      variant="ghost"
+  1195→                      onClick={() => setClauseDialogOpen(false)}
+  1196→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  1197→                    >
+  1198→                      Cancelar
+  1199→                    </Button>
+  1200→                    <Button
+  1201→                      onClick={handleSaveClause}
+  1202→                      disabled={savingClause}
+  1203→                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1204→                    >
+  1205→                      {savingClause ? 'Guardando...' : 'Guardar'}
+  1206→                    </Button>
+  1207→                  </DialogFooter>
+  1208→                </DialogContent>
+  1209→              </Dialog>
+  1210→
+  1211→              {/* Delete Clause Confirmation */}
+  1212→              <AlertDialog open={!!deleteClauseId} onOpenChange={(open) => !open && setDeleteClauseId(null)}>
+  1213→                <AlertDialogContent className="border-white/10 bg-[#0F1D32]">
+  1214→                  <AlertDialogHeader>
+  1215→                    <AlertDialogTitle className="text-white">¿Eliminar cláusula?</AlertDialogTitle>
+  1216→                    <AlertDialogDescription className="text-white/50">
+  1217→                      Esta acción no se puede deshacer. La cláusula será eliminada permanentemente.
+  1218→                    </AlertDialogDescription>
+  1219→                  </AlertDialogHeader>
+  1220→                  <AlertDialogFooter>
+  1221→                    <AlertDialogCancel className="border-white/10 text-white/50 hover:bg-white/5 hover:text-white">
+  1222→                      Cancelar
+  1223→                    </AlertDialogCancel>
+  1224→                    <AlertDialogAction
+  1225→                      onClick={handleDeleteClause}
+  1226→                      className="bg-red-500/20 text-red-400 hover:bg-red-500/30"
+  1227→                    >
+  1228→                      Eliminar
+  1229→                    </AlertDialogAction>
+  1230→                  </AlertDialogFooter>
+  1231→                </AlertDialogContent>
+  1232→              </AlertDialog>
+  1233→            </TabsContent>
+  1234→
+  1235→            {/* ============================================================ */}
+  1236→            {/*  4. GESTIÓN DE USUARIOS                                      */}
+  1237→            {/* ============================================================ */}
+  1238→            <TabsContent value="usuarios" className="mt-0 flex-1 lg:ml-6">
+  1239→              <div className="space-y-6">
+  1240→                <div>
+  1241→                  <h2 className="text-lg font-semibold text-white">Gestión de Usuarios</h2>
+  1242→                  <p className="text-xs text-white/40">Administra los usuarios registrados en la plataforma</p>
+  1243→                </div>
+  1244→
+  1245→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1246→                  <CardContent className="p-0">
+  1247→                    {loadingUsers ? (
+  1248→                      <TableSkeleton rows={6} cols={8} />
+  1249→                    ) : users.length > 0 ? (
+  1250→                      <div className="overflow-x-auto">
+  1251→                        <Table>
+  1252→                          <TableHeader>
+  1253→                            <TableRow className="border-white/5 hover:bg-transparent">
+  1254→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+  1255→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Usuario</TableHead>
+  1256→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Email</TableHead>
+  1257→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Rol</TableHead>
+  1258→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  1259→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Suscripción</TableHead>
+  1260→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Docs</TableHead>
+  1261→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 xl:table-cell">Último acceso</TableHead>
+  1262→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  1263→                            </TableRow>
+  1264→                          </TableHeader>
+  1265→                          <TableBody className="divide-y divide-white/5">
+  1266→                            {users.map((u) => (
+  1267→                              <TableRow key={u.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+  1268→                                <TableCell className="font-medium text-white/80">{u.name}</TableCell>
+  1269→                                <TableCell className="hidden text-white/40 md:table-cell">@{u.username}</TableCell>
+  1270→                                <TableCell className="hidden max-w-[200px] truncate text-white/40 lg:table-cell">{u.email}</TableCell>
+  1271→                                <TableCell>
+  1272→                                  <DropdownMenu>
+  1273→                                    <DropdownMenuTrigger asChild>
+  1274→                                      <button className="cursor-pointer">
+  1275→                                        <Badge variant="outline" className={`${ROLE_BADGE_CONFIG[u.role] || 'bg-gray-500/15 text-gray-400 border-gray-500/25'} hover:${ROLE_BADGE_CONFIG[u.role] || ''}`}>
+  1276→                                          {u.role}
+  1277→                                        </Badge>
+  1278→                                      </button>
+  1279→                                    </DropdownMenuTrigger>
+  1280→                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+  1281→                                      {['admin', 'user', 'editor'].map((role) => (
+  1282→                                        <DropdownMenuItem
+  1283→                                          key={role}
+  1284→                                          onClick={() => handleChangeUserRole(u.id, role)}
+  1285→                                          disabled={role === u.role}
+  1286→                                          className="capitalize focus:bg-white/5 focus:text-white"
+  1287→                                        >
+  1288→                                          {role}
+  1289→                                        </DropdownMenuItem>
+  1290→                                      ))}
+  1291→                                    </DropdownMenuContent>
+  1292→                                  </DropdownMenu>
+  1293→                                </TableCell>
+  1294→                                <TableCell>
+  1295→                                  <StatusBadge status={u.status} config={USER_STATUS_CONFIG} />
+  1296→                                </TableCell>
+  1297→                                <TableCell className="hidden text-white/40 sm:table-cell">{u.subscription || '—'}</TableCell>
+  1298→                                <TableCell className="hidden text-right text-white/40 lg:table-cell">{u.documentCount}</TableCell>
+  1299→                                <TableCell className="hidden text-right text-white/40 xl:table-cell">{u.lastAccess ? formatDate(u.lastAccess) : '—'}</TableCell>
+  1300→                                <TableCell className="text-right">
+  1301→                                  <DropdownMenu>
+  1302→                                    <DropdownMenuTrigger asChild>
+  1303→                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/5">
+  1304→                                        <MoreVertical className="h-4 w-4" />
+  1305→                                      </Button>
+  1306→                                    </DropdownMenuTrigger>
+  1307→                                    <DropdownMenuContent align="end" className="border-white/10 bg-[#0F1D32] text-white">
+  1308→                                      {u.status === 'active' ? (
+  1309→                                        <DropdownMenuItem
+  1310→                                          onClick={() => handleUpdateUserStatus(u.id, 'suspended')}
+  1311→                                          className="focus:bg-red-500/10 focus:text-red-400"
+  1312→                                        >
+  1313→                                          <X className="mr-2 h-4 w-4" />
+  1314→                                          Suspender
+  1315→                                        </DropdownMenuItem>
+  1316→                                      ) : (
+  1317→                                        <DropdownMenuItem
+  1318→                                          onClick={() => handleUpdateUserStatus(u.id, 'active')}
+  1319→                                          className="focus:bg-green-500/10 focus:text-green-400"
+  1320→                                        >
+  1321→                                          <Check className="mr-2 h-4 w-4" />
+  1322→                                          Activar
+  1323→                                        </DropdownMenuItem>
+  1324→                                      )}
+  1325→                                    </DropdownMenuContent>
+  1326→                                  </DropdownMenu>
+  1327→                                </TableCell>
+  1328→                              </TableRow>
+  1329→                            ))}
+  1330→                          </TableBody>
+  1331→                        </Table>
+  1332→                      </div>
+  1333→                    ) : (
+  1334→                      <EmptyState icon={Users} message="No hay usuarios registrados" />
+  1335→                    )}
+  1336→                  </CardContent>
+  1337→                </Card>
+  1338→              </div>
+  1339→            </TabsContent>
+  1340→
+  1341→            {/* ============================================================ */}
+  1342→            {/*  5. SOLICITUDES DE NUEVOS DOCUMENTOS                         */}
+  1343→            {/* ============================================================ */}
+  1344→            <TabsContent value="solicitudes" className="mt-0 flex-1 lg:ml-6">
+  1345→              <div className="space-y-6">
+  1346→                <div>
+  1347→                  <h2 className="text-lg font-semibold text-white">Solicitudes de Nuevos Documentos</h2>
+  1348→                  <p className="text-xs text-white/40">Revisa y gestiona las solicitudes de la comunidad</p>
+  1349→                </div>
+  1350→
+  1351→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1352→                  <CardContent className="p-0">
+  1353→                    {loadingRequests ? (
+  1354→                      <TableSkeleton rows={5} cols={5} />
+  1355→                    ) : requests.length > 0 ? (
+  1356→                      <div className="overflow-x-auto">
+  1357→                        <Table>
+  1358→                          <TableHeader>
+  1359→                            <TableRow className="border-white/5 hover:bg-transparent">
+  1360→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Título</TableHead>
+  1361→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Descripción</TableHead>
+  1362→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Usuario</TableHead>
+  1363→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+  1364→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  1365→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  1366→                            </TableRow>
+  1367→                          </TableHeader>
+  1368→                          <TableBody className="divide-y divide-white/5">
+  1369→                            {requests.map((req) => (
+  1370→                              <TableRow key={req.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+  1371→                                <TableCell className="max-w-[180px] truncate font-medium text-white/80">{req.title}</TableCell>
+  1372→                                <TableCell className="hidden max-w-[250px] truncate text-white/40 md:table-cell">{req.description}</TableCell>
+  1373→                                <TableCell className="hidden text-white/40 lg:table-cell">{req.user}</TableCell>
+  1374→                                <TableCell className="whitespace-nowrap text-white/40">{formatDate(req.date)}</TableCell>
+  1375→                                <TableCell>
+  1376→                                  <StatusBadge status={req.status} config={REQUEST_STATUS_CONFIG} />
+  1377→                                </TableCell>
+  1378→                                <TableCell className="text-right">
+  1379→                                  {req.status === 'pendiente' ? (
+  1380→                                    <div className="flex items-center justify-end gap-1">
+  1381→                                      <Button
+  1382→                                        variant="ghost"
+  1383→                                        size="sm"
+  1384→                                        className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+  1385→                                        onClick={() => handleRequestAction(req.id, 'aprobada')}
+  1386→                                      >
+  1387→                                        <Check className="mr-1 h-3 w-3" />
+  1388→                                        Aprobar
+  1389→                                      </Button>
+  1390→                                      <Button
+  1391→                                        variant="ghost"
+  1392→                                        size="sm"
+  1393→                                        className="h-7 text-xs text-red-400 hover:bg-red-400/10"
+  1394→                                        onClick={() => handleRequestAction(req.id, 'rechazada')}
+  1395→                                      >
+  1396→                                        <X className="mr-1 h-3 w-3" />
+  1397→                                        Rechazar
+  1398→                                      </Button>
+  1399→                                      <Button
+  1400→                                        variant="ghost"
+  1401→                                        size="sm"
+  1402→                                        className="h-7 text-xs text-blue-400 hover:bg-blue-400/10"
+  1403→                                        onClick={() => { setRequestNotesId(req.id); setRequestNotes('') }}
+  1404→                                      >
+  1405→                                        <AlertCircle className="mr-1 h-3 w-3" />
+  1406→                                        En desarrollo
+  1407→                                      </Button>
+  1408→                                    </div>
+  1409→                                  ) : (
+  1410→                                    <span className="text-xs text-white/20">—</span>
+  1411→                                  )}
+  1412→                                </TableCell>
+  1413→                              </TableRow>
+  1414→                            ))}
+  1415→                          </TableBody>
+  1416→                        </Table>
+  1417→                      </div>
+  1418→                    ) : (
+  1419→                      <EmptyState icon={MessageSquare} message="No hay solicitudes pendientes" />
+  1420→                    )}
+  1421→                  </CardContent>
+  1422→                </Card>
+  1423→              </div>
+  1424→
+  1425→              {/* Notes Dialog for "En desarrollo" */}
+  1426→              <Dialog open={!!requestNotesId} onOpenChange={(open) => { if (!open) setRequestNotesId(null) }}>
+  1427→                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-md">
+  1428→                  <DialogHeader>
+  1429→                    <DialogTitle className="text-white">Marcar como En Desarrollo</DialogTitle>
+  1430→                  </DialogHeader>
+  1431→                  <div className="grid gap-4 py-4">
+  1432→                    <div className="grid gap-2">
+  1433→                      <Label className="text-white/70">Notas (opcional)</Label>
+  1434→                      <Textarea
+  1435→                        value={requestNotes}
+  1436→                        onChange={(e) => setRequestNotes(e.target.value)}
+  1437→                        placeholder="Agrega notas sobre el progreso..."
+  1438→                        rows={4}
+  1439→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1440→                      />
+  1441→                    </div>
+  1442→                  </div>
+  1443→                  <DialogFooter>
+  1444→                    <Button
+  1445→                      variant="ghost"
+  1446→                      onClick={() => setRequestNotesId(null)}
+  1447→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  1448→                    >
+  1449→                      Cancelar
+  1450→                    </Button>
+  1451→                    <Button
+  1452→                      onClick={() => requestNotesId && handleRequestAction(requestNotesId, 'en_desarrollo', requestNotes)}
+  1453→                      className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+  1454→                    >
+  1455→                      Confirmar
+  1456→                    </Button>
+  1457→                  </DialogFooter>
+  1458→                </DialogContent>
+  1459→              </Dialog>
+  1460→            </TabsContent>
+  1461→
+  1462→            {/* ============================================================ */}
+  1463→            {/*  6. CONFIGURACIÓN DE PRECIOS                                */}
+  1464→            {/* ============================================================ */}
+  1465→            <TabsContent value="precios" className="mt-0 flex-1 lg:ml-6">
+  1466→              <div className="space-y-6">
+  1467→                <div>
+  1468→                  <h2 className="text-lg font-semibold text-white">Configuración de Precios</h2>
+  1469→                  <p className="text-xs text-white/40">Gestiona los planes de suscripción</p>
+  1470→                </div>
+  1471→
+  1472→                {loadingPlans ? (
+  1473→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1474→                    {Array.from({ length: 3 }).map((_, i) => (
+  1475→                      <div key={i} className="h-64 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+  1476→                    ))}
+  1477→                  </div>
+  1478→                ) : plans.length > 0 ? (
+  1479→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1480→                    {plans.map((plan) => (
+  1481→                      <Card
+  1482→                        key={plan.id}
+  1483→                        className={`relative border ${plan.popular ? 'border-[#C9A94E]/40' : 'border-white/5'} bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5`}
+  1484→                      >
+  1485→                        {plan.popular && (
+  1486→                          <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+  1487→                            <Badge className="bg-[#C9A94E] text-[#0A1628] border-0 font-semibold">
+  1488→                              Popular
+  1489→                            </Badge>
+  1490→                          </div>
+  1491→                        )}
+  1492→                        <CardHeader className="pb-3 pt-6">
+  1493→                          <CardTitle className="text-base font-semibold text-white">{plan.name}</CardTitle>
+  1494→                          <div className="mt-2">
+  1495→                            {editingPlan?.id === plan.id ? (
+  1496→                              <div className="flex items-center gap-2">
+  1497→                                <Input
+  1498→                                  type="number"
+  1499→                                  value={planPrice}
+  1500→                                  onChange={(e) => setPlanPrice(e.target.value)}
+  1501→                                  className="h-9 w-32 border-white/10 bg-white/5 text-lg font-bold text-white"
+  1502→                                />
+  1503→                                <Button size="sm" onClick={handleSavePlanPrice} className="h-9 bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]">
+  1504→                                  <Check className="h-4 w-4" />
+  1505→                                </Button>
+  1506→                                <Button size="sm" variant="ghost" onClick={() => setEditingPlan(null)} className="h-9 text-white/50 hover:text-white hover:bg-white/5">
+  1507→                                  <X className="h-4 w-4" />
+  1508→                                </Button>
+  1509→                              </div>
+  1510→                            ) : (
+  1511→                              <button
+  1512→                                onClick={() => handleOpenEditPlan(plan)}
+  1513→                                className="group flex items-baseline gap-1"
+  1514→                              >
+  1515→                                <span className="text-3xl font-bold text-white">{formatCurrency(plan.price)}</span>
+  1516→                                <span className="text-xs text-white/40">/{plan.interval}</span>
+  1517→                                <Edit className="ml-2 h-3.5 w-3.5 text-white/20 transition-colors group-hover:text-[#C9A94E]" />
+  1518→                              </button>
+  1519→                            )}
+  1520→                          </div>
+  1521→                        </CardHeader>
+  1522→                        <CardContent className="pt-0">
+  1523→                          <ul className="space-y-2.5">
+  1524→                            {plan.features.map((feature, idx) => (
+  1525→                              <li key={idx} className="flex items-start gap-2 text-sm text-white/60">
+  1526→                                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#C9A94E]" />
+  1527→                                {feature}
+  1528→                              </li>
+  1529→                            ))}
+  1530→                          </ul>
+  1531→                        </CardContent>
+  1532→                      </Card>
+  1533→                    ))}
+  1534→                  </div>
+  1535→                ) : (
+  1536→                  <EmptyState icon={CreditCard} message="No hay planes de suscripción configurados" />
+  1537→                )}
+  1538→              </div>
+  1539→            </TabsContent>
+  1540→          </Tabs>
+  1541→        </div>
+  1542→      </div>
+  1543→    </main>
+  1544→  )
+  1545→}
