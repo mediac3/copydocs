@@ -14,7 +14,12 @@ const AdminPage = dynamic(() => import('@/components/pages/AdminPage'), { ssr: f
 const PaymentsPage = dynamic(() => import('@/components/pages/PaymentsPage'), { ssr: false });
 
 export default function Home() {
-  const { user, currentPage, focusMode, isVisitor } = useAppStore();
+  const { user, currentPage, focusMode, isVisitor, showLogin, hideLoginPage } = useAppStore();
+
+  // Show login page when explicitly requested or when not visitor and not logged in
+  if (!user && showLogin) {
+    return <LoginPage onBack={hideLoginPage} />;
+  }
 
   // Visitor mode: allow catalog and wizard without authentication
   if (!user) {
@@ -28,7 +33,7 @@ export default function Home() {
       };
       return renderPage();
     }
-    return <LoginPage />;
+    return <LoginPage onBack={hideLoginPage} />;
   }
 
   const renderPage = () => {

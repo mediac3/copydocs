@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   LayoutDashboard, FileText, Library, FileStack, Users, Settings, CreditCard,
-  ChevronLeft, ChevronRight, LogOut, Scale, Shield, Menu, X, Crown, Sun, Moon
+  ChevronLeft, ChevronRight, LogOut, Scale, Shield, Menu, X, Crown, Sun, Moon, Palette
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
@@ -72,8 +72,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}>
           <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
             <button onClick={toggleFocusMode} className="flex items-center gap-2.5 group">
-              <div className="w-8 h-8 rounded-lg bg-[#C9A94E] flex items-center justify-center flex-shrink-0 group-hover:shadow-[0_0_12px_rgba(201,169,78,0.4)] transition-shadow">
-                <Scale className="w-4.5 h-4.5 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 group-hover:shadow-[0_0_12px_rgba(201,169,78,0.4)] transition-shadow">
+                <Scale className="w-4.5 h-4.5 text-primary-foreground" />
               </div>
               {sidebarOpen && (
                 <span className="text-sidebar-primary font-bold text-lg tracking-tight animate-fade-in-right">LexDoc</span>
@@ -98,7 +98,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
                         )}
                       >
-                        <Icon className={cn('w-5 h-5 flex-shrink-0', isActive && 'text-[#C9A94E]')} />
+                        <Icon className={cn('w-5 h-5 flex-shrink-0', isActive && 'text-primary')} />
                         {sidebarOpen && <span className="truncate">{item.label}</span>}
                       </button>
                     </TooltipTrigger>
@@ -112,13 +112,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="p-2 border-t border-sidebar-border space-y-1">
             {sidebarOpen && user?.role === 'admin' && (
               <div className="flex items-center gap-2 px-3 py-1.5 mb-1">
-                <Shield className="w-4 h-4 text-[#C9A94E]" />
-                <span className="text-xs text-[#C9A94E] font-medium">Administrador</span>
+                <Shield className="w-4 h-4 text-primary" />
+                <span className="text-xs text-primary font-medium">Administrador</span>
               </div>
             )}
             {user?.subscriptionPlan && user.subscriptionPlan !== 'Básico' && sidebarOpen && (
               <div className="flex items-center gap-2 px-3 py-1.5">
-                <Crown className="w-4 h-4 text-[#C9A94E]" />
+                <Crown className="w-4 h-4 text-primary" />
                 <span className="text-xs text-sidebar-foreground">Plan {user.subscriptionPlan}</span>
               </div>
             )}
@@ -149,8 +149,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}>
           <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
             <button onClick={toggleFocusMode} className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#C9A94E] flex items-center justify-center">
-                <Scale className="w-4.5 h-4.5 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <Scale className="w-4.5 h-4.5 text-primary-foreground" />
               </div>
               <span className="text-sidebar-primary font-bold text-lg">LexDoc</span>
             </button>
@@ -174,7 +174,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
                     )}
                   >
-                    <Icon className={cn('w-5 h-5', isActive && 'text-[#C9A94E]')} />
+                    <Icon className={cn('w-5 h-5', isActive && 'text-primary')} />
                     <span>{item.label}</span>
                   </button>
                 );
@@ -203,16 +203,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-muted-foreground hover:text-foreground">
-                    {theme === 'dark' ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+                  <Button variant="ghost" size="icon" onClick={() => {
+                    if (theme === 'warm') setTheme('dark')
+                    else if (theme === 'dark') setTheme('light')
+                    else setTheme('warm')
+                  }} className="text-muted-foreground hover:text-foreground">
+                    {theme === 'dark' ? <Sun className="w-4.5 h-4.5" /> : theme === 'light' ? <Palette className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent><p>Cambiar tema</p></TooltipContent>
+                <TooltipContent><p>{theme === 'warm' ? 'Tema oscuro' : theme === 'dark' ? 'Tema claro' : 'Tema cálido'}</p></TooltipContent>
               </Tooltip>
               <Separator orientation="vertical" className="h-6 mx-1" />
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-[#C9A94E]/10 border border-[#C9A94E]/20 flex items-center justify-center">
-                  <span className="text-xs font-semibold text-[#C9A94E]">{user?.name?.charAt(0) || 'U'}</span>
+                <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                  <span className="text-xs font-semibold text-primary">{user?.name?.charAt(0) || 'U'}</span>
                 </div>
                 <div className="hidden md:block">
                   <p className="text-sm font-medium text-foreground leading-none">{user?.name}</p>

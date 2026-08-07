@@ -20,6 +20,7 @@ import {
   Eye,
   MoreVertical,
   AlertCircle,
+  Download,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -113,6 +114,16 @@ interface DocumentRequest {
   date: string
   status: 'pendiente' | 'aprobada' | 'rechazada' | 'en_desarrollo'
   notes?: string
+}
+
+interface VisitorDocument {
+  id: string
+  title: string
+  visitorPhone: string | null
+  visitorName: string | null
+  status: string
+  createdAt: string
+  template?: { name: string; category: string }
 }
 
 interface Plan {
@@ -316,6 +327,10 @@ export default function AdminPage() {
   const [requestNotesId, setRequestNotesId] = useState<string | null>(null)
   const [requestNotes, setRequestNotes] = useState('')
 
+  /* ---- Visitor documents state ---- */
+  const [visitorDocs, setVisitorDocs] = useState<VisitorDocument[]>([])
+  const [loadingVisitorDocs, setLoadingVisitorDocs] = useState(true)
+
   /* ---- Plans state ---- */
   const [plans, setPlans] = useState<Plan[]>([])
   const [loadingPlans, setLoadingPlans] = useState(true)
@@ -414,6 +429,42 @@ export default function AdminPage() {
     }
   }, [authHeaders])
 
+  const fetchVisitorDocs = useCallback(async () => {
+    setLoadingVisitorDocs(true)
+    try {
+      const res = await fetch('/api/documents/visitor-list')
+      if (res.ok) {
+        const data = await res.json()
+        setVisitorDocs(Array.isArray(data) ? data : data.documents || [])
+      }
+    } catch {
+      // keep empty on error
+    } finally {
+      setLoadingVisitorDocs(false)
+    }
+  }, [])
+
+  const handleExportVisitor = useCallback(async (docId: string, format: 'pdf' | 'docx') => {
+    try {
+      const res = await fetch(`/api/documents/export?id=${docId}&format=${format}`, {
+        headers: { 'x-admin-export': 'lexdoc-admin-export' },
+      })
+      if (!res.ok) {
+        toast.error('Error al exportar')
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `documento.${format}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Error al exportar')
+    }
+  }, [])
+
   const fetchPlans = useCallback(async () => {
     setLoadingPlans(true)
     try {
@@ -446,8 +497,8 @@ export default function AdminPage() {
   }, [activeTab, fetchUsers])
 
   useEffect(() => {
-    if (activeTab === 'solicitudes') fetchRequests()
-  }, [activeTab, fetchRequests])
+    if (activeTab === 'solicitudes') { fetchRequests(); fetchVisitorDocs() }
+  }, [activeTab, fetchRequests, fetchVisitorDocs])
 
   useEffect(() => {
     if (activeTab === 'precios') fetchPlans()
@@ -1420,6 +1471,74 @@ export default function AdminPage() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Visitor completed documents */}
+                <div className="pt-2">
+                  <h3 className="text-base font-semibold text-white mb-1">Documentos de Visitantes</h3>
+                  <p className="text-xs text-white/40 mb-4">Documentos generados por usuarios no registrados</p>
+                  <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+                    <CardContent className="p-0">
+                      {loadingVisitorDocs ? (
+                        <TableSkeleton rows={3} cols={5} />
+                      ) : visitorDocs.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-white/5 hover:bg-transparent">
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Documento</TableHead>
+                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Nombre</TableHead>
+                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Teléfono</TableHead>
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Descargar</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody className="divide-y divide-white/5">
+                            {visitorDocs.map((doc) => (
+                              <TableRow key={doc.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+                                <TableCell className="max-w-[200px] truncate font-medium text-white/80">{doc.title}</TableCell>
+                                <TableCell className="hidden text-white/40 sm:table-cell">{doc.visitorName || '—'}</TableCell>
+                                <TableCell className="hidden text-white/40 md:table-cell">{doc.visitorPhone || '—'}</TableCell>
+                                <TableCell className="whitespace-nowrap text-white/40">{formatDate(doc.createdAt)}</TableCell>
+                                <TableCell>
+                                  <Badge className="bg-green-500/15 text-green-400 border-0 text-[10px]">Completado</Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs text-blue-400 hover:bg-blue-400/10"
+                                      onClick={() => handleExportVisitor(doc.id, 'pdf')}
+                                    >
+                                      <Download className="mr-1 h-3 w-3" />
+                                      PDF
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+                                      onClick={() => handleExportVisitor(doc.id, 'docx')}
+                                    >
+                                      <Download className="mr-1 h-3 w-3" />
+                                      DOCX
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-10 text-center">
+                        <FileText className="h-8 w-8 text-white/10 mb-2" />
+                        <p className="text-sm text-white/30">No hay documentos de visitantes</p>
+                      </div>
+                    )}
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
 
               {/* Notes Dialog for "En desarrollo" */}

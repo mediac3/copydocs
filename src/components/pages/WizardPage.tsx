@@ -396,19 +396,55 @@ export default function WizardPage() {
     setShowWhatsAppModal(true)
   }, [template])
 
-  const sendWhatsApp = useCallback(() => {
+  const sendWhatsApp = useCallback(async () => {
     if (!template || !visitorPhone.trim()) return
     // Find the user's name from answers (first field containing 'nombre')
     const allFields = wizardConfig?.steps.flatMap((s) => s.fields) || []
     const nombreField = allFields.find((f) => f.key.toLowerCase().includes('nombre'))
     const userName = nombreField ? String(answers[nombreField.key] || 'sin nombre') : 'sin nombre'
+
+    // Save visitor document to database before sending WhatsApp
+    try {
+      const generated = replaceVariables(template.baseContent, true)
+      const res = await fetch('/api/documents/visitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templateId: template.id,
+          title: template.name,
+          answers,
+          generatedContent: generated,
+          visitorPhone: visitorPhone.trim(),
+          visitorName: userName,
+        }),
+      })
+      if (res.ok) {
+        toast.success('Documento guardado exitosamente')
+      }
+    } catch {
+      // Non-critical: WhatsApp message still sends
+    }
+
     const message = encodeURIComponent(`Generé un nuevo documento ${template.name} a nombre de ${userName}`)
-    const phone = visitorPhone.replace(/[^0-9]/g, '')
     const url = `https://wa.me/573226575422?text=${message}`
     window.open(url, '_blank')
     toast.success('Solicitud enviada por WhatsApp')
     setShowWhatsAppModal(false)
-  }, [template, wizardConfig, answers, visitorPhone])
+  }, [template, wizardConfig, answers, visitorPhone, replaceVariables])
+
+  // Prevent right-click and copy in preview for visitors
+  const handlePreviewContextMenu = useCallback((e: React.MouseEvent) => {
+    if (isVisitor) {
+      e.preventDefault()
+    }
+  }, [isVisitor])
+
+  const handlePreviewCopy = useCallback((e: React.ClipboardEvent) => {
+    if (isVisitor) {
+      e.preventDefault()
+      toast.info('El contenido del documento está protegido')
+    }
+  }, [isVisitor])
 
   /* ---- live preview ---- */
   const replaceVariables = useCallback(
@@ -784,8 +820,28 @@ export default function WizardPage() {
                 </div>
 
                 {/* Document preview */}
-                <div ref={previewRef} className="flex-1 overflow-y-auto scrollbar-thin p-6">
-                  <div className="mx-auto max-w-[650px] rounded-lg bg-white p-10 shadow-2xl shadow-black/30">
+                <div
+                  ref={previewRef}
+                  className="flex-1 overflow-y-auto scrollbar-thin p-6"
+                  onContextMenu={handlePreviewContextMenu}
+                  onCopy={handlePreviewCopy}
+                >
+                  <div className="mx-auto max-w-[650px] rounded-lg bg-white p-10 shadow-2xl shadow-black/30 relative select-none">
+                    {/* Watermark */}
+                    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
+                      <div
+                        className="absolute -left-[40%] -top-[20%] w-[200%] -rotate-45 text-[80px] font-bold text-gray-300/30 whitespace-nowrap"
+                        style={{ lineHeight: '1.2' }}
+                      >
+                        Documento Borrador&nbsp;&nbsp;&nbsp;Documento Borrador&nbsp;&nbsp;&nbsp;Documento Borrador
+                      </div>
+                      <div
+                        className="absolute -left-[40%] top-[15%] w-[200%] -rotate-45 text-[80px] font-bold text-gray-300/30 whitespace-nowrap"
+                        style={{ lineHeight: '1.2' }}
+                      >
+                        &nbsp;&nbsp;&nbsp;Documento Borrador&nbsp;&nbsp;&nbsp;Documento Borrador&nbsp;&nbsp;&nbsp;Documento Borrador&nbsp;&nbsp;&nbsp;
+                      </div>
+                    </div>
                     {/* Document title */}
                     <h1 className="mb-6 text-center font-serif-doc text-xl font-bold text-[#0A1628] leading-tight">
                       {template.name.toUpperCase()}

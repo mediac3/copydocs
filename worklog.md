@@ -1,32 +1,34 @@
-# LexDoc - Work Log
+# LexDoc Worklog
 
 ---
 Task ID: 1
-Agent: Super Z (Main)
-Task: Setup, seed database, verify, and prepare for GitHub/xcloud.host deployment
+Agent: Main Agent
+Task: 6 actualizaciones frontend para LexDoc
 
 Work Log:
-- Loaded fullstack-dev skill and initialized dev environment
-- Discovered full application already built (22 files, 6,200+ lines of real code)
-- Created prisma/seed.ts with Colombian legal data (users, plans, clauses, 8 templates, normativity, sample docs, contacts, payments)
-- Fixed template literal escaping issue (${{ -> $\{{) in seed file
-- Ran db:push (schema already in sync) and db:seed (success)
-- Verified dev server responds HTTP 200
-- Tested login API for demo user (success)
-- Verified templates API returns 18 templates
-- Browser verification with Agent Browser:
-  - Login page renders correctly with demo credential buttons
-  - Demo login works → Dashboard with stats, chart, recent docs table, quick actions
-  - Catalog page shows 18 templates with search/filters/grid-list toggle
-  - Wizard works with step progress, form fields, and live document preview
-  - Admin login works → 6-tab admin panel (Resumen, Plantillas, Cláusulas, Usuarios, Solicitudes, Precios)
-- Created README.md with full documentation (features, tech stack, setup, xcloud.host deploy instructions, project structure, legislation references)
-- Created .env.example with all environment variables documented
-- Updated .gitignore to allow .env.example and exclude database files
-- Created db/.gitkeep for directory preservation in git
+- Removed demo/admin credentials section from LoginPage.tsx
+- Added 'Documento Borrador' diagonal watermark overlay to WizardPage preview panel
+- Disabled right-click (contextmenu) and copy events on preview for visitor users
+- Modified Prisma schema to make userId optional on UserDocument, added visitorPhone/visitorName fields
+- Created /api/documents/visitor POST endpoint for visitor document saving
+- Created /api/documents/visitor-list GET endpoint for admin to fetch visitor documents
+- Updated /api/documents/export to support admin export via x-admin-export header
+- Modified WizardPage sendWhatsApp to save visitor document before opening WhatsApp
+- Added VisitorDocument interface and visitor documents table to AdminPage solicitudes tab with PDF/DOCX download buttons
+- Created warm theme (.warm CSS class) with cream/amber palette as default
+- Updated ThemeProvider default from 'dark' to 'warm'
+- Updated AppLayout theme toggle to cycle warm → dark → light
+- Added comprehensive CSS overrides in globals.css for hardcoded navy/gold classes under .warm
+- Changed default store state: isVisitor=true, showLogin=false, focusMode=false
+- Updated page.tsx to show catalog first for visitors, login on showLogin flag
+- Updated CatalogPage visitor header with theme toggle + 'Iniciar sesion' button using CSS variables
+- Updated LoginPage to use CSS variables, accept onBack prop, and show back button
+- Added showLoginPage/hideLoginPage actions to Zustand store
 
 Stage Summary:
-- Application is fully functional and verified end-to-end
-- Database seeded with 2 users, 3 plans, 6 clauses, 8+ templates, sample data
-- Ready for GitHub push and xcloud.host deployment
-- Deployment instructions documented in README.md
+- All 6 updates implemented and build verified successfully
+- New API endpoints: /api/documents/visitor, /api/documents/visitor-list
+- DB schema updated with visitorPhone, visitorName fields on UserDocument
+- Warm theme (cream/amber) is now the default, dark theme accessible via theme toggle
+- Visitors land on catalog first with login button in header
+- Admin can see and download visitor documents from Solicitudes section

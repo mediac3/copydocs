@@ -15,6 +15,9 @@ import {
   HardHat,
   Home,
   FileText,
+  LogIn,
+  Moon,
+  Palette,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,6 +39,7 @@ import {
 } from '@/components/ui/dialog'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useAppStore } from '@/store/app-store'
+import { useTheme } from 'next-themes'
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                    */
@@ -531,7 +535,8 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
 /* -------------------------------------------------------------------------- */
 
 export default function CatalogPage() {
-  const { user, isVisitor } = useAppStore()
+  const { user, isVisitor, showLoginPage, hideLoginPage } = useAppStore()
+  const { theme, setTheme } = useTheme()
 
   /* ---- State ---- */
   const [templates, setTemplates] = useState<Template[]>([])
@@ -631,18 +636,39 @@ export default function CatalogPage() {
     <main className="min-h-screen bg-[#0A1628]">
       {/* Visitor header bar */}
       {isVisitor && (
-        <div className="border-b border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+        <div className="border-b border-border bg-card/80 backdrop-blur-sm">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-2">
-              <Scale className="h-5 w-5 text-[#C9A94E]" />
-              <span className="text-sm font-bold text-white">LexDoc</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+                  <Scale className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <span className="text-sm font-bold text-foreground">LexDoc</span>
+              </div>
             </div>
-            <button
-              onClick={() => window.location.reload()}
-              className="text-xs font-medium text-[#C9A94E] transition-colors hover:text-[#D4B965]"
-            >
-              Iniciar sesion
-            </button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (theme === 'warm') setTheme('dark')
+                  else if (theme === 'dark') setTheme('light')
+                  else setTheme('warm')
+                }}
+                className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
+              >
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : theme === 'light' ? <Palette className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { showLoginPage() }}
+                className="border-primary/30 text-primary text-xs font-medium hover:bg-primary/10"
+              >
+                <LogIn className="mr-1.5 h-3.5 w-3.5" />
+                Iniciar sesion
+              </Button>
+            </div>
           </div>
         </div>
       )}
