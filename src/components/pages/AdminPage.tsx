@@ -778,7 +778,7 @@ export default function AdminPage() {
   const handleExportVisitor = useCallback(async (docId: string, format: 'pdf' | 'docx') => {
     try {
       const res = await fetch(`/api/documents/export?id=${docId}&format=${format}`, {
-        headers: { 'x-admin-export': 'lexdoc-admin-export' },
+        headers: { 'x-admin-export': 'copyexpress-admin-export' },
       })
       if (!res.ok) {
         toast.error('Error al exportar')
