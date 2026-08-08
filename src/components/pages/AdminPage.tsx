@@ -1914,9 +1914,9 @@ export default function AdminPage() {
               </Dialog>
             </TabsContent>
 
-            {/* ============================================================ */
-            {/*  7. TERMINOS Y CONDICIONES                                   */
-            {/* ============================================================ */
+            {/* ============================================================ */}
+            {/*  7. TERMINOS Y CONDICIONES                                   */}
+            {/* ============================================================ */}
             <TabsContent value="terminos" className="mt-0 flex-1 lg:ml-6">
               <InlineTerms />
             </TabsContent>
