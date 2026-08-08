@@ -149,16 +149,21 @@ export default function WizardPage() {
         }
         setTemplate(found)
         try {
-          const config: WizardConfig = typeof found.wizardConfig === 'string' 
+          let config: WizardConfig = typeof found.wizardConfig === 'string' 
             ? JSON.parse(found.wizardConfig) 
             : found.wizardConfig
+          // Normalize: if wizardConfig is an array, wrap it in { steps }
+          if (Array.isArray(config)) {
+            config = { steps: config }
+          }
+          if (!config || !config.steps) {
+            config = { steps: [] }
+          }
           // Normalize: seed data may use 'id' instead of 'key' for field identifiers
-          if (config && config.steps) {
-            for (const step of config.steps) {
-              for (const field of step.fields) {
-                if (!field.key && (field as Record<string, unknown>).id) {
-                  field.key = String((field as Record<string, unknown>).id)
-                }
+          for (const step of config.steps) {
+            for (const field of step.fields) {
+              if (!field.key && (field as Record<string, unknown>).id) {
+                field.key = String((field as Record<string, unknown>).id)
               }
             }
           }
