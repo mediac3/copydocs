@@ -21,6 +21,16 @@ import {
   MoreVertical,
   AlertCircle,
   Download,
+  GripVertical,
+  ChevronDown,
+  ChevronRight,
+  Trash2 as TrashIcon,
+  CalendarDays,
+  Hash,
+  Type,
+  AlignLeft,
+  List,
+  ToggleLeft,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -144,6 +154,20 @@ interface CreditTransaction {
   createdAt: string
 }
 
+interface WizardFieldDef {
+  key: string
+  label: string
+  type: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'boolean'
+  options?: string[]
+  tooltip?: string
+  condition?: { field: string; value: boolean | string | number }
+}
+
+interface WizardStepDef {
+  title: string
+  fields: WizardFieldDef[]
+}
+
 interface NewTemplateForm {
   name: string
   description: string
@@ -155,6 +179,7 @@ interface NewTemplateForm {
   headerContent: string
   footerContent: string
   status: string
+  wizardConfig: WizardStepDef[]
 }
 
 interface NewClauseForm {
@@ -300,6 +325,201 @@ function AdminStatCard({ label, value, icon, accentBg, accentText, accentBorder,
 /*  AdminPage                                                                */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/*  Wizard Step Editor Component                                                */
+/* -------------------------------------------------------------------------- */
+
+const FIELD_TYPE_OPTIONS: Array<{ value: WizardFieldDef['type']; label: string; icon: React.ElementType }> = [
+  { value: 'text', label: 'Texto', icon: Type },
+  { value: 'number', label: 'Número', icon: Hash },
+  { value: 'date', label: 'Fecha', icon: CalendarDays },
+  { value: 'textarea', label: 'Área de texto', icon: AlignLeft },
+  { value: 'select', label: 'Selección', icon: List },
+  { value: 'boolean', label: 'Sí/No', icon: ToggleLeft },
+]
+
+function WizardStepEditor({
+  step, stepIndex, allSteps, onChange, onRemove
+}: {
+  step: WizardStepDef
+  stepIndex: number
+  allSteps: WizardStepDef[]
+  onChange: (updated: WizardStepDef) => void
+  onRemove: () => void
+}) {
+  const [expanded, setExpanded] = useState(true)
+
+  const updateField = (fi: number, patch: Partial<WizardFieldDef>) => {
+    const fields = step.fields.map((f, i) => i === fi ? { ...f, ...patch } : f)
+    onChange({ ...step, fields })
+  }
+
+  const removeField = (fi: number) => {
+    onChange({ ...step, fields: step.fields.filter((_, i) => i !== fi) })
+  }
+
+  const addField = () => {
+    onChange({
+      ...step,
+      fields: [...step.fields, { key: '', label: '', type: 'text' }]
+    })
+  }
+
+  /* Collect boolean fields for condition dropdown */
+  const booleanFields = allSteps.flatMap((s, si) =>
+    s.fields.filter(f => f.type === 'boolean').map(f => ({ key: f.key, label: `[Paso ${si + 1}] ${f.label}`, value: true }))
+  )
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden">
+      <div
+        className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-white/[0.03] transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? <ChevronDown className="h-3.5 w-3.5 text-white/30" /> : <ChevronRight className="h-3.5 w-3.5 text-white/30" />}
+        <Input
+          value={step.title}
+          onChange={(e) => onChange({ ...step, title: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          className="h-6 border-0 bg-transparent p-0 text-sm font-medium text-white focus-visible:ring-0"
+          placeholder={`Paso ${stepIndex + 1}`}
+        />
+        <Badge variant="outline" className="ml-auto border-white/10 text-white/30 text-[10px]">
+          {step.fields.length} campo{step.fields.length !== 1 ? 's' : ''}
+        </Badge>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 text-white/20 hover:text-red-400 hover:bg-red-400/10"
+          onClick={(e) => { e.stopPropagation(); onRemove() }}
+        >
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-white/5 p-3 space-y-2">
+          {step.fields.length === 0 && (
+            <p className="text-center text-[11px] text-white/20 py-3">Sin campos. Haz clic en &quot;Agregar campo&quot;.</p>
+          )}
+          {step.fields.map((field, fi) => (
+            <div key={fi} className="grid gap-2 rounded-md border border-white/5 bg-white/[0.02] p-2.5 sm:grid-cols-[1fr_1fr_auto_auto_auto]">
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] uppercase tracking-wider text-white/20">Variable (key)</span>
+                <Input
+                  value={field.key}
+                  onChange={(e) => updateField(fi, { key: e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() })}
+                  placeholder="nombre_variable"
+                  className="h-7 border-white/10 bg-white/5 text-white text-xs placeholder:text-white/20"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] uppercase tracking-wider text-white/20">Etiqueta</span>
+                <Input
+                  value={field.label}
+                  onChange={(e) => updateField(fi, { label: e.target.value })}
+                  placeholder="Texto visible"
+                  className="h-7 border-white/10 bg-white/5 text-white text-xs placeholder:text-white/20"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] uppercase tracking-wider text-white/20">Tipo</span>
+                <Select
+                  value={field.type}
+                  onValueChange={(v) => updateField(fi, { type: v as WizardFieldDef['type'], options: v === 'select' ? field.options || [''] : undefined })}
+                >
+                  <SelectTrigger className="h-7 w-[110px] border-white/10 bg-white/5 text-white text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="border-white/10 bg-[#0F1D32]">
+                    {FIELD_TYPE_OPTIONS.map(ft => (
+                      <SelectItem key={ft.value} value={ft.value} className="text-white focus:bg-white/5 focus:text-white text-xs">
+                        {ft.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] uppercase tracking-wider text-white/20">Cond.</span>
+                <Select
+                  value={field.condition?.field || '_none'}
+                  onValueChange={(v) => {
+                    if (v === '_none') {
+                      const { condition, ...rest } = field
+                      const cleaned = { ...rest } as WizardFieldDef
+                      const fields = step.fields.map((f, i) => i === fi ? cleaned : f)
+                      onChange({ ...step, fields })
+                    } else {
+                      const bf = booleanFields.find(b => b.key === v)
+                      updateField(fi, { condition: { field: v, value: bf?.value ?? true } })
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-[110px] border-white/10 bg-white/5 text-white/20 text-xs">
+                    <SelectValue placeholder="Ninguna" />
+                  </SelectTrigger>
+                  <SelectContent className="border-white/10 bg-[#0F1D32]">
+                    <SelectItem value="_none" className="text-white/50 text-xs">Ninguna</SelectItem>
+                    {booleanFields.map(bf => (
+                      <SelectItem key={bf.key} value={bf.key} className="text-white focus:bg-white/5 focus:text-white text-xs">
+                        {bf.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end pb-0.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-white/20 hover:text-red-400 hover:bg-red-400/10"
+                  onClick={() => removeField(fi)}
+                >
+                  <TrashIcon className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              {/* Options editor for select type */}
+              {field.type === 'select' && (
+                <div className="sm:col-span-5 mt-1">
+                  <span className="text-[9px] uppercase tracking-wider text-white/20">Opciones (separadas por coma)</span>
+                  <Input
+                    value={(field.options || []).join(', ')}
+                    onChange={(e) => updateField(fi, { options: e.target.value.split(',').map(o => o.trim()).filter(Boolean) })}
+                    placeholder="Opción 1, Opción 2, Opción 3"
+                    className="h-7 mt-0.5 border-white/10 bg-white/5 text-white text-xs placeholder:text-white/20"
+                  />
+                </div>
+              )}
+              {/* Tooltip */}
+              <div className="sm:col-span-5">
+                <Input
+                  value={field.tooltip || ''}
+                  onChange={(e) => updateField(fi, { tooltip: e.target.value || undefined })}
+                  placeholder="Tooltip o ayuda (opcional)"
+                  className="h-6 border-0 bg-transparent text-white/30 text-[11px] placeholder:text-white/15 focus-visible:ring-0"
+                />
+              </div>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full border-dashed border-white/10 bg-transparent text-white/40 hover:bg-white/5 hover:text-white/70 text-xs"
+            onClick={addField}
+          >
+            <Plus className="mr-1 h-3 w-3" />
+            Agregar campo
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ========================================================================== */
 /*  Terms Tab Component                                                     */
 /* ========================================================================== */
@@ -315,7 +535,7 @@ function InlineTerms() {
     fetch('/api/settings').then(r => r.json()).then(data => {
       setTerms(data.terms_and_conditions || '')
     }).catch(() => {}).finally(() => setLoading(false))
-  }, [activeTab])
+  }, [])
 
   const handleSave = async () => {
     setSaving(true)
@@ -409,6 +629,7 @@ export default function AdminPage() {
   const [templateForm, setTemplateForm] = useState<NewTemplateForm>({
     name: '', description: '', category: '', legalArea: '', audience: '',
     price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft',
+    wizardConfig: [],
   })
   const [savingTemplate, setSavingTemplate] = useState(false)
 
@@ -634,9 +855,14 @@ export default function AdminPage() {
   /* ========================================================================== */
 
   /* ---- Template actions ---- */
-  const handleOpenTemplateDialog = (template?: Template) => {
+  const handleOpenTemplateDialog = (template?: Template | (Template & { wizardConfig?: string })) => {
     if (template) {
       setEditingTemplate(template)
+      let parsedWizard: WizardStepDef[] = []
+      try {
+        const raw = (template as Record<string, unknown>).wizardConfig
+        parsedWizard = typeof raw === 'string' ? JSON.parse(raw) : (raw || [])
+      } catch { parsedWizard = [] }
       setTemplateForm({
         name: template.name,
         description: template.description || '',
@@ -648,10 +874,11 @@ export default function AdminPage() {
         headerContent: (template as Record<string, unknown>).headerContent || '',
         footerContent: (template as Record<string, unknown>).footerContent || '',
         status: template.status,
+        wizardConfig: parsedWizard,
       })
     } else {
       setEditingTemplate(null)
-      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft' })
+      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft', wizardConfig: [] })
     }
     setTemplateDialogOpen(true)
   }
@@ -664,7 +891,7 @@ export default function AdminPage() {
     setSavingTemplate(true)
     try {
       const payload = {
-        action: editingTemplate ? 'update_template_status' : 'create_template',
+        action: editingTemplate ? 'update_template' : 'create_template',
         templateId: editingTemplate?.id,
         ...templateForm,
         price: Number(templateForm.price) || 0,
@@ -1260,6 +1487,87 @@ export default function AdminPage() {
                         className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
                       />
                     </div>
+
+                    {/* ===== Wizard Config Editor ===== */}
+                    <div className="grid gap-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-white/70">Campos del Formulario (Wizard)</Label>
+                          <p className="text-[11px] text-white/30 mt-0.5">Define los pasos y tipos de campo que el visitante completará. Usa los mismos nombres de variable del contenido base.</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white text-xs"
+                          onClick={() => {
+                            const vars = [...new Set((templateForm.baseContent.match(/\{\{([\w_]+)\}\}/g) || []).map(m => m.replace(/\{\{/g, '').replace(/\}\}/g, '')))]
+                            const existingKeys = new Set(templateForm.wizardConfig.flatMap(s => s.fields.map(f => f.key)))
+                            const missing = vars.filter(v => !existingKeys.has(v))
+                            if (missing.length === 0) {
+                              toast.info('Todas las variables ya tienen campos definidos')
+                              return
+                            }
+                            const newStep: WizardStepDef = {
+                              title: `Paso ${templateForm.wizardConfig.length + 1}`,
+                              fields: missing.map(v => ({ key: v, label: v.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), type: 'text' as const }))
+                            }
+                            setTemplateForm(f => ({ ...f, wizardConfig: [...f.wizardConfig, newStep] }))
+                            toast.success(`Se agregaron ${missing.length} campos automáticamente`)
+                          }}
+                        >
+                          <Plus className="mr-1 h-3 w-3" />
+                          Auto-detectar variables
+                        </Button>
+                      </div>
+
+                      {templateForm.wizardConfig.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-white/10 p-8 text-center">
+                          <p className="text-xs text-white/30 mb-2">No hay pasos definidos. Puedes:</p>
+                          <div className="flex items-center justify-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white text-xs"
+                              onClick={() => setTemplateForm(f => ({ ...f, wizardConfig: [...f.wizardConfig, { title: `Paso ${f.wizardConfig.length + 1}`, fields: [] }] }))}
+                            >
+                              <Plus className="mr-1 h-3 w-3" />
+                              Agregar paso manualmente
+                            </Button>
+                            <span className="text-white/20 text-xs">o escribe el contenido base y usa "Auto-detectar variables"</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {templateForm.wizardConfig.map((step, si) => (
+                            <WizardStepEditor
+                              key={si}
+                              step={step}
+                              stepIndex={si}
+                              allSteps={templateForm.wizardConfig}
+                              onChange={(updated) => {
+                                const wc = [...templateForm.wizardConfig]
+                                wc[si] = updated
+                                setTemplateForm(f => ({ ...f, wizardConfig: wc }))
+                              }}
+                              onRemove={() => setTemplateForm(f => ({ ...f, wizardConfig: f.wizardConfig.filter((_, i) => i !== si) }))}
+                            />
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full border-dashed border-white/10 bg-transparent text-white/40 hover:bg-white/5 hover:text-white/70 text-xs"
+                            onClick={() => setTemplateForm(f => ({ ...f, wizardConfig: [...f.wizardConfig, { title: `Paso ${f.wizardConfig.length + 1}`, fields: [] }] }))}
+                          >
+                            <Plus className="mr-1 h-3 w-3" />
+                            Agregar otro paso
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="grid gap-2">
                         <Label className="text-white/70">Encabezado (opcional)</Label>

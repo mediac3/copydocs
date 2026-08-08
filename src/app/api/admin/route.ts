@@ -75,6 +75,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ template }, { status: 201 });
     }
 
+    if (action === 'update_template') {
+      const template = await db.documentTemplate.update({
+        where: { id: body.templateId },
+        data: {
+          name: body.name,
+          description: body.description,
+          category: body.category,
+          legalArea: body.legalArea,
+          audience: body.audience || 'particulares',
+          price: body.price || 0,
+          baseContent: body.baseContent,
+          headerContent: body.headerContent || null,
+          footerContent: body.footerContent || null,
+          wizardConfig: JSON.stringify(body.wizardConfig || { steps: [] }),
+          status: body.status || 'draft',
+        }
+      });
+      return NextResponse.json({ template });
+    }
+
     if (action === 'update_template_status') {
       const template = await db.documentTemplate.update({
         where: { id: body.templateId },
