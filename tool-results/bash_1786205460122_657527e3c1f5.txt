@@ -1,0 +1,500 @@
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Precio</TableHead>
+                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Docs</TableHead>
+                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody className="divide-y divide-white/5">
+                            {templates.map((tpl) => (
+                              <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+                                <TableCell className="max-w-[200px] truncate font-medium text-white/80">{tpl.name}</TableCell>
+                                <TableCell className="hidden text-white/40 md:table-cell">{tpl.category}</TableCell>
+                                <TableCell className="hidden text-white/40 lg:table-cell">{tpl.legalArea}</TableCell>
+                                <TableCell>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button className="cursor-pointer">
+                                        <StatusBadge status={tpl.status} config={TEMPLATE_STATUS_CONFIG} />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+                                      {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+                                        <DropdownMenuItem
+                                          key={key}
+                                          onClick={() => handleUpdateTemplateStatus(tpl.id, key)}
+                                          disabled={key === tpl.status}
+                                          className="focus:bg-white/5 focus:text-white"
+                                        >
+                                          {val.label}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                                <TableCell className="text-right font-medium text-white/70">{formatCurrency(tpl.price)}</TableCell>
+                                <TableCell className="hidden text-right text-white/40 sm:table-cell">{tpl.documentCount}</TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-white/40 hover:text-[#C9A94E] hover:bg-[#C9A94E]/10"
+                                      onClick={() => handleOpenTemplateDialog(tpl)}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+                                      onClick={() => handleOpenTemplateDialog(tpl)}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <EmptyState icon={Layout} message="No hay plantillas registradas" />
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Create/Edit Template Dialog */}
+              <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+                <DialogContent className="max-h-[90vh] overflow-y-auto border-white/10 bg-[#0F1D32] sm:max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">
+                      {editingTemplate ? 'Editar Plantilla' : 'Crear Plantilla'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label className="text-white/70">Nombre *</Label>
+                      <Input
+                        value={templateForm.name}
+                        onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+                        placeholder="Nombre de la plantilla"
+                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-white/70">Descripción</Label>
+                      <Textarea
+                        value={templateForm.description}
+                        onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))}
+                        placeholder="Descripción de la plantilla"
+                        rows={3}
+                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label className="text-white/70">Categoría</Label>
+                        <Input
+                          value={templateForm.category}
+                          onChange={(e) => setTemplateForm((f) => ({ ...f, category: e.target.value }))}
+                          placeholder="Ej: Contratos"
+                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-white/70">Área Legal</Label>
+                        <Input
+                          value={templateForm.legalArea}
+                          onChange={(e) => setTemplateForm((f) => ({ ...f, legalArea: e.target.value }))}
+                          placeholder="Ej: Derecho Civil"
+                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <div className="grid gap-2">
+                        <Label className="text-white/70">Audiencia</Label>
+                        <Input
+                          value={templateForm.audience}
+                          onChange={(e) => setTemplateForm((f) => ({ ...f, audience: e.target.value }))}
+                          placeholder="Ej: Empresas"
+                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-white/70">Precio (COP)</Label>
+                        <Input
+                          type="number"
+                          value={templateForm.price}
+                          onChange={(e) => setTemplateForm((f) => ({ ...f, price: e.target.value }))}
+                          placeholder="0"
+                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-white/70">Estado</Label>
+                        <Select
+                          value={templateForm.status}
+                          onValueChange={(v) => setTemplateForm((f) => ({ ...f, status: v }))}
+                        >
+                          <SelectTrigger className="border-white/10 bg-white/5 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="border-white/10 bg-[#0F1D32]">
+                            {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+                              <SelectItem key={key} value={key} className="text-white focus:bg-white/5 focus:text-white">
+                                {val.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-white/70">Contenido Base</Label>
+                      <Textarea
+                        value={templateForm.baseContent}
+                        onChange={(e) => setTemplateForm((f) => ({ ...f, baseContent: e.target.value }))}
+                        placeholder="Contenido base de la plantilla..."
+                        rows={8}
+                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setTemplateDialogOpen(false)}
+                      className="text-white/50 hover:text-white hover:bg-white/5"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleSaveTemplate}
+                      disabled={savingTemplate}
+                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+                    >
+                      {savingTemplate ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </TabsContent>
+
+            {/* ============================================================ */}
+            {/*  3. BIBLIOTECA DE CLÁUSULAS                                  */}
+            {/* ============================================================ */}
+            <TabsContent value="clausulas" className="mt-0 flex-1 lg:ml-6">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">Biblioteca de Cláusulas</h2>
+                    <p className="text-xs text-white/40">Gestiona las cláusulas legales disponibles</p>
+                  </div>
+                  <Button
+                    onClick={() => handleOpenClauseDialog()}
+                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nueva Cláusula
+                  </Button>
+                </div>
+
+                {loadingClauses ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="h-40 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+                    ))}
+                  </div>
+                ) : clauses.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {clauses.map((clause) => (
+                      <Card key={clause.id} className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <CardTitle className="text-sm font-semibold text-white line-clamp-1">{clause.title}</CardTitle>
+                            <Badge variant="outline" className="shrink-0 border-[#C9A94E]/20 bg-[#C9A94E]/10 text-[#C9A94E] text-[10px]">
+                              {clause.legalArea}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <p className="line-clamp-3 text-xs leading-relaxed text-white/40">{clause.content}</p>
+                          <div className="mt-4 flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+                              onClick={() => handleOpenClauseDialog(clause)}
+                            >
+                              <Edit className="mr-1 h-3 w-3" />
+                              Editar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs text-white/40 hover:text-red-400 hover:bg-red-400/10"
+                              onClick={() => setDeleteClauseId(clause.id)}
+                            >
+                              <Trash2 className="mr-1 h-3 w-3" />
+                              Eliminar
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState icon={BookOpen} message="No hay cláusulas registradas" />
+                )}
+              </div>
+
+              {/* Create/Edit Clause Dialog */}
+              <Dialog open={clauseDialogOpen} onOpenChange={setClauseDialogOpen}>
+                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">
+                      {editingClause ? 'Editar Cláusula' : 'Nueva Cláusula'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label className="text-white/70">Título *</Label>
+                      <Input
+                        value={clauseForm.title}
+                        onChange={(e) => setClauseForm((f) => ({ ...f, title: e.target.value }))}
+                        placeholder="Título de la cláusula"
+                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-white/70">Área Legal</Label>
+                      <Input
+                        value={clauseForm.legalArea}
+                        onChange={(e) => setClauseForm((f) => ({ ...f, legalArea: e.target.value }))}
+                        placeholder="Ej: Derecho Laboral"
+                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label className="text-white/70">Contenido *</Label>
+                      <Textarea
+                        value={clauseForm.content}
+                        onChange={(e) => setClauseForm((f) => ({ ...f, content: e.target.value }))}
+                        placeholder="Texto de la cláusula..."
+                        rows={8}
+                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setClauseDialogOpen(false)}
+                      className="text-white/50 hover:text-white hover:bg-white/5"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleSaveClause}
+                      disabled={savingClause}
+                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+                    >
+                      {savingClause ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Delete Clause Confirmation */}
+              <AlertDialog open={!!deleteClauseId} onOpenChange={(open) => !open && setDeleteClauseId(null)}>
+                <AlertDialogContent className="border-white/10 bg-[#0F1D32]">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white">¿Eliminar cláusula?</AlertDialogTitle>
+                    <AlertDialogDescription className="text-white/50">
+                      Esta acción no se puede deshacer. La cláusula será eliminada permanentemente.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="border-white/10 text-white/50 hover:bg-white/5 hover:text-white">
+                      Cancelar
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteClause}
+                      className="bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                    >
+                      Eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </TabsContent>
+
+            {/* ============================================================ */}
+            {/*  4. GESTIÓN DE USUARIOS                                      */}
+            {/* ============================================================ */}
+            <TabsContent value="usuarios" className="mt-0 flex-1 lg:ml-6">
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Gestión de Usuarios</h2>
+                  <p className="text-xs text-white/40">Administra los usuarios registrados en la plataforma</p>
+                </div>
+
+                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+                  <CardContent className="p-0">
+                    {loadingUsers ? (
+                      <TableSkeleton rows={6} cols={8} />
+                    ) : users.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-white/5 hover:bg-transparent">
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Usuario</TableHead>
+                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Email</TableHead>
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Rol</TableHead>
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Créditos</TableHead>
+                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Docs</TableHead>
+                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 xl:table-cell">Último acceso</TableHead>
+                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody className="divide-y divide-white/5">
+                            {users.map((u) => (
+                              <TableRow key={u.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+                                <TableCell className="font-medium text-white/80">{u.name}</TableCell>
+                                <TableCell className="hidden text-white/40 md:table-cell">@{u.username}</TableCell>
+                                <TableCell className="hidden max-w-[200px] truncate text-white/40 lg:table-cell">{u.email}</TableCell>
+                                <TableCell>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button className="cursor-pointer">
+                                        <Badge variant="outline" className={`${ROLE_BADGE_CONFIG[u.role] || 'bg-gray-500/15 text-gray-400 border-gray-500/25'} hover:${ROLE_BADGE_CONFIG[u.role] || ''}`}>
+                                          {u.role}
+                                        </Badge>
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+                                      {['admin', 'user', 'editor'].map((role) => (
+                                        <DropdownMenuItem
+                                          key={role}
+                                          onClick={() => handleChangeUserRole(u.id, role)}
+                                          disabled={role === u.role}
+                                          className="capitalize focus:bg-white/5 focus:text-white"
+                                        >
+                                          {role}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                                <TableCell>
+                                  <StatusBadge status={u.status} config={USER_STATUS_CONFIG} />
+                                </TableCell>
+                                <TableCell className="hidden text-white/40 sm:table-cell"><span className="font-semibold text-[#C9A94E]">{u.credits}</span></TableCell>
+                                <TableCell className="hidden text-right text-white/40 lg:table-cell">{u.documentCount}</TableCell>
+                                <TableCell className="hidden text-right text-white/40 xl:table-cell">{u.lastAccess ? formatDate(u.lastAccess) : '—'}</TableCell>
+                                <TableCell className="text-right">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/5">
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="border-white/10 bg-[#0F1D32] text-white">
+                                      {u.status === 'active' ? (
+                                        <DropdownMenuItem
+                                          onClick={() => handleUpdateUserStatus(u.id, 'suspended')}
+                                          className="focus:bg-red-500/10 focus:text-red-400"
+                                        >
+                                          <X className="mr-2 h-4 w-4" />
+                                          Suspender
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem
+                                          onClick={() => handleUpdateUserStatus(u.id, 'active')}
+                                          className="focus:bg-green-500/10 focus:text-green-400"
+                                        >
+                                          <Check className="mr-2 h-4 w-4" />
+                                          Activar
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <EmptyState icon={Users} message="No hay usuarios registrados" />
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* ============================================================ */}
+            {/*  5. SOLICITUDES DE NUEVOS DOCUMENTOS                         */}
+            {/* ============================================================ */}
+            <TabsContent value="solicitudes" className="mt-0 flex-1 lg:ml-6">
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Solicitudes de Nuevos Documentos</h2>
+                  <p className="text-xs text-white/40">Revisa y gestiona las solicitudes de la comunidad</p>
+                </div>
+
+                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+                  <CardContent className="p-0">
+                    {loadingRequests ? (
+                      <TableSkeleton rows={5} cols={5} />
+                    ) : requests.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-white/5 hover:bg-transparent">
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Título</TableHead>
+                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Descripción</TableHead>
+                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Usuario</TableHead>
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody className="divide-y divide-white/5">
+                            {requests.map((req) => (
+                              <TableRow key={req.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+                                <TableCell className="max-w-[180px] truncate font-medium text-white/80">{req.title}</TableCell>
+                                <TableCell className="hidden max-w-[250px] truncate text-white/40 md:table-cell">{req.description}</TableCell>
+                                <TableCell className="hidden text-white/40 lg:table-cell">{req.user}</TableCell>
+                                <TableCell className="whitespace-nowrap text-white/40">{formatDate(req.date)}</TableCell>
+                                <TableCell>
+                                  <StatusBadge status={req.status} config={REQUEST_STATUS_CONFIG} />
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {req.status === 'pendiente' ? (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+                                        onClick={() => handleRequestAction(req.id, 'aprobada')}
+                                      >
+                                        <Check className="mr-1 h-3 w-3" />
+                                        Aprobar
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs text-red-400 hover:bg-red-400/10"
+                                        onClick={() => handleRequestAction(req.id, 'rechazada')}
+                                      >
+                                        <X className="mr-1 h-3 w-3" />
+                                        Rechazar
+                                      </Button>
+                                      <Button
+                                        variant="ghost"

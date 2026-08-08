@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type Page = 'dashboard' | 'catalog' | 'wizard' | 'documents' | 'contacts' | 'admin' | 'admin-templates' | 'admin-clauses' | 'admin-users' | 'admin-requests' | 'admin-pricing' | 'payments' | 'profile';
+export type Page = 'dashboard' | 'catalog' | 'wizard' | 'documents' | 'contacts' | 'admin' | 'admin-templates' | 'admin-clauses' | 'admin-users' | 'admin-requests' | 'admin-pricing' | 'admin-terminos' | 'payments' | 'profile';
 
 interface AppState {
   user: {

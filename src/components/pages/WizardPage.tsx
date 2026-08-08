@@ -25,6 +25,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ArrowLeft, ArrowRight, Save, FileText, Check, Info, Eye, Download, MessageCircle, Phone } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/app-store'
+import TermsAcceptance from '@/components/TermsAcceptance'
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                    */
@@ -124,6 +125,9 @@ export default function WizardPage() {
   // WhatsApp modal state (visitor mode)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
   const [visitorPhone, setVisitorPhone] = useState('')
+
+  // Terms acceptance (visitor mode)
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   /* ---- fetch template ---- */
   useEffect(() => {
@@ -513,6 +517,16 @@ export default function WizardPage() {
     }
     return count
   }, [wizardConfig, currentStep, answers, isFieldVisible])
+
+  /* ---- Terms gate for visitors ---- */
+  if (isVisitor && !termsAccepted) {
+    return (
+      <TermsAcceptance
+        onStart={() => setTermsAccepted(true)}
+        templateName={template?.name || 'Documento'}
+      />
+    )
+  }
 
   /* ---- loading ---- */
   if (loading) {

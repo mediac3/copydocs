@@ -1,0 +1,502 @@
+     1→     1→  1001→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+     2→     2→  1002→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Precio</TableHead>
+     3→     3→  1003→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Docs</TableHead>
+     4→     4→  1004→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+     5→     5→  1005→                            </TableRow>
+     6→     6→  1006→                          </TableHeader>
+     7→     7→  1007→                          <TableBody className="divide-y divide-white/5">
+     8→     8→  1008→                            {templates.map((tpl) => (
+     9→     9→  1009→                              <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+    10→    10→  1010→                                <TableCell className="max-w-[200px] truncate font-medium text-white/80">{tpl.name}</TableCell>
+    11→    11→  1011→                                <TableCell className="hidden text-white/40 md:table-cell">{tpl.category}</TableCell>
+    12→    12→  1012→                                <TableCell className="hidden text-white/40 lg:table-cell">{tpl.legalArea}</TableCell>
+    13→    13→  1013→                                <TableCell>
+    14→    14→  1014→                                  <DropdownMenu>
+    15→    15→  1015→                                    <DropdownMenuTrigger asChild>
+    16→    16→  1016→                                      <button className="cursor-pointer">
+    17→    17→  1017→                                        <StatusBadge status={tpl.status} config={TEMPLATE_STATUS_CONFIG} />
+    18→    18→  1018→                                      </button>
+    19→    19→  1019→                                    </DropdownMenuTrigger>
+    20→    20→  1020→                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+    21→    21→  1021→                                      {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+    22→    22→  1022→                                        <DropdownMenuItem
+    23→    23→  1023→                                          key={key}
+    24→    24→  1024→                                          onClick={() => handleUpdateTemplateStatus(tpl.id, key)}
+    25→    25→  1025→                                          disabled={key === tpl.status}
+    26→    26→  1026→                                          className="focus:bg-white/5 focus:text-white"
+    27→    27→  1027→                                        >
+    28→    28→  1028→                                          {val.label}
+    29→    29→  1029→                                        </DropdownMenuItem>
+    30→    30→  1030→                                      ))}
+    31→    31→  1031→                                    </DropdownMenuContent>
+    32→    32→  1032→                                  </DropdownMenu>
+    33→    33→  1033→                                </TableCell>
+    34→    34→  1034→                                <TableCell className="text-right font-medium text-white/70">{formatCurrency(tpl.price)}</TableCell>
+    35→    35→  1035→                                <TableCell className="hidden text-right text-white/40 sm:table-cell">{tpl.documentCount}</TableCell>
+    36→    36→  1036→                                <TableCell className="text-right">
+    37→    37→  1037→                                  <div className="flex items-center justify-end gap-1">
+    38→    38→  1038→                                    <Button
+    39→    39→  1039→                                      variant="ghost"
+    40→    40→  1040→                                      size="icon"
+    41→    41→  1041→                                      className="h-8 w-8 text-white/40 hover:text-[#C9A94E] hover:bg-[#C9A94E]/10"
+    42→    42→  1042→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+    43→    43→  1043→                                    >
+    44→    44→  1044→                                      <Eye className="h-4 w-4" />
+    45→    45→  1045→                                    </Button>
+    46→    46→  1046→                                    <Button
+    47→    47→  1047→                                      variant="ghost"
+    48→    48→  1048→                                      size="icon"
+    49→    49→  1049→                                      className="h-8 w-8 text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+    50→    50→  1050→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+    51→    51→  1051→                                    >
+    52→    52→  1052→                                      <Edit className="h-4 w-4" />
+    53→    53→  1053→                                    </Button>
+    54→    54→  1054→                                  </div>
+    55→    55→  1055→                                </TableCell>
+    56→    56→  1056→                              </TableRow>
+    57→    57→  1057→                            ))}
+    58→    58→  1058→                          </TableBody>
+    59→    59→  1059→                        </Table>
+    60→    60→  1060→                      </div>
+    61→    61→  1061→                    ) : (
+    62→    62→  1062→                      <EmptyState icon={Layout} message="No hay plantillas registradas" />
+    63→    63→  1063→                    )}
+    64→    64→  1064→                  </CardContent>
+    65→    65→  1065→                </Card>
+    66→    66→  1066→              </div>
+    67→    67→  1067→
+    68→    68→  1068→              {/* Create/Edit Template Dialog */}
+    69→    69→  1069→              <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+    70→    70→  1070→                <DialogContent className="max-h-[90vh] overflow-y-auto border-white/10 bg-[#0F1D32] sm:max-w-2xl">
+    71→    71→  1071→                  <DialogHeader>
+    72→    72→  1072→                    <DialogTitle className="text-white">
+    73→    73→  1073→                      {editingTemplate ? 'Editar Plantilla' : 'Crear Plantilla'}
+    74→    74→  1074→                    </DialogTitle>
+    75→    75→  1075→                  </DialogHeader>
+    76→    76→  1076→                  <div className="grid gap-4 py-4">
+    77→    77→  1077→                    <div className="grid gap-2">
+    78→    78→  1078→                      <Label className="text-white/70">Nombre *</Label>
+    79→    79→  1079→                      <Input
+    80→    80→  1080→                        value={templateForm.name}
+    81→    81→  1081→                        onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+    82→    82→  1082→                        placeholder="Nombre de la plantilla"
+    83→    83→  1083→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+    84→    84→  1084→                      />
+    85→    85→  1085→                    </div>
+    86→    86→  1086→                    <div className="grid gap-2">
+    87→    87→  1087→                      <Label className="text-white/70">Descripción</Label>
+    88→    88→  1088→                      <Textarea
+    89→    89→  1089→                        value={templateForm.description}
+    90→    90→  1090→                        onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))}
+    91→    91→  1091→                        placeholder="Descripción de la plantilla"
+    92→    92→  1092→                        rows={3}
+    93→    93→  1093→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+    94→    94→  1094→                      />
+    95→    95→  1095→                    </div>
+    96→    96→  1096→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    97→    97→  1097→                      <div className="grid gap-2">
+    98→    98→  1098→                        <Label className="text-white/70">Categoría</Label>
+    99→    99→  1099→                        <Input
+   100→   100→  1100→                          value={templateForm.category}
+   101→   101→  1101→                          onChange={(e) => setTemplateForm((f) => ({ ...f, category: e.target.value }))}
+   102→   102→  1102→                          placeholder="Ej: Contratos"
+   103→   103→  1103→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   104→   104→  1104→                        />
+   105→   105→  1105→                      </div>
+   106→   106→  1106→                      <div className="grid gap-2">
+   107→   107→  1107→                        <Label className="text-white/70">Área Legal</Label>
+   108→   108→  1108→                        <Input
+   109→   109→  1109→                          value={templateForm.legalArea}
+   110→   110→  1110→                          onChange={(e) => setTemplateForm((f) => ({ ...f, legalArea: e.target.value }))}
+   111→   111→  1111→                          placeholder="Ej: Derecho Civil"
+   112→   112→  1112→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   113→   113→  1113→                        />
+   114→   114→  1114→                      </div>
+   115→   115→  1115→                    </div>
+   116→   116→  1116→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+   117→   117→  1117→                      <div className="grid gap-2">
+   118→   118→  1118→                        <Label className="text-white/70">Audiencia</Label>
+   119→   119→  1119→                        <Input
+   120→   120→  1120→                          value={templateForm.audience}
+   121→   121→  1121→                          onChange={(e) => setTemplateForm((f) => ({ ...f, audience: e.target.value }))}
+   122→   122→  1122→                          placeholder="Ej: Empresas"
+   123→   123→  1123→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   124→   124→  1124→                        />
+   125→   125→  1125→                      </div>
+   126→   126→  1126→                      <div className="grid gap-2">
+   127→   127→  1127→                        <Label className="text-white/70">Precio (COP)</Label>
+   128→   128→  1128→                        <Input
+   129→   129→  1129→                          type="number"
+   130→   130→  1130→                          value={templateForm.price}
+   131→   131→  1131→                          onChange={(e) => setTemplateForm((f) => ({ ...f, price: e.target.value }))}
+   132→   132→  1132→                          placeholder="0"
+   133→   133→  1133→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   134→   134→  1134→                        />
+   135→   135→  1135→                      </div>
+   136→   136→  1136→                      <div className="grid gap-2">
+   137→   137→  1137→                        <Label className="text-white/70">Estado</Label>
+   138→   138→  1138→                        <Select
+   139→   139→  1139→                          value={templateForm.status}
+   140→   140→  1140→                          onValueChange={(v) => setTemplateForm((f) => ({ ...f, status: v }))}
+   141→   141→  1141→                        >
+   142→   142→  1142→                          <SelectTrigger className="border-white/10 bg-white/5 text-white">
+   143→   143→  1143→                            <SelectValue />
+   144→   144→  1144→                          </SelectTrigger>
+   145→   145→  1145→                          <SelectContent className="border-white/10 bg-[#0F1D32]">
+   146→   146→  1146→                            {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+   147→   147→  1147→                              <SelectItem key={key} value={key} className="text-white focus:bg-white/5 focus:text-white">
+   148→   148→  1148→                                {val.label}
+   149→   149→  1149→                              </SelectItem>
+   150→   150→  1150→                            ))}
+   151→   151→  1151→                          </SelectContent>
+   152→   152→  1152→                        </Select>
+   153→   153→  1153→                      </div>
+   154→   154→  1154→                    </div>
+   155→   155→  1155→                    <div className="grid gap-2">
+   156→   156→  1156→                      <Label className="text-white/70">Contenido Base</Label>
+   157→   157→  1157→                      <Textarea
+   158→   158→  1158→                        value={templateForm.baseContent}
+   159→   159→  1159→                        onChange={(e) => setTemplateForm((f) => ({ ...f, baseContent: e.target.value }))}
+   160→   160→  1160→                        placeholder="Contenido base de la plantilla..."
+   161→   161→  1161→                        rows={8}
+   162→   162→  1162→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   163→   163→  1163→                      />
+   164→   164→  1164→                    </div>
+   165→   165→  1165→                  </div>
+   166→   166→  1166→                  <DialogFooter>
+   167→   167→  1167→                    <Button
+   168→   168→  1168→                      variant="ghost"
+   169→   169→  1169→                      onClick={() => setTemplateDialogOpen(false)}
+   170→   170→  1170→                      className="text-white/50 hover:text-white hover:bg-white/5"
+   171→   171→  1171→                    >
+   172→   172→  1172→                      Cancelar
+   173→   173→  1173→                    </Button>
+   174→   174→  1174→                    <Button
+   175→   175→  1175→                      onClick={handleSaveTemplate}
+   176→   176→  1176→                      disabled={savingTemplate}
+   177→   177→  1177→                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+   178→   178→  1178→                    >
+   179→   179→  1179→                      {savingTemplate ? 'Guardando...' : 'Guardar'}
+   180→   180→  1180→                    </Button>
+   181→   181→  1181→                  </DialogFooter>
+   182→   182→  1182→                </DialogContent>
+   183→   183→  1183→              </Dialog>
+   184→   184→  1184→            </TabsContent>
+   185→   185→  1185→
+   186→   186→  1186→            {/* ============================================================ */}
+   187→   187→  1187→            {/*  3. BIBLIOTECA DE CLÁUSULAS                                  */}
+   188→   188→  1188→            {/* ============================================================ */}
+   189→   189→  1189→            <TabsContent value="clausulas" className="mt-0 flex-1 lg:ml-6">
+   190→   190→  1190→              <div className="space-y-6">
+   191→   191→  1191→                <div className="flex items-center justify-between">
+   192→   192→  1192→                  <div>
+   193→   193→  1193→                    <h2 className="text-lg font-semibold text-white">Biblioteca de Cláusulas</h2>
+   194→   194→  1194→                    <p className="text-xs text-white/40">Gestiona las cláusulas legales disponibles</p>
+   195→   195→  1195→                  </div>
+   196→   196→  1196→                  <Button
+   197→   197→  1197→                    onClick={() => handleOpenClauseDialog()}
+   198→   198→  1198→                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+   199→   199→  1199→                  >
+   200→   200→  1200→                    <Plus className="mr-2 h-4 w-4" />
+   201→   201→  1201→                    Nueva Cláusula
+   202→   202→  1202→                  </Button>
+   203→   203→  1203→                </div>
+   204→   204→  1204→
+   205→   205→  1205→                {loadingClauses ? (
+   206→   206→  1206→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   207→   207→  1207→                    {Array.from({ length: 6 }).map((_, i) => (
+   208→   208→  1208→                      <div key={i} className="h-40 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+   209→   209→  1209→                    ))}
+   210→   210→  1210→                  </div>
+   211→   211→  1211→                ) : clauses.length > 0 ? (
+   212→   212→  1212→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+   213→   213→  1213→                    {clauses.map((clause) => (
+   214→   214→  1214→                      <Card key={clause.id} className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5">
+   215→   215→  1215→                        <CardHeader className="pb-2">
+   216→   216→  1216→                          <div className="flex items-start justify-between gap-2">
+   217→   217→  1217→                            <CardTitle className="text-sm font-semibold text-white line-clamp-1">{clause.title}</CardTitle>
+   218→   218→  1218→                            <Badge variant="outline" className="shrink-0 border-[#C9A94E]/20 bg-[#C9A94E]/10 text-[#C9A94E] text-[10px]">
+   219→   219→  1219→                              {clause.legalArea}
+   220→   220→  1220→                            </Badge>
+   221→   221→  1221→                          </div>
+   222→   222→  1222→                        </CardHeader>
+   223→   223→  1223→                        <CardContent className="pt-0">
+   224→   224→  1224→                          <p className="line-clamp-3 text-xs leading-relaxed text-white/40">{clause.content}</p>
+   225→   225→  1225→                          <div className="mt-4 flex items-center gap-1">
+   226→   226→  1226→                            <Button
+   227→   227→  1227→                              variant="ghost"
+   228→   228→  1228→                              size="sm"
+   229→   229→  1229→                              className="h-7 text-xs text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+   230→   230→  1230→                              onClick={() => handleOpenClauseDialog(clause)}
+   231→   231→  1231→                            >
+   232→   232→  1232→                              <Edit className="mr-1 h-3 w-3" />
+   233→   233→  1233→                              Editar
+   234→   234→  1234→                            </Button>
+   235→   235→  1235→                            <Button
+   236→   236→  1236→                              variant="ghost"
+   237→   237→  1237→                              size="sm"
+   238→   238→  1238→                              className="h-7 text-xs text-white/40 hover:text-red-400 hover:bg-red-400/10"
+   239→   239→  1239→                              onClick={() => setDeleteClauseId(clause.id)}
+   240→   240→  1240→                            >
+   241→   241→  1241→                              <Trash2 className="mr-1 h-3 w-3" />
+   242→   242→  1242→                              Eliminar
+   243→   243→  1243→                            </Button>
+   244→   244→  1244→                          </div>
+   245→   245→  1245→                        </CardContent>
+   246→   246→  1246→                      </Card>
+   247→   247→  1247→                    ))}
+   248→   248→  1248→                  </div>
+   249→   249→  1249→                ) : (
+   250→   250→  1250→                  <EmptyState icon={BookOpen} message="No hay cláusulas registradas" />
+   251→   251→  1251→                )}
+   252→   252→  1252→              </div>
+   253→   253→  1253→
+   254→   254→  1254→              {/* Create/Edit Clause Dialog */}
+   255→   255→  1255→              <Dialog open={clauseDialogOpen} onOpenChange={setClauseDialogOpen}>
+   256→   256→  1256→                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-lg">
+   257→   257→  1257→                  <DialogHeader>
+   258→   258→  1258→                    <DialogTitle className="text-white">
+   259→   259→  1259→                      {editingClause ? 'Editar Cláusula' : 'Nueva Cláusula'}
+   260→   260→  1260→                    </DialogTitle>
+   261→   261→  1261→                  </DialogHeader>
+   262→   262→  1262→                  <div className="grid gap-4 py-4">
+   263→   263→  1263→                    <div className="grid gap-2">
+   264→   264→  1264→                      <Label className="text-white/70">Título *</Label>
+   265→   265→  1265→                      <Input
+   266→   266→  1266→                        value={clauseForm.title}
+   267→   267→  1267→                        onChange={(e) => setClauseForm((f) => ({ ...f, title: e.target.value }))}
+   268→   268→  1268→                        placeholder="Título de la cláusula"
+   269→   269→  1269→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   270→   270→  1270→                      />
+   271→   271→  1271→                    </div>
+   272→   272→  1272→                    <div className="grid gap-2">
+   273→   273→  1273→                      <Label className="text-white/70">Área Legal</Label>
+   274→   274→  1274→                      <Input
+   275→   275→  1275→                        value={clauseForm.legalArea}
+   276→   276→  1276→                        onChange={(e) => setClauseForm((f) => ({ ...f, legalArea: e.target.value }))}
+   277→   277→  1277→                        placeholder="Ej: Derecho Laboral"
+   278→   278→  1278→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   279→   279→  1279→                      />
+   280→   280→  1280→                    </div>
+   281→   281→  1281→                    <div className="grid gap-2">
+   282→   282→  1282→                      <Label className="text-white/70">Contenido *</Label>
+   283→   283→  1283→                      <Textarea
+   284→   284→  1284→                        value={clauseForm.content}
+   285→   285→  1285→                        onChange={(e) => setClauseForm((f) => ({ ...f, content: e.target.value }))}
+   286→   286→  1286→                        placeholder="Texto de la cláusula..."
+   287→   287→  1287→                        rows={8}
+   288→   288→  1288→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   289→   289→  1289→                      />
+   290→   290→  1290→                    </div>
+   291→   291→  1291→                  </div>
+   292→   292→  1292→                  <DialogFooter>
+   293→   293→  1293→                    <Button
+   294→   294→  1294→                      variant="ghost"
+   295→   295→  1295→                      onClick={() => setClauseDialogOpen(false)}
+   296→   296→  1296→                      className="text-white/50 hover:text-white hover:bg-white/5"
+   297→   297→  1297→                    >
+   298→   298→  1298→                      Cancelar
+   299→   299→  1299→                    </Button>
+   300→   300→  1300→                    <Button
+   301→   301→  1301→                      onClick={handleSaveClause}
+   302→   302→  1302→                      disabled={savingClause}
+   303→   303→  1303→                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+   304→   304→  1304→                    >
+   305→   305→  1305→                      {savingClause ? 'Guardando...' : 'Guardar'}
+   306→   306→  1306→                    </Button>
+   307→   307→  1307→                  </DialogFooter>
+   308→   308→  1308→                </DialogContent>
+   309→   309→  1309→              </Dialog>
+   310→   310→  1310→
+   311→   311→  1311→              {/* Delete Clause Confirmation */}
+   312→   312→  1312→              <AlertDialog open={!!deleteClauseId} onOpenChange={(open) => !open && setDeleteClauseId(null)}>
+   313→   313→  1313→                <AlertDialogContent className="border-white/10 bg-[#0F1D32]">
+   314→   314→  1314→                  <AlertDialogHeader>
+   315→   315→  1315→                    <AlertDialogTitle className="text-white">¿Eliminar cláusula?</AlertDialogTitle>
+   316→   316→  1316→                    <AlertDialogDescription className="text-white/50">
+   317→   317→  1317→                      Esta acción no se puede deshacer. La cláusula será eliminada permanentemente.
+   318→   318→  1318→                    </AlertDialogDescription>
+   319→   319→  1319→                  </AlertDialogHeader>
+   320→   320→  1320→                  <AlertDialogFooter>
+   321→   321→  1321→                    <AlertDialogCancel className="border-white/10 text-white/50 hover:bg-white/5 hover:text-white">
+   322→   322→  1322→                      Cancelar
+   323→   323→  1323→                    </AlertDialogCancel>
+   324→   324→  1324→                    <AlertDialogAction
+   325→   325→  1325→                      onClick={handleDeleteClause}
+   326→   326→  1326→                      className="bg-red-500/20 text-red-400 hover:bg-red-500/30"
+   327→   327→  1327→                    >
+   328→   328→  1328→                      Eliminar
+   329→   329→  1329→                    </AlertDialogAction>
+   330→   330→  1330→                  </AlertDialogFooter>
+   331→   331→  1331→                </AlertDialogContent>
+   332→   332→  1332→              </AlertDialog>
+   333→   333→  1333→            </TabsContent>
+   334→   334→  1334→
+   335→   335→  1335→            {/* ============================================================ */}
+   336→   336→  1336→            {/*  4. GESTIÓN DE USUARIOS                                      */}
+   337→   337→  1337→            {/* ============================================================ */}
+   338→   338→  1338→            <TabsContent value="usuarios" className="mt-0 flex-1 lg:ml-6">
+   339→   339→  1339→              <div className="space-y-6">
+   340→   340→  1340→                <div>
+   341→   341→  1341→                  <h2 className="text-lg font-semibold text-white">Gestión de Usuarios</h2>
+   342→   342→  1342→                  <p className="text-xs text-white/40">Administra los usuarios registrados en la plataforma</p>
+   343→   343→  1343→                </div>
+   344→   344→  1344→
+   345→   345→  1345→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   346→   346→  1346→                  <CardContent className="p-0">
+   347→   347→  1347→                    {loadingUsers ? (
+   348→   348→  1348→                      <TableSkeleton rows={6} cols={8} />
+   349→   349→  1349→                    ) : users.length > 0 ? (
+   350→   350→  1350→                      <div className="overflow-x-auto">
+   351→   351→  1351→                        <Table>
+   352→   352→  1352→                          <TableHeader>
+   353→   353→  1353→                            <TableRow className="border-white/5 hover:bg-transparent">
+   354→   354→  1354→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+   355→   355→  1355→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Usuario</TableHead>
+   356→   356→  1356→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Email</TableHead>
+   357→   357→  1357→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Rol</TableHead>
+   358→   358→  1358→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+   359→   359→  1359→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Créditos</TableHead>
+   360→   360→  1360→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Docs</TableHead>
+   361→   361→  1361→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 xl:table-cell">Último acceso</TableHead>
+   362→   362→  1362→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+   363→   363→  1363→                            </TableRow>
+   364→   364→  1364→                          </TableHeader>
+   365→   365→  1365→                          <TableBody className="divide-y divide-white/5">
+   366→   366→  1366→                            {users.map((u) => (
+   367→   367→  1367→                              <TableRow key={u.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+   368→   368→  1368→                                <TableCell className="font-medium text-white/80">{u.name}</TableCell>
+   369→   369→  1369→                                <TableCell className="hidden text-white/40 md:table-cell">@{u.username}</TableCell>
+   370→   370→  1370→                                <TableCell className="hidden max-w-[200px] truncate text-white/40 lg:table-cell">{u.email}</TableCell>
+   371→   371→  1371→                                <TableCell>
+   372→   372→  1372→                                  <DropdownMenu>
+   373→   373→  1373→                                    <DropdownMenuTrigger asChild>
+   374→   374→  1374→                                      <button className="cursor-pointer">
+   375→   375→  1375→                                        <Badge variant="outline" className={`${ROLE_BADGE_CONFIG[u.role] || 'bg-gray-500/15 text-gray-400 border-gray-500/25'} hover:${ROLE_BADGE_CONFIG[u.role] || ''}`}>
+   376→   376→  1376→                                          {u.role}
+   377→   377→  1377→                                        </Badge>
+   378→   378→  1378→                                      </button>
+   379→   379→  1379→                                    </DropdownMenuTrigger>
+   380→   380→  1380→                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+   381→   381→  1381→                                      {['admin', 'user', 'editor'].map((role) => (
+   382→   382→  1382→                                        <DropdownMenuItem
+   383→   383→  1383→                                          key={role}
+   384→   384→  1384→                                          onClick={() => handleChangeUserRole(u.id, role)}
+   385→   385→  1385→                                          disabled={role === u.role}
+   386→   386→  1386→                                          className="capitalize focus:bg-white/5 focus:text-white"
+   387→   387→  1387→                                        >
+   388→   388→  1388→                                          {role}
+   389→   389→  1389→                                        </DropdownMenuItem>
+   390→   390→  1390→                                      ))}
+   391→   391→  1391→                                    </DropdownMenuContent>
+   392→   392→  1392→                                  </DropdownMenu>
+   393→   393→  1393→                                </TableCell>
+   394→   394→  1394→                                <TableCell>
+   395→   395→  1395→                                  <StatusBadge status={u.status} config={USER_STATUS_CONFIG} />
+   396→   396→  1396→                                </TableCell>
+   397→   397→  1397→                                <TableCell className="hidden text-white/40 sm:table-cell"><span className="font-semibold text-[#C9A94E]">{u.credits}</span></TableCell>
+   398→   398→  1398→                                <TableCell className="hidden text-right text-white/40 lg:table-cell">{u.documentCount}</TableCell>
+   399→   399→  1399→                                <TableCell className="hidden text-right text-white/40 xl:table-cell">{u.lastAccess ? formatDate(u.lastAccess) : '—'}</TableCell>
+   400→   400→  1400→                                <TableCell className="text-right">
+   401→   401→  1401→                                  <DropdownMenu>
+   402→   402→  1402→                                    <DropdownMenuTrigger asChild>
+   403→   403→  1403→                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/5">
+   404→   404→  1404→                                        <MoreVertical className="h-4 w-4" />
+   405→   405→  1405→                                      </Button>
+   406→   406→  1406→                                    </DropdownMenuTrigger>
+   407→   407→  1407→                                    <DropdownMenuContent align="end" className="border-white/10 bg-[#0F1D32] text-white">
+   408→   408→  1408→                                      {u.status === 'active' ? (
+   409→   409→  1409→                                        <DropdownMenuItem
+   410→   410→  1410→                                          onClick={() => handleUpdateUserStatus(u.id, 'suspended')}
+   411→   411→  1411→                                          className="focus:bg-red-500/10 focus:text-red-400"
+   412→   412→  1412→                                        >
+   413→   413→  1413→                                          <X className="mr-2 h-4 w-4" />
+   414→   414→  1414→                                          Suspender
+   415→   415→  1415→                                        </DropdownMenuItem>
+   416→   416→  1416→                                      ) : (
+   417→   417→  1417→                                        <DropdownMenuItem
+   418→   418→  1418→                                          onClick={() => handleUpdateUserStatus(u.id, 'active')}
+   419→   419→  1419→                                          className="focus:bg-green-500/10 focus:text-green-400"
+   420→   420→  1420→                                        >
+   421→   421→  1421→                                          <Check className="mr-2 h-4 w-4" />
+   422→   422→  1422→                                          Activar
+   423→   423→  1423→                                        </DropdownMenuItem>
+   424→   424→  1424→                                      )}
+   425→   425→  1425→                                    </DropdownMenuContent>
+   426→   426→  1426→                                  </DropdownMenu>
+   427→   427→  1427→                                </TableCell>
+   428→   428→  1428→                              </TableRow>
+   429→   429→  1429→                            ))}
+   430→   430→  1430→                          </TableBody>
+   431→   431→  1431→                        </Table>
+   432→   432→  1432→                      </div>
+   433→   433→  1433→                    ) : (
+   434→   434→  1434→                      <EmptyState icon={Users} message="No hay usuarios registrados" />
+   435→   435→  1435→                    )}
+   436→   436→  1436→                  </CardContent>
+   437→   437→  1437→                </Card>
+   438→   438→  1438→              </div>
+   439→   439→  1439→            </TabsContent>
+   440→   440→  1440→
+   441→   441→  1441→            {/* ============================================================ */}
+   442→   442→  1442→            {/*  5. SOLICITUDES DE NUEVOS DOCUMENTOS                         */}
+   443→   443→  1443→            {/* ============================================================ */}
+   444→   444→  1444→            <TabsContent value="solicitudes" className="mt-0 flex-1 lg:ml-6">
+   445→   445→  1445→              <div className="space-y-6">
+   446→   446→  1446→                <div>
+   447→   447→  1447→                  <h2 className="text-lg font-semibold text-white">Solicitudes de Nuevos Documentos</h2>
+   448→   448→  1448→                  <p className="text-xs text-white/40">Revisa y gestiona las solicitudes de la comunidad</p>
+   449→   449→  1449→                </div>
+   450→   450→  1450→
+   451→   451→  1451→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   452→   452→  1452→                  <CardContent className="p-0">
+   453→   453→  1453→                    {loadingRequests ? (
+   454→   454→  1454→                      <TableSkeleton rows={5} cols={5} />
+   455→   455→  1455→                    ) : requests.length > 0 ? (
+   456→   456→  1456→                      <div className="overflow-x-auto">
+   457→   457→  1457→                        <Table>
+   458→   458→  1458→                          <TableHeader>
+   459→   459→  1459→                            <TableRow className="border-white/5 hover:bg-transparent">
+   460→   460→  1460→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Título</TableHead>
+   461→   461→  1461→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Descripción</TableHead>
+   462→   462→  1462→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Usuario</TableHead>
+   463→   463→  1463→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+   464→   464→  1464→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+   465→   465→  1465→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+   466→   466→  1466→                            </TableRow>
+   467→   467→  1467→                          </TableHeader>
+   468→   468→  1468→                          <TableBody className="divide-y divide-white/5">
+   469→   469→  1469→                            {requests.map((req) => (
+   470→   470→  1470→                              <TableRow key={req.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+   471→   471→  1471→                                <TableCell className="max-w-[180px] truncate font-medium text-white/80">{req.title}</TableCell>
+   472→   472→  1472→                                <TableCell className="hidden max-w-[250px] truncate text-white/40 md:table-cell">{req.description}</TableCell>
+   473→   473→  1473→                                <TableCell className="hidden text-white/40 lg:table-cell">{req.user}</TableCell>
+   474→   474→  1474→                                <TableCell className="whitespace-nowrap text-white/40">{formatDate(req.date)}</TableCell>
+   475→   475→  1475→                                <TableCell>
+   476→   476→  1476→                                  <StatusBadge status={req.status} config={REQUEST_STATUS_CONFIG} />
+   477→   477→  1477→                                </TableCell>
+   478→   478→  1478→                                <TableCell className="text-right">
+   479→   479→  1479→                                  {req.status === 'pendiente' ? (
+   480→   480→  1480→                                    <div className="flex items-center justify-end gap-1">
+   481→   481→  1481→                                      <Button
+   482→   482→  1482→                                        variant="ghost"
+   483→   483→  1483→                                        size="sm"
+   484→   484→  1484→                                        className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+   485→   485→  1485→                                        onClick={() => handleRequestAction(req.id, 'aprobada')}
+   486→   486→  1486→                                      >
+   487→   487→  1487→                                        <Check className="mr-1 h-3 w-3" />
+   488→   488→  1488→                                        Aprobar
+   489→   489→  1489→                                      </Button>
+   490→   490→  1490→                                      <Button
+   491→   491→  1491→                                        variant="ghost"
+   492→   492→  1492→                                        size="sm"
+   493→   493→  1493→                                        className="h-7 text-xs text-red-400 hover:bg-red-400/10"
+   494→   494→  1494→                                        onClick={() => handleRequestAction(req.id, 'rechazada')}
+   495→   495→  1495→                                      >
+   496→   496→  1496→                                        <X className="mr-1 h-3 w-3" />
+   497→   497→  1497→                                        Rechazar
+   498→   498→  1498→                                      </Button>
+   499→   499→  1499→                                      <Button
+   500→   500→  1500→                                        variant="ghost"
+   501→   501→
+   502→   502→[showing lines 1001-1500 of 1801; use offset=1501 with limit to continue reading]

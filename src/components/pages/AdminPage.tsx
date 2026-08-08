@@ -59,7 +59,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
-import { useAppStore } from '@/store/app-store'
+import { useAppStore, type Page } from '@/store/app-store'
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                    */
@@ -79,7 +79,7 @@ interface Template {
   name: string
   category: string
   legalArea: string
-  status: 'borrador' | 'en_revision' | 'publicado' | 'desactivado'
+  status: string
   price: number
   documentCount: number
   description?: string
@@ -152,6 +152,8 @@ interface NewTemplateForm {
   audience: string
   price: string
   baseContent: string
+  headerContent: string
+  footerContent: string
   status: string
 }
 
@@ -196,10 +198,10 @@ function formatDateTime(dateStr: string): string {
 /* -------------------------------------------------------------------------- */
 
 const TEMPLATE_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  borrador: { label: 'Borrador', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
-  en_revision: { label: 'En revisión', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
-  publicado: { label: 'Publicado', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
-  desactivado: { label: 'Desactivado', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
+  draft: { label: 'Borrador', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
+  in_review: { label: 'En revisión', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
+  published: { label: 'Publicado', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
+  disabled: { label: 'Desactivado', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
 }
 
 const REQUEST_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -298,9 +300,102 @@ function AdminStatCard({ label, value, icon, accentBg, accentText, accentBorder,
 /*  AdminPage                                                                */
 /* -------------------------------------------------------------------------- */
 
+/* ========================================================================== */
+/*  Terms Tab Component                                                     */
+/* ========================================================================== */
+
+function InlineTerms() {
+  const { authHeaders } = useAppStore() as { authHeaders: () => Record<string, string> }
+  const [terms, setTerms] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch('/api/settings').then(r => r.json()).then(data => {
+      setTerms(data.terms_and_conditions || '')
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [activeTab])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ terms_and_conditions: terms }),
+      })
+      if (res.ok) toast.success('Términos y condiciones actualizados')
+      else toast.error('Error al guardar')
+    } catch { toast.error('Error de conexión') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-white">Términos y Condiciones</h2>
+        <p className="text-xs text-white/40">Configura los términos que los visitantes deben aceptar antes de generar un documento.</p>
+      </div>
+      <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+        <CardContent className="p-6">
+          {loading ? (
+            <div className="h-64 animate-pulse rounded-lg bg-white/[0.04]" />
+          ) : (
+            <>
+              <div className="grid gap-2 mb-4">
+                <Label className="text-white/70">Contenido de Términos y Condiciones</Label>
+                <p className="text-xs text-white/30">Este texto se mostrará a los visitantes antes de iniciar un documento. Usa texto plano.</p>
+              </div>
+              <Textarea
+                value={terms}
+                onChange={(e) => setTerms(e.target.value)}
+                placeholder="Escribe aquí los términos y condiciones del servicio..."
+                rows={16}
+                className="border-white/10 bg-white/5 text-white placeholder:text-white/30 text-sm leading-relaxed"
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saving} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965] font-semibold min-w-[120px]">
+          {saving ? 'Guardando...' : 'Guardar Términos'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+const PAGE_TO_TAB: Record<string, string> = {
+  admin: 'resumen',
+  'admin-templates': 'plantillas',
+  'admin-clauses': 'clausulas',
+  'admin-users': 'usuarios',
+  'admin-requests': 'solicitudes',
+  'admin-pricing': 'precios',
+  'admin-terminos': 'terminos',
+}
+
 export default function AdminPage() {
-  const { user } = useAppStore()
-  const [activeTab, setActiveTab] = useState('resumen')
+  const { user, currentPage, setCurrentPage } = useAppStore()
+  const [activeTab, setActiveTab] = useState(PAGE_TO_TAB[currentPage] || 'resumen')
+
+  // Sync sidebar navigation with internal tabs
+  useEffect(() => {
+    const mapped = PAGE_TO_TAB[currentPage]
+    if (mapped && mapped !== activeTab) {
+      setActiveTab(mapped)
+    }
+  }, [currentPage])
+
+  // Update store page when tab changes
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    const pageMap: Record<string, string> = { resumen: 'admin', plantillas: 'admin-templates', clausulas: 'admin-clauses', usuarios: 'admin-users', solicitudes: 'admin-requests', precios: 'admin-pricing', terminos: 'admin-terminos' }
+    const page = pageMap[value]
+    if (page && page !== currentPage) setCurrentPage(page as Page)
+  }
 
   /* ---- Resumen state ---- */
   const [stats, setStats] = useState<AdminStats | null>(null)
@@ -313,7 +408,7 @@ export default function AdminPage() {
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
   const [templateForm, setTemplateForm] = useState<NewTemplateForm>({
     name: '', description: '', category: '', legalArea: '', audience: '',
-    price: '', baseContent: '', status: 'borrador',
+    price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft',
   })
   const [savingTemplate, setSavingTemplate] = useState(false)
 
@@ -550,11 +645,13 @@ export default function AdminPage() {
         audience: template.audience || '',
         price: String(template.price),
         baseContent: template.baseContent || '',
+        headerContent: (template as Record<string, unknown>).headerContent || '',
+        footerContent: (template as Record<string, unknown>).footerContent || '',
         status: template.status,
       })
     } else {
       setEditingTemplate(null)
-      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', status: 'borrador' })
+      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft' })
     }
     setTemplateDialogOpen(true)
   }
@@ -806,6 +903,7 @@ export default function AdminPage() {
     { value: 'usuarios', label: 'Usuarios', icon: Users },
     { value: 'solicitudes', label: 'Solicitudes', icon: MessageSquare },
     { value: 'precios', label: 'Créditos', icon: Coins },
+    { value: 'terminos', label: 'Términos', icon: FileText },
   ]
 
   /* ========================================================================== */
@@ -828,7 +926,7 @@ export default function AdminPage() {
         {/* ---------- Tabs Layout ---------- */}
         <div className="flex flex-col gap-6 lg:flex-row">
           {/* Vertical nav on lg, horizontal on mobile */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex w-full flex-col lg:flex-row">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="flex w-full flex-col lg:flex-row">
             <TabsList className="mb-4 flex h-auto w-full flex-row flex-wrap gap-1 bg-[#0F1D32]/80 p-1 lg:mb-0 lg:w-56 lg:flex-col lg:flex-nowrap lg:overflow-y-auto lg:rounded-xl lg:border lg:border-white/5">
               {adminTabs.map((tab) => (
                 <TabsTrigger
@@ -1157,10 +1255,32 @@ export default function AdminPage() {
                       <Textarea
                         value={templateForm.baseContent}
                         onChange={(e) => setTemplateForm((f) => ({ ...f, baseContent: e.target.value }))}
-                        placeholder="Contenido base de la plantilla..."
+                        placeholder="Contenido base de la plantilla con {{variables}}..."
                         rows={8}
                         className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
                       />
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label className="text-white/70">Encabezado (opcional)</Label>
+                        <Textarea
+                          value={templateForm.headerContent}
+                          onChange={(e) => setTemplateForm((f) => ({ ...f, headerContent: e.target.value }))}
+                          placeholder="Texto o imagen del encabezado..."
+                          rows={3}
+                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label className="text-white/70">Pie de Página (opcional)</Label>
+                        <Textarea
+                          value={templateForm.footerContent}
+                          onChange={(e) => setTemplateForm((f) => ({ ...f, footerContent: e.target.value }))}
+                          placeholder="Texto del pie de página..."
+                          rows={3}
+                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                        />
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>
@@ -1792,6 +1912,13 @@ export default function AdminPage() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+            </TabsContent>
+
+            {/* ============================================================ */
+            {/*  7. TERMINOS Y CONDICIONES                                   */
+            {/* ============================================================ */
+            <TabsContent value="terminos" className="mt-0 flex-1 lg:ml-6">
+              <InlineTerms />
             </TabsContent>
           </Tabs>
         </div>

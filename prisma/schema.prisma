@@ -41,6 +41,8 @@ model DocumentTemplate {
   ratingCount     Int       @default(0)
   thumbnail       String?
   baseContent     String
+  headerContent   String?
+  footerContent   String?
   wizardConfig    String
   clauses         TemplateClause[]
   normativity     TemplateNormativity[]
@@ -124,6 +126,13 @@ model DocumentRequest {
   adminNotes      String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+model SiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 model Payment {

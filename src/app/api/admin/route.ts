@@ -66,6 +66,8 @@ export async function POST(request: Request) {
           estimatedQuestions: body.estimatedQuestions || 10,
           estimatedMinutes: body.estimatedMinutes || 5,
           baseContent: body.baseContent,
+          headerContent: body.headerContent || null,
+          footerContent: body.footerContent || null,
           wizardConfig: JSON.stringify(body.wizardConfig || { steps: [] }),
           status: body.status || 'draft'
         }

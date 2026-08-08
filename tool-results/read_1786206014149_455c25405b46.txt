@@ -1,205 +1,8 @@
-     1→'use client'
-     2→
-     3→import { useEffect, useState, useCallback } from 'react'
-     4→import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-     5→import {
-     6→  Users,
-     7→  FileText,
-     8→  BookOpen,
-     9→  Layout,
-    10→  Settings,
-    11→  Coins,
-    12→  MessageSquare,
-    13→  Check,
-    14→  X,
-    15→  Edit,
-    16→  Trash2,
-    17→  Plus,
-    18→  BarChart3,
-    19→  TrendingUp,
-    20→  Eye,
-    21→  MoreVertical,
-    22→  AlertCircle,
-    23→  Download,
-    24→} from 'lucide-react'
-    25→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-    26→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-    27→import { Button } from '@/components/ui/button'
-    28→import { Badge } from '@/components/ui/badge'
-    29→import {
-    30→  Table,
-    31→  TableBody,
-    32→  TableCell,
-    33→  TableHead,
-    34→  TableHeader,
-    35→  TableRow,
-    36→} from '@/components/ui/table'
-    37→import {
-    38→  Dialog,
-    39→  DialogContent,
-    40→  DialogHeader,
-    41→  DialogTitle,
-    42→  DialogFooter,
-    43→} from '@/components/ui/dialog'
-    44→import { Input } from '@/components/ui/input'
-    45→import { Label } from '@/components/ui/label'
-    46→import { Textarea } from '@/components/ui/textarea'
-    47→import {
-    48→  Select,
-    49→  SelectTrigger,
-    50→  SelectValue,
-    51→  SelectContent,
-    52→  SelectItem,
-    53→} from '@/components/ui/select'
-    54→import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
-    55→import {
-    56→  DropdownMenu,
-    57→  DropdownMenuContent,
-    58→  DropdownMenuItem,
-    59→  DropdownMenuTrigger,
-    60→} from '@/components/ui/dropdown-menu'
-    61→import { toast } from 'sonner'
-    62→import { useAppStore } from '@/store/app-store'
-    63→
-    64→/* -------------------------------------------------------------------------- */
-    65→/*  Types                                                                    */
-    66→/* -------------------------------------------------------------------------- */
-    67→
-    68→interface AdminStats {
-    69→  totalUsers: number
-    70→  totalDocuments: number
-    71→  activeTemplates: number
-    72→  totalRevenue: number
-    73→  documentsByMonth: Array<{ month: string; count: number }>
-    74→  topTemplates: Array<{ id: string; name: string; category: string; count: number }>
-    75→}
-    76→
-    77→interface Template {
-    78→  id: string
-    79→  name: string
-    80→  category: string
-    81→  legalArea: string
-    82→  status: 'borrador' | 'en_revision' | 'publicado' | 'desactivado'
-    83→  price: number
-    84→  documentCount: number
-    85→  description?: string
-    86→  audience?: string
-    87→  baseContent?: string
-    88→}
-    89→
-    90→interface Clause {
-    91→  id: string
-    92→  title: string
-    93→  content: string
-    94→  legalArea: string
-    95→}
-    96→
-    97→interface AdminUser {
-    98→  id: string
-    99→  name: string
-   100→  username: string
-   101→  email: string
-   102→  role: string
-   103→  status: string
-   104→  credits: number
-   105→  documentCount: number
-   106→  lastAccess: string
-   107→}
-   108→
-   109→interface DocumentRequest {
-   110→  id: string
-   111→  title: string
-   112→  description: string
-   113→  user: string
-   114→  date: string
-   115→  status: 'pendiente' | 'aprobada' | 'rechazada' | 'en_desarrollo'
-   116→  notes?: string
-   117→}
-   118→
-   119→interface VisitorDocument {
-   120→  id: string
-   121→  title: string
-   122→  visitorPhone: string | null
-   123→  visitorName: string | null
-   124→  status: string
-   125→  createdAt: string
-   126→  template?: { name: string; category: string }
-   127→}
-   128→
-   129→interface CreditUser {
-   130→  id: string
-   131→  name: string
-   132→  username: string
-   133→  email: string
-   134→  phone: string
-   135→  status: string
-   136→  credits: number
-   137→}
-   138→
-   139→interface CreditTransaction {
-   140→  id: string
-   141→  amount: number
-   142→  type: string
-   143→  description: string | null
-   144→  createdAt: string
-   145→}
-   146→
-   147→interface NewTemplateForm {
-   148→  name: string
-   149→  description: string
-   150→  category: string
-   151→  legalArea: string
-   152→  audience: string
-   153→  price: string
-   154→  baseContent: string
-   155→  status: string
-   156→}
-   157→
-   158→interface NewClauseForm {
-   159→  title: string
-   160→  content: string
-   161→  legalArea: string
-   162→}
-   163→
-   164→/* -------------------------------------------------------------------------- */
-   165→/*  Helpers                                                                  */
-   166→/* -------------------------------------------------------------------------- */
-   167→
-   168→function formatCurrency(value: number): string {
-   169→  return new Intl.NumberFormat('es-CO', {
-   170→    style: 'currency',
-   171→    currency: 'COP',
-   172→    minimumFractionDigits: 0,
-   173→  }).format(value)
-   174→}
-   175→
-   176→function formatDate(dateStr: string): string {
-   177→  return new Date(dateStr).toLocaleDateString('es-CO', {
-   178→    day: '2-digit',
-   179→    month: 'short',
-   180→    year: 'numeric',
-   181→  })
-   182→}
-   183→
-   184→function formatDateTime(dateStr: string): string {
-   185→  return new Date(dateStr).toLocaleDateString('es-CO', {
-   186→    day: '2-digit',
-   187→    month: 'short',
-   188→    year: 'numeric',
-   189→    hour: '2-digit',
-   190→    minute: '2-digit',
-   191→  })
-   192→}
-   193→
-   194→/* -------------------------------------------------------------------------- */
-   195→/*  Status Badges                                                            */
-   196→/* -------------------------------------------------------------------------- */
-   197→
    198→const TEMPLATE_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-   199→  borrador: { label: 'Borrador', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
-   200→  en_revision: { label: 'En revisión', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
-   201→  publicado: { label: 'Publicado', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
-   202→  desactivado: { label: 'Desactivado', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
+   199→  draft: { label: 'Borrador', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
+   200→  in_review: { label: 'En revisión', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
+   201→  published: { label: 'Publicado', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
+   202→  disabled: { label: 'Desactivado', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
    203→}
    204→
    205→const REQUEST_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -554,7 +357,7 @@
    554→      })
    555→    } else {
    556→      setEditingTemplate(null)
-   557→      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', status: 'borrador' })
+   557→      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft' })
    558→    }
    559→    setTemplateDialogOpen(true)
    560→  }
@@ -821,7 +624,7 @@
    821→            Panel de Administración
    822→          </h1>
    823→          <p className="mt-1 text-sm text-white/50">
-   824→            Gestiona plantillas, cláusulas, usuarios y más en LexDoc.
+   824→            Gestiona plantillas, cláusulas, usuarios y más en CopyExpress.
    825→          </p>
    826→        </div>
    827→

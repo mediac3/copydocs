@@ -1,62 +1,3 @@
-     1→'use client'
-     2→
-     3→import { useEffect, useState, useCallback } from 'react'
-     4→import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-     5→import {
-     6→  Users,
-     7→  FileText,
-     8→  BookOpen,
-     9→  Layout,
-    10→  Settings,
-    11→  Coins,
-    12→  MessageSquare,
-    13→  Check,
-    14→  X,
-    15→  Edit,
-    16→  Trash2,
-    17→  Plus,
-    18→  BarChart3,
-    19→  TrendingUp,
-    20→  Eye,
-    21→  MoreVertical,
-    22→  AlertCircle,
-    23→  Download,
-    24→} from 'lucide-react'
-    25→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-    26→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-    27→import { Button } from '@/components/ui/button'
-    28→import { Badge } from '@/components/ui/badge'
-    29→import {
-    30→  Table,
-    31→  TableBody,
-    32→  TableCell,
-    33→  TableHead,
-    34→  TableHeader,
-    35→  TableRow,
-    36→} from '@/components/ui/table'
-    37→import {
-    38→  Dialog,
-    39→  DialogContent,
-    40→  DialogHeader,
-    41→  DialogTitle,
-    42→  DialogFooter,
-    43→} from '@/components/ui/dialog'
-    44→import { Input } from '@/components/ui/input'
-    45→import { Label } from '@/components/ui/label'
-    46→import { Textarea } from '@/components/ui/textarea'
-    47→import {
-    48→  Select,
-    49→  SelectTrigger,
-    50→  SelectValue,
-    51→  SelectContent,
-    52→  SelectItem,
-    53→} from '@/components/ui/select'
-    54→import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
-    55→import {
-    56→  DropdownMenu,
-    57→  DropdownMenuContent,
-    58→  DropdownMenuItem,
-    59→  DropdownMenuTrigger,
     60→} from '@/components/ui/dropdown-menu'
     61→import { toast } from 'sonner'
     62→import { useAppStore } from '@/store/app-store'
@@ -196,10 +137,10 @@
    196→/* -------------------------------------------------------------------------- */
    197→
    198→const TEMPLATE_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-   199→  borrador: { label: 'Borrador', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
-   200→  en_revision: { label: 'En revisión', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
-   201→  publicado: { label: 'Publicado', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
-   202→  desactivado: { label: 'Desactivado', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
+   199→  draft: { label: 'Borrador', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
+   200→  in_review: { label: 'En revisión', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
+   201→  published: { label: 'Publicado', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
+   202→  disabled: { label: 'Desactivado', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
    203→}
    204→
    205→const REQUEST_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -554,7 +495,7 @@
    554→      })
    555→    } else {
    556→      setEditingTemplate(null)
-   557→      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', status: 'borrador' })
+   557→      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft' })
    558→    }
    559→    setTemplateDialogOpen(true)
    560→  }
@@ -821,7 +762,7 @@
    821→            Panel de Administración
    822→          </h1>
    823→          <p className="mt-1 text-sm text-white/50">
-   824→            Gestiona plantillas, cláusulas, usuarios y más en LexDoc.
+   824→            Gestiona plantillas, cláusulas, usuarios y más en CopyExpress.
    825→          </p>
    826→        </div>
    827→
