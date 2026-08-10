@@ -6,12 +6,23 @@ import {
   Document as DocxDocument,
   Paragraph,
   TextRun,
+  ImageRun,
   Packer,
   AlignmentType,
   HeadingLevel,
 } from 'docx';
 import { readFileSync } from 'fs';
 import { Buffer } from 'node:buffer';
+
+function isBase64Image(value: string | null | undefined): boolean {
+  return !!value && value.startsWith('data:image/');
+}
+
+function decodeBase64Image(b64: string): { buffer: Buffer; mimeType: string } {
+  const matches = b64.match(/^data:(image\/\w+);base64,(.+)$/);
+  if (!matches) throw new Error('Formato de imagen inválido');
+  return { buffer: Buffer.from(matches[2], 'base64'), mimeType: matches[1] };
+}
 
 function renderContent(content: string, answers: Record<string, string>): string {
   let rendered = content;
@@ -87,10 +98,13 @@ export async function GET(request: Request) {
       content = `Documento: ${doc.title}\n\n[No se encontró contenido para exportar. El documento puede estar incompleto.]`;
     }
 
+    const headerContent = doc.template?.headerContent || null;
+    const footerContent = doc.template?.footerContent || null;
+
     if (format === 'pdf') {
-      return await generatePDF(content, doc.title);
+      return await generatePDF(content, doc.title, headerContent, footerContent);
     } else {
-      return await generateDOCX(content, doc.title);
+      return await generateDOCX(content, doc.title, headerContent, footerContent);
     }
   } catch (error) {
     console.error('Export error:', error);
@@ -98,7 +112,7 @@ export async function GET(request: Request) {
   }
 }
 
-async function generatePDF(content: string, title: string): Promise<NextResponse> {
+async function generatePDF(content: string, title: string, headerContent: string | null, footerContent: string | null): Promise<NextResponse> {
   const pdfDoc = await PDFDocument.create();
 
   let font: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
@@ -168,6 +182,41 @@ async function generatePDF(content: string, title: string): Promise<NextResponse
     }
   }
 
+  // ---- Header ----
+  let headerImg: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
+  let headerImgW = 0;
+  let headerImgH = 0;
+  if (isBase64Image(headerContent)) {
+    try {
+      const { buffer, mimeType } = decodeBase64Image(headerContent!);
+      if (mimeType === 'image/png') {
+        headerImg = await pdfDoc.embedPng(buffer);
+      } else if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') {
+        headerImg = await pdfDoc.embedJpg(buffer);
+      }
+      if (headerImg) {
+        const dims = headerImg.scale(1);
+        headerImgW = dims.width;
+        headerImgH = dims.height;
+        // Scale to fit within usable width, max 60px height
+        const maxH = 60;
+        const maxW = usableWidth;
+        const scale = Math.min(maxW / headerImgW, maxH / headerImgH, 1);
+        headerImgW *= scale;
+        headerImgH *= scale;
+        const imgX = margin.left + (usableWidth - headerImgW) / 2;
+        page.drawImage(headerImg, { x: imgX, y: y - headerImgH, width: headerImgW, height: headerImgH });
+        y -= headerImgH + 8;
+      }
+    } catch (e) {
+      console.warn('Failed to embed header image:', e);
+    }
+  } else if (headerContent?.trim()) {
+    // Text header
+    drawText(headerContent.trim(), font, 8, colorMuted, margin.left);
+    y -= 4;
+  }
+
   // Title
   const titleWidth = fontBold.widthOfTextAtSize(title.toUpperCase(), 16);
   const titleX = margin.left + (usableWidth - titleWidth) / 2;
@@ -210,13 +259,56 @@ async function generatePDF(content: string, title: string): Promise<NextResponse
   }
 
   // Add footers to all pages
+  let footerImg: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
+  let footerImgW = 0;
+  let footerImgH = 0;
+  if (isBase64Image(footerContent)) {
+    try {
+      const { buffer, mimeType } = decodeBase64Image(footerContent!);
+      if (mimeType === 'image/png') {
+        footerImg = await pdfDoc.embedPng(buffer);
+      } else if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') {
+        footerImg = await pdfDoc.embedJpg(buffer);
+      }
+      if (footerImg) {
+        const dims = footerImg.scale(1);
+        footerImgW = dims.width;
+        footerImgH = dims.height;
+        const maxH = 40;
+        const maxW = usableWidth;
+        const scale = Math.min(maxW / footerImgW, maxH / footerImgH, 1);
+        footerImgW *= scale;
+        footerImgH *= scale;
+      }
+    } catch (e) {
+      console.warn('Failed to embed footer image:', e);
+    }
+  }
+
   for (const { page: p, num } of pageStarts) {
-    const footerText = `Generado por CopyExpress · Página ${num} de ${pageNum}`;
-    const footerWidth = font.widthOfTextAtSize(footerText, 7);
-    const footerX = margin.left + (usableWidth - footerWidth) / 2;
-    p.drawText(footerText, {
-      x: footerX > margin.left ? footerX : margin.left,
-      y: margin.bottom - 10,
+    if (footerImg) {
+      const imgX = margin.left + (usableWidth - footerImgW) / 2;
+      p.drawImage(footerImg, { x: imgX, y: margin.bottom - 20 - footerImgH, width: footerImgW, height: footerImgH });
+    } else if (footerContent?.trim()) {
+      const fw = font.widthOfTextAtSize(footerContent.trim(), 7);
+      const fx = margin.left + (usableWidth - fw) / 2;
+      p.drawText(footerContent.trim(), {
+        x: fx > margin.left ? fx : margin.left,
+        y: margin.bottom - 10,
+        size: 7,
+        font,
+        color: colorFooter,
+      });
+    }
+    // Always show page number
+    const pnText = footerImg || footerContent?.trim()
+      ? `Página ${num} de ${pageNum}`
+      : `Generado por CopyExpress · Página ${num} de ${pageNum}`;
+    const pnW = font.widthOfTextAtSize(pnText, 7);
+    const pnX = margin.left + (usableWidth - pnW) / 2;
+    p.drawText(pnText, {
+      x: pnX > margin.left ? pnX : margin.left,
+      y: margin.bottom - 22 - (footerImg ? footerImgH : 0),
       size: 7,
       font,
       color: colorFooter,
@@ -241,10 +333,25 @@ async function generatePDF(content: string, title: string): Promise<NextResponse
   });
 }
 
-async function generateDOCX(content: string, title: string): Promise<NextResponse> {
+async function generateDOCX(content: string, title: string, headerContent: string | null, footerContent: string | null): Promise<NextResponse> {
   const lines = parseLines(content);
 
   const paragraphs: Paragraph[] = [
+    // Header (text or image)
+    ...(isBase64Image(headerContent)
+      ? [new Paragraph({
+          children: [new ImageRun({ data: decodeBase64Image(headerContent!).buffer, transformation: { width: 468, height: 60 } })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        })]
+      : headerContent?.trim()
+        ? [new Paragraph({
+            children: [new TextRun({ text: headerContent.trim(), size: 18, color: '999999', font: 'Times New Roman' })],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 },
+          })]
+        : []),
+
     new Paragraph({
       children: [
         new TextRun({
@@ -326,21 +433,40 @@ async function generateDOCX(content: string, title: string): Promise<NextRespons
     }
   }
 
-  paragraphs.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: 'Generado por CopyExpress - Generación Inteligente de Documentos',
-          size: 14,
-          color: '999999',
-          font: 'Times New Roman',
-          italics: true,
-        }),
-      ],
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 400 },
-    })
-  );
+  // Footer
+  if (isBase64Image(footerContent)) {
+    paragraphs.push(
+      new Paragraph({
+        children: [new ImageRun({ data: decodeBase64Image(footerContent!).buffer, transformation: { width: 468, height: 40 } })],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 400 },
+      })
+    );
+  } else if (footerContent?.trim()) {
+    paragraphs.push(
+      new Paragraph({
+        children: [new TextRun({ text: footerContent.trim(), size: 16, color: '999999', font: 'Times New Roman', italics: true })],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 400 },
+      })
+    );
+  } else {
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Generado por CopyExpress - Generación Inteligente de Documentos',
+            size: 14,
+            color: '999999',
+            font: 'Times New Roman',
+            italics: true,
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 400 },
+      })
+    );
+  }
 
   const docx = new DocxDocument({
     sections: [

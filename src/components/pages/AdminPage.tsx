@@ -1569,25 +1569,147 @@ export default function AdminPage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {/* ---- Encabezado ---- */}
                       <div className="grid gap-2">
                         <Label className="text-white/70">Encabezado (opcional)</Label>
-                        <Textarea
-                          value={templateForm.headerContent}
-                          onChange={(e) => setTemplateForm((f) => ({ ...f, headerContent: e.target.value }))}
-                          placeholder="Texto o imagen del encabezado..."
-                          rows={3}
-                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
-                        />
+                        <div className="flex gap-1 mb-1">
+                          {(['text', 'image'] as const).map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => {
+                                if (t === 'text' && templateForm.headerContent.startsWith('data:image')) {
+                                  setTemplateForm(f => ({ ...f, headerContent: '' }))
+                                }
+                                if (t === 'image' && !templateForm.headerContent.startsWith('data:image')) {
+                                  setTemplateForm(f => ({ ...f, headerContent: '' }))
+                                }
+                              }}
+                              className={`flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                                (t === 'text' && !templateForm.headerContent.startsWith('data:image')) || (t === 'image' && templateForm.headerContent.startsWith('data:image'))
+                                  ? 'bg-[#28A745]/20 text-[#28A745] border border-[#28A745]/30'
+                                  : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+                              }`}
+                            >
+                              {t === 'text' ? 'Texto' : 'Imagen'}
+                            </button>
+                          ))}
+                        </div>
+                        {!templateForm.headerContent.startsWith('data:image') ? (
+                          <Textarea
+                            value={templateForm.headerContent}
+                            onChange={(e) => setTemplateForm((f) => ({ ...f, headerContent: e.target.value }))}
+                            placeholder="Texto del encabezado..."
+                            rows={3}
+                            className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                          />
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-center rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-3">
+                              {templateForm.headerContent ? (
+                                <img src={templateForm.headerContent} alt="Encabezado" className="max-h-24 max-w-full object-contain rounded" />
+                              ) : null}
+                            </div>
+                            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 hover:bg-white/10 hover:text-white/70 transition-colors">
+                              <Download className="h-3.5 w-3.5" />
+                              {templateForm.headerContent ? 'Cambiar imagen' : 'Subir imagen'}
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  if (file.size > 2 * 1024 * 1024) { toast.error('La imagen no puede superar 2 MB'); return }
+                                  const reader = new FileReader()
+                                  reader.onload = () => setTemplateForm(f => ({ ...f, headerContent: reader.result as string }))
+                                  reader.readAsDataURL(file)
+                                }}
+                              />
+                            </label>
+                            <p className="text-[10px] text-white/25 text-center">Recomendado: 468 x 60 px (ancho x alto) en PNG o JPG. Max 2 MB.</p>
+                            {templateForm.headerContent && (
+                              <button
+                                type="button"
+                                onClick={() => setTemplateForm(f => ({ ...f, headerContent: '' }))}
+                                className="w-full text-center text-[11px] text-red-400/60 hover:text-red-400 transition-colors"
+                              >
+                                Eliminar imagen
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
+                      {/* ---- Pie de Página ---- */}
                       <div className="grid gap-2">
                         <Label className="text-white/70">Pie de Página (opcional)</Label>
-                        <Textarea
-                          value={templateForm.footerContent}
-                          onChange={(e) => setTemplateForm((f) => ({ ...f, footerContent: e.target.value }))}
-                          placeholder="Texto del pie de página..."
-                          rows={3}
-                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
-                        />
+                        <div className="flex gap-1 mb-1">
+                          {(['text', 'image'] as const).map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => {
+                                if (t === 'text' && templateForm.footerContent.startsWith('data:image')) {
+                                  setTemplateForm(f => ({ ...f, footerContent: '' }))
+                                }
+                                if (t === 'image' && !templateForm.footerContent.startsWith('data:image')) {
+                                  setTemplateForm(f => ({ ...f, footerContent: '' }))
+                                }
+                              }}
+                              className={`flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                                (t === 'text' && !templateForm.footerContent.startsWith('data:image')) || (t === 'image' && templateForm.footerContent.startsWith('data:image'))
+                                  ? 'bg-[#28A745]/20 text-[#28A745] border border-[#28A745]/30'
+                                  : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+                              }`}
+                            >
+                              {t === 'text' ? 'Texto' : 'Imagen'}
+                            </button>
+                          ))}
+                        </div>
+                        {!templateForm.footerContent.startsWith('data:image') ? (
+                          <Textarea
+                            value={templateForm.footerContent}
+                            onChange={(e) => setTemplateForm((f) => ({ ...f, footerContent: e.target.value }))}
+                            placeholder="Texto del pie de página..."
+                            rows={3}
+                            className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                          />
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-center rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-3">
+                              {templateForm.footerContent ? (
+                                <img src={templateForm.footerContent} alt="Pie de página" className="max-h-16 max-w-full object-contain rounded" />
+                              ) : null}
+                            </div>
+                            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 hover:bg-white/10 hover:text-white/70 transition-colors">
+                              <Download className="h-3.5 w-3.5" />
+                              {templateForm.footerContent ? 'Cambiar imagen' : 'Subir imagen'}
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  if (file.size > 2 * 1024 * 1024) { toast.error('La imagen no puede superar 2 MB'); return }
+                                  const reader = new FileReader()
+                                  reader.onload = () => setTemplateForm(f => ({ ...f, footerContent: reader.result as string }))
+                                  reader.readAsDataURL(file)
+                                }}
+                              />
+                            </label>
+                            <p className="text-[10px] text-white/25 text-center">Recomendado: 468 x 40 px (ancho x alto) en PNG o JPG. Max 2 MB.</p>
+                            {templateForm.footerContent && (
+                              <button
+                                type="button"
+                                onClick={() => setTemplateForm(f => ({ ...f, footerContent: '' }))}
+                                className="w-full text-center text-[11px] text-red-400/60 hover:text-red-400 transition-colors"
+                              >
+                                Eliminar imagen
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
