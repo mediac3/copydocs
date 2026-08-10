@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Users,
@@ -21,6 +21,7 @@ import {
   MoreVertical,
   AlertCircle,
   Download,
+  Upload,
   GripVertical,
   ChevronDown,
   ChevronRight,
@@ -373,25 +374,51 @@ function MediaFieldEditor({
   maxH: number
   hint: string
 }) {
-  const [media, setMedia] = useState<MediaContent>(() => parseMedia(rawValue))
-  const [prevRaw, setPrevRaw] = useState(rawValue)
+  const [mode, setMode] = useState<'text' | 'image'>(() => {
+    if (!rawValue) return 'text'
+    if (rawValue.startsWith('data:image')) return 'image'
+    try { const p = JSON.parse(rawValue); if (p?.type === 'image') return 'image' } catch {}
+    return 'text'
+  })
+  const [imgData, setImgData] = useState<string>('')
+  const [imgW, setImgW] = useState(defaultW)
+  const [imgH, setImgH] = useState(defaultH)
+  const [textVal, setTextVal] = useState('')
+  const initialized = useRef(false)
 
-  // Sync from parent if rawValue changes externally
-  if (rawValue !== prevRaw) {
-    setPrevRaw(rawValue)
-    setMedia(parseMedia(rawValue))
-  }
-
-  const update = (m: MediaContent) => {
-    setMedia(m)
-    onChange(encodeMedia(m))
-  }
-
-  const setType = (t: 'text' | 'image') => {
-    if (t === 'text') {
-      update({ type: 'text', text: '' })
+  // Init from rawValue on mount
+  useEffect(() => {
+    if (initialized.current) return
+    initialized.current = true
+    if (!rawValue) return
+    if (rawValue.startsWith('data:image')) {
+      setImgData(rawValue)
     } else {
-      update({ type: 'image', dataUrl: '', width: defaultW, height: defaultH })
+      try {
+        const p = JSON.parse(rawValue)
+        if (p?.type === 'image') {
+          setImgData(p.dataUrl || '')
+          if (p.width) setImgW(p.width)
+          if (p.height) setImgH(p.height)
+        } else {
+          setTextVal(typeof p?.text === 'string' ? p.text : rawValue)
+        }
+      } catch {
+        setTextVal(rawValue)
+      }
+    }
+  }, [])
+
+  const switchMode = (t: 'text' | 'image') => {
+    setMode(t)
+    if (t === 'text') {
+      setTextVal('')
+      onChange('')
+    } else {
+      setImgData('')
+      setImgW(defaultW)
+      setImgH(defaultH)
+      onChange(JSON.stringify({ type: 'image', dataUrl: '', width: defaultW, height: defaultH }))
     }
   }
 
@@ -401,18 +428,35 @@ function MediaFieldEditor({
     if (file.size > 2 * 1024 * 1024) { toast.error('La imagen no puede superar 2 MB'); return }
     const reader = new FileReader()
     reader.onload = () => {
-      const img = new Image()
+      const dataUrl = reader.result as string
+      const img = new window.Image()
       img.onload = () => {
         const ratio = img.width / img.height
         let h = maxH
         let w = Math.round(h * ratio)
         if (w > 468) { w = 468; h = Math.round(w / ratio) }
-        update({ type: 'image', dataUrl: reader.result as string, width: w, height: h })
+        setImgData(dataUrl)
+        setImgW(w)
+        setImgH(h)
+        onChange(JSON.stringify({ type: 'image', dataUrl, width: w, height: h }))
       }
-      img.src = reader.result as string
+      img.onerror = () => {
+        setImgData(dataUrl)
+        setImgW(defaultW)
+        setImgH(defaultH)
+        onChange(JSON.stringify({ type: 'image', dataUrl, width: defaultW, height: defaultH }))
+      }
+      img.src = dataUrl
     }
     reader.readAsDataURL(file)
     e.target.value = ''
+  }
+
+  const removeImage = () => {
+    setImgData('')
+    setImgW(defaultW)
+    setImgH(defaultH)
+    onChange(JSON.stringify({ type: 'image', dataUrl: '', width: defaultW, height: defaultH }))
   }
 
   return (
@@ -423,9 +467,9 @@ function MediaFieldEditor({
           <button
             key={t}
             type="button"
-            onClick={() => setType(t)}
+            onClick={() => switchMode(t)}
             className={`flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
-              media.type === t
+              mode === t
                 ? 'bg-[#28A745]/20 text-[#28A745] border border-[#28A745]/30'
                 : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
             }`}
@@ -434,29 +478,24 @@ function MediaFieldEditor({
           </button>
         ))}
       </div>
-      {media.type === 'text' ? (
+      {mode === 'text' ? (
         <Textarea
-          value={media.text || ''}
-          onChange={(e) => update({ type: 'text', text: e.target.value })}
+          value={textVal}
+          onChange={(e) => { setTextVal(e.target.value); onChange(e.target.value) }}
           placeholder={`Texto del ${label.toLowerCase()}...`}
           rows={3}
           className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
         />
       ) : (
         <div className="space-y-2">
-          {media.dataUrl ? (
+          {imgData && (
             <div className="flex items-center justify-center rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-3">
-              <img
-                src={media.dataUrl}
-                alt="Preview"
-                style={{ width: `${Math.min(media.width || defaultW, 300)}px`, height: 'auto' }}
-                className="rounded"
-              />
+              <img src={imgData} alt="Preview" className="max-h-24 max-w-full object-contain rounded" />
             </div>
-          ) : null}
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 hover:bg-white/10 hover:text-white/70 transition-colors">
-            <Download className="h-3.5 w-3.5" />
-            {media.dataUrl ? 'Cambiar imagen' : 'Subir imagen (PNG, JPG, WebP)'}
+          )}
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-white/50 hover:bg-white/10 hover:text-white/70 transition-colors">
+            <Upload className="h-3.5 w-3.5" />
+            {imgData ? 'Cambiar imagen' : 'Subir imagen (PNG, JPG, WebP)'}
             <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleFile} />
           </label>
           <div className="grid grid-cols-2 gap-2">
@@ -464,8 +503,12 @@ function MediaFieldEditor({
               <span className="text-[9px] uppercase tracking-wider text-white/25">Ancho (px)</span>
               <Input
                 type="number"
-                value={media.width || defaultW}
-                onChange={(e) => update({ ...media, width: parseInt(e.target.value) || defaultW })}
+                value={imgW}
+                onChange={(e) => {
+                  const w = parseInt(e.target.value) || defaultW
+                  setImgW(w)
+                  onChange(JSON.stringify({ type: 'image', dataUrl: imgData, width: w, height: imgH }))
+                }}
                 className="h-7 border-white/10 bg-white/5 text-white text-xs"
               />
             </div>
@@ -473,17 +516,21 @@ function MediaFieldEditor({
               <span className="text-[9px] uppercase tracking-wider text-white/25">Alto (px)</span>
               <Input
                 type="number"
-                value={media.height || defaultH}
-                onChange={(e) => update({ ...media, height: parseInt(e.target.value) || defaultH })}
+                value={imgH}
+                onChange={(e) => {
+                  const h = parseInt(e.target.value) || defaultH
+                  setImgH(h)
+                  onChange(JSON.stringify({ type: 'image', dataUrl: imgData, width: imgW, height: h }))
+                }}
                 className="h-7 border-white/10 bg-white/5 text-white text-xs"
               />
             </div>
           </div>
           <p className="text-[10px] text-white/25 text-center">{hint}. Max 2 MB.</p>
-          {media.dataUrl && (
+          {imgData && (
             <button
               type="button"
-              onClick={() => update({ type: 'image', dataUrl: '', width: defaultW, height: defaultH })}
+              onClick={removeImage}
               className="w-full text-center text-[11px] text-red-400/60 hover:text-red-400 transition-colors"
             >
               Eliminar imagen
