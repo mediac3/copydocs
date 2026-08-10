@@ -15,13 +15,48 @@ import { readFileSync } from 'fs';
 import { Buffer } from 'node:buffer';
 
 function isBase64Image(value: string | null | undefined): boolean {
-  return !!value && value.startsWith('data:image/');
+  if (!value) return false
+  if (value.startsWith('data:image/')) return true
+  // New JSON format: { type: 'image', dataUrl: '...' }
+  try {
+    const parsed = JSON.parse(value);
+    return parsed?.type === 'image' && !!parsed.dataUrl;
+  } catch { return false }
 }
 
-function decodeBase64Image(b64: string): { buffer: Buffer; mimeType: string } {
-  const matches = b64.match(/^data:(image\/\w+);base64,(.+)$/);
-  if (!matches) throw new Error('Formato de imagen inválido');
-  return { buffer: Buffer.from(matches[2], 'base64'), mimeType: matches[1] };
+function decodeMediaImage(value: string): { buffer: Buffer; mimeType: string; width?: number; height?: number } | null {
+  let dataUrl: string;
+  let width: number | undefined;
+  let height: number | undefined;
+  if (value.startsWith('data:image/')) {
+    dataUrl = value;
+  } else {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed?.type === 'image' && parsed.dataUrl) {
+        dataUrl = parsed.dataUrl;
+        width = parsed.width;
+        height = parsed.height;
+      } else return null;
+    } catch { return null }
+  }
+  const matches = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+  if (!matches) return null;
+  return { buffer: Buffer.from(matches[2], 'base64'), mimeType: matches[1], width, height };
+}
+
+function isMediaText(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (value.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed?.type === 'text') return parsed.text || null;
+    } catch {}
+    return null;
+  }
+  // Plain text (not image, not json)
+  if (!value.startsWith('data:image')) return value;
+  return null;
 }
 
 function renderContent(content: string, answers: Record<string, string>): string {
@@ -183,38 +218,37 @@ async function generatePDF(content: string, title: string, headerContent: string
   }
 
   // ---- Header ----
-  let headerImg: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
-  let headerImgW = 0;
-  let headerImgH = 0;
-  if (isBase64Image(headerContent)) {
+  const headerImgData = decodeMediaImage(headerContent);
+  if (headerImgData) {
     try {
-      const { buffer, mimeType } = decodeBase64Image(headerContent!);
-      if (mimeType === 'image/png') {
-        headerImg = await pdfDoc.embedPng(buffer);
-      } else if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') {
-        headerImg = await pdfDoc.embedJpg(buffer);
+      if (headerImgData.mimeType === 'image/png') {
+        var headerImg = await pdfDoc.embedPng(headerImgData.buffer);
+      } else if (headerImgData.mimeType === 'image/jpeg' || headerImgData.mimeType === 'image/jpg') {
+        var headerImg = await pdfDoc.embedJpg(headerImgData.buffer);
       }
       if (headerImg) {
         const dims = headerImg.scale(1);
-        headerImgW = dims.width;
-        headerImgH = dims.height;
-        // Scale to fit within usable width, max 60px height
-        const maxH = 60;
-        const maxW = usableWidth;
-        const scale = Math.min(maxW / headerImgW, maxH / headerImgH, 1);
-        headerImgW *= scale;
-        headerImgH *= scale;
-        const imgX = margin.left + (usableWidth - headerImgW) / 2;
-        page.drawImage(headerImg, { x: imgX, y: y - headerImgH, width: headerImgW, height: headerImgH });
-        y -= headerImgH + 8;
+        let imgW = dims.width;
+        let imgH = dims.height;
+        // Use admin-specified dimensions as reference, scale proportionally to fit
+        const targetW = headerImgData.width || 468;
+        const targetH = headerImgData.height || 60;
+        const scale = Math.min(usableWidth / imgW, targetH / imgH, 1);
+        imgW *= scale;
+        imgH *= scale;
+        const imgX = margin.left + (usableWidth - imgW) / 2;
+        page.drawImage(headerImg, { x: imgX, y: y - imgH, width: imgW, height: imgH });
+        y -= imgH + 8;
       }
     } catch (e) {
       console.warn('Failed to embed header image:', e);
     }
-  } else if (headerContent?.trim()) {
-    // Text header
-    drawText(headerContent.trim(), font, 8, colorMuted, margin.left);
-    y -= 4;
+  } else {
+    const headerTxt = isMediaText(headerContent);
+    if (headerTxt) {
+      drawText(headerTxt, font, 8, colorMuted, margin.left);
+      y -= 4;
+    }
   }
 
   // Title
@@ -259,40 +293,41 @@ async function generatePDF(content: string, title: string, headerContent: string
   }
 
   // Add footers to all pages
-  let footerImg: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
+  const footerImgData = decodeMediaImage(footerContent);
+  let footerImgEmbedded: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
   let footerImgW = 0;
   let footerImgH = 0;
-  if (isBase64Image(footerContent)) {
+  if (footerImgData) {
     try {
-      const { buffer, mimeType } = decodeBase64Image(footerContent!);
-      if (mimeType === 'image/png') {
-        footerImg = await pdfDoc.embedPng(buffer);
-      } else if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') {
-        footerImg = await pdfDoc.embedJpg(buffer);
+      if (footerImgData.mimeType === 'image/png') {
+        footerImgEmbedded = await pdfDoc.embedPng(footerImgData.buffer);
+      } else if (footerImgData.mimeType === 'image/jpeg' || footerImgData.mimeType === 'image/jpg') {
+        footerImgEmbedded = await pdfDoc.embedJpg(footerImgData.buffer);
       }
-      if (footerImg) {
-        const dims = footerImg.scale(1);
-        footerImgW = dims.width;
-        footerImgH = dims.height;
-        const maxH = 40;
-        const maxW = usableWidth;
-        const scale = Math.min(maxW / footerImgW, maxH / footerImgH, 1);
-        footerImgW *= scale;
-        footerImgH *= scale;
+      if (footerImgEmbedded) {
+        const dims = footerImgEmbedded.scale(1);
+        let imgW = dims.width;
+        let imgH = dims.height;
+        const targetH = footerImgData.height || 40;
+        const scale = Math.min(usableWidth / imgW, targetH / imgH, 1);
+        footerImgW = imgW * scale;
+        footerImgH = imgH * scale;
       }
     } catch (e) {
       console.warn('Failed to embed footer image:', e);
     }
   }
 
+  const footerTxt = isMediaText(footerContent);
+
   for (const { page: p, num } of pageStarts) {
-    if (footerImg) {
+    if (footerImgEmbedded) {
       const imgX = margin.left + (usableWidth - footerImgW) / 2;
-      p.drawImage(footerImg, { x: imgX, y: margin.bottom - 20 - footerImgH, width: footerImgW, height: footerImgH });
-    } else if (footerContent?.trim()) {
-      const fw = font.widthOfTextAtSize(footerContent.trim(), 7);
+      p.drawImage(footerImgEmbedded, { x: imgX, y: margin.bottom - 20 - footerImgH, width: footerImgW, height: footerImgH });
+    } else if (footerTxt) {
+      const fw = font.widthOfTextAtSize(footerTxt, 7);
       const fx = margin.left + (usableWidth - fw) / 2;
-      p.drawText(footerContent.trim(), {
+      p.drawText(footerTxt, {
         x: fx > margin.left ? fx : margin.left,
         y: margin.bottom - 10,
         size: 7,
@@ -300,15 +335,16 @@ async function generatePDF(content: string, title: string, headerContent: string
         color: colorFooter,
       });
     }
-    // Always show page number
-    const pnText = footerImg || footerContent?.trim()
+    // Page number
+    const hasCustomFooter = footerImgEmbedded || footerTxt;
+    const pnText = hasCustomFooter
       ? `Página ${num} de ${pageNum}`
       : `Generado por CopyExpress · Página ${num} de ${pageNum}`;
     const pnW = font.widthOfTextAtSize(pnText, 7);
     const pnX = margin.left + (usableWidth - pnW) / 2;
     p.drawText(pnText, {
       x: pnX > margin.left ? pnX : margin.left,
-      y: margin.bottom - 22 - (footerImg ? footerImgH : 0),
+      y: margin.bottom - 22 - (footerImgEmbedded ? footerImgH : 0),
       size: 7,
       font,
       color: colorFooter,
@@ -337,20 +373,26 @@ async function generateDOCX(content: string, title: string, headerContent: strin
   const lines = parseLines(content);
 
   const paragraphs: Paragraph[] = [
-    // Header (text or image)
-    ...(isBase64Image(headerContent)
-      ? [new Paragraph({
-          children: [new ImageRun({ data: decodeBase64Image(headerContent!).buffer, transformation: { width: 468, height: 60 } })],
+    // Header
+    (() => {
+      const imgData = decodeMediaImage(headerContent);
+      if (imgData) {
+        return new Paragraph({
+          children: [new ImageRun({ data: imgData.buffer, transformation: { width: imgData.width || 468, height: imgData.height || 60 } })],
           alignment: AlignmentType.CENTER,
           spacing: { after: 200 },
-        })]
-      : headerContent?.trim()
-        ? [new Paragraph({
-            children: [new TextRun({ text: headerContent.trim(), size: 18, color: '999999', font: 'Times New Roman' })],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
-          })]
-        : []),
+        })
+      }
+      const txt = isMediaText(headerContent);
+      if (txt) {
+        return new Paragraph({
+          children: [new TextRun({ text: txt, size: 18, color: '999999', font: 'Times New Roman' })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        })
+      }
+      return null
+    })()!,
 
     new Paragraph({
       children: [
@@ -434,38 +476,42 @@ async function generateDOCX(content: string, title: string, headerContent: strin
   }
 
   // Footer
-  if (isBase64Image(footerContent)) {
+  const footerImgData = decodeMediaImage(footerContent);
+  if (footerImgData) {
     paragraphs.push(
       new Paragraph({
-        children: [new ImageRun({ data: decodeBase64Image(footerContent!).buffer, transformation: { width: 468, height: 40 } })],
-        alignment: AlignmentType.CENTER,
-        spacing: { before: 400 },
-      })
-    );
-  } else if (footerContent?.trim()) {
-    paragraphs.push(
-      new Paragraph({
-        children: [new TextRun({ text: footerContent.trim(), size: 16, color: '999999', font: 'Times New Roman', italics: true })],
+        children: [new ImageRun({ data: footerImgData.buffer, transformation: { width: footerImgData.width || 468, height: footerImgData.height || 40 } })],
         alignment: AlignmentType.CENTER,
         spacing: { before: 400 },
       })
     );
   } else {
-    paragraphs.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: 'Generado por CopyExpress - Generación Inteligente de Documentos',
-            size: 14,
-            color: '999999',
-            font: 'Times New Roman',
-            italics: true,
-          }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { before: 400 },
-      })
-    );
+    const footerTxt = isMediaText(footerContent);
+    if (footerTxt) {
+      paragraphs.push(
+        new Paragraph({
+          children: [new TextRun({ text: footerTxt, size: 16, color: '999999', font: 'Times New Roman', italics: true })],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 400 },
+        })
+      );
+    } else {
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: 'Generado por CopyExpress - Generación Inteligente de Documentos',
+              size: 14,
+              color: '999999',
+              font: 'Times New Roman',
+              italics: true,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 400 },
+        })
+      );
+    }
   }
 
   const docx = new DocxDocument({

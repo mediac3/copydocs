@@ -95,6 +95,9 @@ interface Template {
   description?: string
   audience?: string
   baseContent?: string
+  headerContent?: string
+  footerContent?: string
+  wizardConfig?: string
 }
 
 interface Clause {
@@ -152,6 +155,36 @@ interface CreditTransaction {
   type: string
   description: string | null
   createdAt: string
+}
+
+/* ---- Media helper: stores type + dimensions alongside base64 data ---- */
+interface MediaContent {
+  type: 'text' | 'image'
+  text?: string
+  dataUrl?: string
+  width?: number
+  height?: number
+}
+
+function parseMedia(raw: string | null | undefined): MediaContent {
+  if (!raw) return { type: 'text', text: '' }
+  if (raw.startsWith('data:image')) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && parsed.type === 'image' && parsed.dataUrl) return parsed
+    } catch { /* not JSON, treat as raw base64 */ }
+    return { type: 'image', dataUrl: raw, width: 468, height: 60 }
+  }
+  return { type: 'text', text: raw }
+}
+
+function encodeMedia(m: MediaContent): string {
+  if (m.type === 'text') return m.text || ''
+  return JSON.stringify({ type: 'image', dataUrl: m.dataUrl, width: m.width, height: m.height })
+}
+
+function isMediaImage(m: MediaContent): boolean {
+  return m.type === 'image' && !!m.dataUrl
 }
 
 interface WizardFieldDef {
@@ -324,6 +357,143 @@ function AdminStatCard({ label, value, icon, accentBg, accentText, accentBorder,
 /* -------------------------------------------------------------------------- */
 /*  AdminPage                                                                */
 /* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/*  Media Field Editor (Header / Footer with Image+Dimensions)                 */
+/* -------------------------------------------------------------------------- */
+
+function MediaFieldEditor({
+  label, rawValue, onChange, defaultW, defaultH, maxH, hint
+}: {
+  label: string
+  rawValue: string
+  onChange: (encoded: string) => void
+  defaultW: number
+  defaultH: number
+  maxH: number
+  hint: string
+}) {
+  const [media, setMedia] = useState<MediaContent>(() => parseMedia(rawValue))
+  const [prevRaw, setPrevRaw] = useState(rawValue)
+
+  // Sync from parent if rawValue changes externally
+  if (rawValue !== prevRaw) {
+    setPrevRaw(rawValue)
+    setMedia(parseMedia(rawValue))
+  }
+
+  const update = (m: MediaContent) => {
+    setMedia(m)
+    onChange(encodeMedia(m))
+  }
+
+  const setType = (t: 'text' | 'image') => {
+    if (t === 'text') {
+      update({ type: 'text', text: '' })
+    } else {
+      update({ type: 'image', dataUrl: '', width: defaultW, height: defaultH })
+    }
+  }
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { toast.error('La imagen no puede superar 2 MB'); return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const ratio = img.width / img.height
+        let h = maxH
+        let w = Math.round(h * ratio)
+        if (w > 468) { w = 468; h = Math.round(w / ratio) }
+        update({ type: 'image', dataUrl: reader.result as string, width: w, height: h })
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  return (
+    <div className="grid gap-2">
+      <Label className="text-white/70">{label}</Label>
+      <div className="flex gap-1 mb-1">
+        {(['text', 'image'] as const).map(t => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setType(t)}
+            className={`flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
+              media.type === t
+                ? 'bg-[#28A745]/20 text-[#28A745] border border-[#28A745]/30'
+                : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+            }`}
+          >
+            {t === 'text' ? 'Texto' : 'Imagen'}
+          </button>
+        ))}
+      </div>
+      {media.type === 'text' ? (
+        <Textarea
+          value={media.text || ''}
+          onChange={(e) => update({ type: 'text', text: e.target.value })}
+          placeholder={`Texto del ${label.toLowerCase()}...`}
+          rows={3}
+          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+        />
+      ) : (
+        <div className="space-y-2">
+          {media.dataUrl ? (
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-3">
+              <img
+                src={media.dataUrl}
+                alt="Preview"
+                style={{ width: `${Math.min(media.width || defaultW, 300)}px`, height: 'auto' }}
+                className="rounded"
+              />
+            </div>
+          ) : null}
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 hover:bg-white/10 hover:text-white/70 transition-colors">
+            <Download className="h-3.5 w-3.5" />
+            {media.dataUrl ? 'Cambiar imagen' : 'Subir imagen (PNG, JPG, WebP)'}
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleFile} />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-1">
+              <span className="text-[9px] uppercase tracking-wider text-white/25">Ancho (px)</span>
+              <Input
+                type="number"
+                value={media.width || defaultW}
+                onChange={(e) => update({ ...media, width: parseInt(e.target.value) || defaultW })}
+                className="h-7 border-white/10 bg-white/5 text-white text-xs"
+              />
+            </div>
+            <div className="grid gap-1">
+              <span className="text-[9px] uppercase tracking-wider text-white/25">Alto (px)</span>
+              <Input
+                type="number"
+                value={media.height || defaultH}
+                onChange={(e) => update({ ...media, height: parseInt(e.target.value) || defaultH })}
+                className="h-7 border-white/10 bg-white/5 text-white text-xs"
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-white/25 text-center">{hint}. Max 2 MB.</p>
+          {media.dataUrl && (
+            <button
+              type="button"
+              onClick={() => update({ type: 'image', dataUrl: '', width: defaultW, height: defaultH })}
+              className="w-full text-center text-[11px] text-red-400/60 hover:text-red-400 transition-colors"
+            >
+              Eliminar imagen
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Wizard Step Editor Component                                                */
@@ -855,13 +1025,21 @@ export default function AdminPage() {
   /* ========================================================================== */
 
   /* ---- Template actions ---- */
-  const handleOpenTemplateDialog = (template?: Template | (Template & { wizardConfig?: string })) => {
+  const handleOpenTemplateDialog = (template?: Template) => {
     if (template) {
       setEditingTemplate(template)
       let parsedWizard: WizardStepDef[] = []
       try {
-        const raw = (template as Record<string, unknown>).wizardConfig
-        parsedWizard = typeof raw === 'string' ? JSON.parse(raw) : (raw || [])
+        if (template.wizardConfig) {
+          const raw = typeof template.wizardConfig === 'string'
+            ? JSON.parse(template.wizardConfig)
+            : template.wizardConfig
+          if (Array.isArray(raw)) {
+            parsedWizard = raw
+          } else if (raw && Array.isArray(raw.steps)) {
+            parsedWizard = raw.steps
+          }
+        }
       } catch { parsedWizard = [] }
       setTemplateForm({
         name: template.name,
@@ -871,8 +1049,8 @@ export default function AdminPage() {
         audience: template.audience || '',
         price: String(template.price),
         baseContent: template.baseContent || '',
-        headerContent: (template as Record<string, unknown>).headerContent || '',
-        footerContent: (template as Record<string, unknown>).footerContent || '',
+        headerContent: template.headerContent || '',
+        footerContent: template.footerContent || '',
         status: template.status,
         wizardConfig: parsedWizard,
       })
@@ -1569,148 +1747,24 @@ export default function AdminPage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      {/* ---- Encabezado ---- */}
-                      <div className="grid gap-2">
-                        <Label className="text-white/70">Encabezado (opcional)</Label>
-                        <div className="flex gap-1 mb-1">
-                          {(['text', 'image'] as const).map(t => (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => {
-                                if (t === 'text' && templateForm.headerContent.startsWith('data:image')) {
-                                  setTemplateForm(f => ({ ...f, headerContent: '' }))
-                                }
-                                if (t === 'image' && !templateForm.headerContent.startsWith('data:image')) {
-                                  setTemplateForm(f => ({ ...f, headerContent: '' }))
-                                }
-                              }}
-                              className={`flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                                (t === 'text' && !templateForm.headerContent.startsWith('data:image')) || (t === 'image' && templateForm.headerContent.startsWith('data:image'))
-                                  ? 'bg-[#28A745]/20 text-[#28A745] border border-[#28A745]/30'
-                                  : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
-                              }`}
-                            >
-                              {t === 'text' ? 'Texto' : 'Imagen'}
-                            </button>
-                          ))}
-                        </div>
-                        {!templateForm.headerContent.startsWith('data:image') ? (
-                          <Textarea
-                            value={templateForm.headerContent}
-                            onChange={(e) => setTemplateForm((f) => ({ ...f, headerContent: e.target.value }))}
-                            placeholder="Texto del encabezado..."
-                            rows={3}
-                            className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
-                          />
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-center rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-3">
-                              {templateForm.headerContent ? (
-                                <img src={templateForm.headerContent} alt="Encabezado" className="max-h-24 max-w-full object-contain rounded" />
-                              ) : null}
-                            </div>
-                            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 hover:bg-white/10 hover:text-white/70 transition-colors">
-                              <Download className="h-3.5 w-3.5" />
-                              {templateForm.headerContent ? 'Cambiar imagen' : 'Subir imagen'}
-                              <input
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0]
-                                  if (!file) return
-                                  if (file.size > 2 * 1024 * 1024) { toast.error('La imagen no puede superar 2 MB'); return }
-                                  const reader = new FileReader()
-                                  reader.onload = () => setTemplateForm(f => ({ ...f, headerContent: reader.result as string }))
-                                  reader.readAsDataURL(file)
-                                }}
-                              />
-                            </label>
-                            <p className="text-[10px] text-white/25 text-center">Recomendado: 468 x 60 px (ancho x alto) en PNG o JPG. Max 2 MB.</p>
-                            {templateForm.headerContent && (
-                              <button
-                                type="button"
-                                onClick={() => setTemplateForm(f => ({ ...f, headerContent: '' }))}
-                                className="w-full text-center text-[11px] text-red-400/60 hover:text-red-400 transition-colors"
-                              >
-                                Eliminar imagen
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      {/* ---- Pie de Página ---- */}
-                      <div className="grid gap-2">
-                        <Label className="text-white/70">Pie de Página (opcional)</Label>
-                        <div className="flex gap-1 mb-1">
-                          {(['text', 'image'] as const).map(t => (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => {
-                                if (t === 'text' && templateForm.footerContent.startsWith('data:image')) {
-                                  setTemplateForm(f => ({ ...f, footerContent: '' }))
-                                }
-                                if (t === 'image' && !templateForm.footerContent.startsWith('data:image')) {
-                                  setTemplateForm(f => ({ ...f, footerContent: '' }))
-                                }
-                              }}
-                              className={`flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                                (t === 'text' && !templateForm.footerContent.startsWith('data:image')) || (t === 'image' && templateForm.footerContent.startsWith('data:image'))
-                                  ? 'bg-[#28A745]/20 text-[#28A745] border border-[#28A745]/30'
-                                  : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
-                              }`}
-                            >
-                              {t === 'text' ? 'Texto' : 'Imagen'}
-                            </button>
-                          ))}
-                        </div>
-                        {!templateForm.footerContent.startsWith('data:image') ? (
-                          <Textarea
-                            value={templateForm.footerContent}
-                            onChange={(e) => setTemplateForm((f) => ({ ...f, footerContent: e.target.value }))}
-                            placeholder="Texto del pie de página..."
-                            rows={3}
-                            className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
-                          />
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-center rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-3">
-                              {templateForm.footerContent ? (
-                                <img src={templateForm.footerContent} alt="Pie de página" className="max-h-16 max-w-full object-contain rounded" />
-                              ) : null}
-                            </div>
-                            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 hover:bg-white/10 hover:text-white/70 transition-colors">
-                              <Download className="h-3.5 w-3.5" />
-                              {templateForm.footerContent ? 'Cambiar imagen' : 'Subir imagen'}
-                              <input
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0]
-                                  if (!file) return
-                                  if (file.size > 2 * 1024 * 1024) { toast.error('La imagen no puede superar 2 MB'); return }
-                                  const reader = new FileReader()
-                                  reader.onload = () => setTemplateForm(f => ({ ...f, footerContent: reader.result as string }))
-                                  reader.readAsDataURL(file)
-                                }}
-                              />
-                            </label>
-                            <p className="text-[10px] text-white/25 text-center">Recomendado: 468 x 40 px (ancho x alto) en PNG o JPG. Max 2 MB.</p>
-                            {templateForm.footerContent && (
-                              <button
-                                type="button"
-                                onClick={() => setTemplateForm(f => ({ ...f, footerContent: '' }))}
-                                className="w-full text-center text-[11px] text-red-400/60 hover:text-red-400 transition-colors"
-                              >
-                                Eliminar imagen
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <MediaFieldEditor
+                        label="Encabezado (opcional)"
+                        rawValue={templateForm.headerContent}
+                        onChange={(v) => setTemplateForm((f) => ({ ...f, headerContent: v }))}
+                        defaultW={468}
+                        defaultH={60}
+                        maxH={80}
+                        hint="Recomendado: 468 x 60 px"
+                      />
+                      <MediaFieldEditor
+                        label="Pie de Página (opcional)"
+                        rawValue={templateForm.footerContent}
+                        onChange={(v) => setTemplateForm((f) => ({ ...f, footerContent: v }))}
+                        defaultW={468}
+                        defaultH={40}
+                        maxH={50}
+                        hint="Recomendado: 468 x 40 px"
+                      />
                     </div>
                   </div>
                   <DialogFooter>
