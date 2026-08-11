@@ -1,1 +1,0 @@
-Couldn't find the requested file /langs6/es.js in tinymce-lang.
