@@ -11,21 +11,21 @@ async function getZAI() {
   return zaiInstance.current;
 }
 
-const SYSTEM_PROMPT = `Eres el asistente virtual de CopyExpress, una plataforma de generación de documentos legales colombianos. Tu nombre es "Copy" y eres amable, profesional y servicial.
+const SYSTEM_PROMPT = `Eres el asistente virtual de CopyDocs, una plataforma de generacion de documentos legales colombianos. Tu nombre es "Copy" y eres amable, profesional y servicial.
 
-Tu único objetivo es ayudar al visitante a encontrar la plantilla de documento adecuada y guiarlo para que la use.
+Tu unico objetivo es ayudar al visitante a encontrar la plantilla de documento adecuada y guiarlo para que la use.
 
 REGLAS IMPORTANTES:
-1. Siempre habla en español colombiano.
-2. Sé conciso — máximo 3 oraciones por respuesta.
-3. Cuando el usuario describa lo que necesita, recomiéndale la plantilla más adecuada de las disponibles.
-4. Si el usuario pregunta por algo que no existe en las plantillas, sugiérele la más cercana.
+1. Siempre habla en espanol colombiano.
+2. Se conciso — maximo 3 oraciones por respuesta.
+3. Cuando el usuario describa lo que necesita, recomiendale la plantilla mas adecuada de las disponibles.
+4. Si el usuario pregunta por algo que no existe en las plantillas, sugierela la mas cercana.
 5. NUNCA inventes plantillas que no existan en la lista.
 6. Cuando recomiendes una plantilla, incluye su ID entre dobles corchetes [[TEMPLATE_ID]] para que el sistema pueda crear un enlace clickeable.
-7. Si el usuario saluda, preséntate brevemente y pregúntale qué tipo de documento necesita.
+7. Si el usuario saluda, presentate brevemente y preguntale que tipo de documento necesita.
 8. No des consejos legales — solo ayudas a encontrar la plantilla correcta.
-9. Usa un tono cálido y corporativo, apropiado para un servicio profesional.
-10. Si el usuario no sabe qué necesita, hazle preguntas específicas: ¿Es un contrato? ¿Un acta? ¿Un derecho de petición? ¿Para qué área (civil, laboral, mercantil)?`;
+9. Usa un tono calido y corporativo, apropiado para un servicio profesional.
+10. Si el usuario no sabe que necesita, hazle preguntas especificas: Es un contrato? Un acta? Un derecho de peticion? Para que area (civil, laboral, mercantil)?`;
 
 export async function POST(request: Request) {
   try {
@@ -49,10 +49,25 @@ export async function POST(request: Request) {
     });
 
     const templateList = templates
-      .map((t) => `- [${t.id}] "${t.name}" (Categoría: ${t.category}, Área: ${t.legalArea}, Audiencia: ${t.audience}): ${t.description}`)
+      .map((t) => `- [${t.id}] "${t.name}" (Categoria: ${t.category}, Area: ${t.legalArea}, Audiencia: ${t.audience}): ${t.description}`)
       .join('\n');
 
-    const contextPrompt = `PLANTILLAS DISPONIBLES EN COPYEXPRESS:\n${templateList}`;
+    // Fetch active knowledge base entries for enhanced context
+    const knowledgeEntries = await db.knowledgeBase.findMany({
+      where: { active: true },
+      select: { title: true, content: true, category: true },
+    });
+
+    let knowledgeContext = '';
+    if (knowledgeEntries.length > 0) {
+      knowledgeContext =
+        '\n\nCONOCIMIENTO ADICIONAL:\n' +
+        knowledgeEntries
+          .map((e) => `[${e.category}] ${e.title}: ${e.content.replace(/<[^>]*>/g, '')}`)
+          .join('\n');
+    }
+
+    const contextPrompt = `PLANTILLAS DISPONIBLES EN COPYDOCS:\n${templateList}${knowledgeContext}`;
 
     // Build message history
     const messages: { role: string; content: string }[] = [

@@ -1,0 +1,925 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback, useRef } from 'react'
+     4→import {
+     5→  Search,
+     6→  LayoutGrid,
+     7→  List,
+     8→  Clock,
+     9→  HelpCircle,
+    10→  Star,
+    11→  ArrowRight,
+    12→  Plus,
+    13→  FileText as FileTextIcon,
+    14→  Building,
+    15→  HardHat,
+    16→  Home,
+    17→  FileText,
+    18→  LogIn,
+    19→  Moon,
+    20→  Palette,
+    21→  Sun,
+    22→} from 'lucide-react'
+    23→import { Card, CardContent } from '@/components/ui/card'
+    24→import { Button } from '@/components/ui/button'
+    25→import { Badge } from '@/components/ui/badge'
+    26→import { Input } from '@/components/ui/input'
+    27→import {
+    28→  Select,
+    29→  SelectContent,
+    30→  SelectItem,
+    31→  SelectTrigger,
+    32→  SelectValue,
+    33→} from '@/components/ui/select'
+    34→import {
+    35→  Dialog,
+    36→  DialogContent,
+    37→  DialogHeader,
+    38→  DialogTitle,
+    39→  DialogDescription,
+    40→} from '@/components/ui/dialog'
+    41→import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+    42→import { useAppStore } from '@/store/app-store'
+    43→import { useTheme } from 'next-themes'
+    44→import PublicationsPanel from '@/components/PublicationsPanel'
+    45→
+    46→/* -------------------------------------------------------------------------- */
+    47→/*  Types                                                                    */
+    48→/* -------------------------------------------------------------------------- */
+    49→
+    50→interface NormativityItem {
+    51→  lawName: string
+    52→  lawReference: string
+    53→}
+    54→
+    55→interface Template {
+    56→  id: string
+    57→  name: string
+    58→  description: string
+    59→  category: string
+    60→  legalArea: string
+    61→  audience: string
+    62→  price: number | null
+    63→  estimatedQuestions: number
+    64→  estimatedMinutes: number
+    65→  rating: number
+    66→  ratingCount: number
+    67→  normativity: NormativityItem[]
+    68→  _count: {
+    69→    documents: number
+    70→  }
+    71→}
+    72→
+    73→/* -------------------------------------------------------------------------- */
+    74→/*  Constants                                                                */
+    75→/* -------------------------------------------------------------------------- */
+    76→
+    77→const LEGAL_AREA_EMOJI: Record<string, string> = {
+    78→  Civil: '⚖️',
+    79→  Mercantil: '🏢',
+    80→  Laboral: '👷',
+    81→  Inmobiliario: '🏠',
+    82→  Administrativo: '📝',
+    83→  Constitucional: '📜',
+    84→  'Derechos de Petición': '📋',
+    85→  Penal: '🔒',
+    86→  Familia: '👨‍👩‍👧‍👦',
+    87→  Tributario: '💰',
+    88→}
+    89→
+    90→const LEGAL_AREA_ICON: Record<string, React.ReactNode> = {
+    91→  Civil: <FileTextIcon className="h-5 w-5" />,
+    92→  Mercantil: <Building className="h-5 w-5" />,
+    93→  Laboral: <HardHat className="h-5 w-5" />,
+    94→  Inmobiliario: <Home className="h-5 w-5" />,
+    95→  Administrativo: <FileText className="h-5 w-5" />,
+    96→}
+    97→
+    98→/* -------------------------------------------------------------------------- */
+    99→/*  Helpers                                                                  */
+   100→/* -------------------------------------------------------------------------- */
+   101→
+   102→function formatPrice(price: number | null): string {
+   103→  if (price === null || price === 0) return 'GRATUITO'
+   104→  return `COP $${price.toLocaleString('es-CO')}`
+   105→}
+   106→
+   107→function getLegalAreaEmoji(legalArea: string): string {
+   108→  return LEGAL_AREA_EMOJI[legalArea] || '📄'
+   109→}
+   110→
+   111→function renderStars(rating: number, size: string = 'h-3.5 w-3.5') {
+   112→  return (
+   113→    <div className="flex items-center gap-0.5">
+   114→      {[1, 2, 3, 4, 5].map((s) => (
+   115→        <Star
+   116→          key={s}
+   117→          className={`${size} ${
+   118→            s <= Math.round(rating)
+   119→              ? 'fill-accent text-accent'
+   120→              : 'fill-transparent text-foreground/20'
+   121→          }`}
+   122→        />
+   123→      ))}
+   124→    </div>
+   125→  )
+   126→}
+   127→
+   128→/* -------------------------------------------------------------------------- */
+   129→/*  Skeleton card                                                            */
+   130→/* -------------------------------------------------------------------------- */
+   131→
+   132→function SkeletonCard() {
+   133→  return (
+   134→    <Card className="border-border bg-card/80 backdrop-blur-sm animate-pulse">
+   135→      <CardContent className="p-5 space-y-4">
+   136→        <div className="flex items-center gap-3">
+   137→          <div className="h-10 w-10 rounded-lg bg-secondary" />
+   138→          <div className="flex-1 space-y-2">
+   139→            <div className="h-4 w-3/4 rounded bg-secondary" />
+   140→            <div className="h-3 w-1/2 rounded bg-secondary" />
+   141→          </div>
+   142→        </div>
+   143→        <div className="space-y-2">
+   144→          <div className="h-3 w-full rounded bg-secondary" />
+   145→          <div className="h-3 w-2/3 rounded bg-secondary" />
+   146→        </div>
+   147→        <div className="flex gap-2">
+   148→          <div className="h-6 w-20 rounded-full bg-secondary" />
+   149→          <div className="h-6 w-24 rounded-full bg-secondary" />
+   150→        </div>
+   151→        <div className="flex gap-4">
+   152→          <div className="h-4 w-16 rounded bg-secondary" />
+   153→          <div className="h-4 w-16 rounded bg-secondary" />
+   154→          <div className="h-4 w-16 rounded bg-secondary" />
+   155→        </div>
+   156→        <div className="h-9 w-full rounded-lg bg-secondary" />
+   157→      </CardContent>
+   158→    </Card>
+   159→  )
+   160→}
+   161→
+   162→function SkeletonRow() {
+   163→  return (
+   164→    <div className="flex items-center gap-4 rounded-xl border border-border bg-card/80 p-4 backdrop-blur-sm animate-pulse">
+   165→      <div className="h-10 w-10 shrink-0 rounded-lg bg-secondary" />
+   166→      <div className="flex-1 space-y-2">
+   167→        <div className="h-4 w-1/3 rounded bg-secondary" />
+   168→        <div className="h-3 w-2/3 rounded bg-secondary" />
+   169→      </div>
+   170→      <div className="hidden sm:flex gap-2">
+   171→        <div className="h-6 w-20 rounded-full bg-secondary" />
+   172→        <div className="h-6 w-24 rounded-full bg-secondary" />
+   173→      </div>
+   174→      <div className="hidden md:flex gap-4">
+   175→        <div className="h-4 w-12 rounded bg-secondary" />
+   176→        <div className="h-4 w-12 rounded bg-secondary" />
+   177→        <div className="h-4 w-12 rounded bg-secondary" />
+   178→      </div>
+   179→      <div className="h-8 w-24 rounded-lg bg-secondary" />
+   180→    </div>
+   181→  )
+   182→}
+   183→
+   184→/* -------------------------------------------------------------------------- */
+   185→/*  Grid card                                                                */
+   186→/* -------------------------------------------------------------------------- */
+   187→
+   188→function TemplateCard({
+   189→  template,
+   190→  onSelect,
+   191→}: {
+   192→  template: Template
+   193→  onSelect: (t: Template) => void
+   194→}) {
+   195→  const { startWizard, startVisitorWizard, user } = useAppStore()
+   196→  const isFree = template.price === null || template.price === 0
+   197→  const handleUse = () => { if (user) startWizard(template.id); else startVisitorWizard(template.id) }
+   198→
+   199→  return (
+   200→    <Card className="group border-border bg-card/80 backdrop-blur-sm transition-all hover:border-accent/20 hover:shadow-lg hover:shadow-accent/5">
+   201→      <CardContent className="flex flex-col gap-4 p-5">
+   202→        {/* Header: icon + name */}
+   203→        <div className="flex items-start gap-3">
+   204→          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-lg transition-colors group-hover:bg-accent/15">
+   205→            {getLegalAreaEmoji(template.legalArea)}
+   206→          </div>
+   207→          <div className="min-w-0 flex-1">
+   208→            <h3
+   209→              className="cursor-pointer truncate text-sm font-semibold text-foreground/90 transition-colors group-hover:text-accent"
+   210→              onClick={() => onSelect(template)}
+   211→            >
+   212→              {template.name}
+   213→            </h3>
+   214→            <p className="text-xs text-foreground/40">{template.legalArea}</p>
+   215→          </div>
+   216→        </div>
+   217→
+   218→        {/* Description */}
+   219→        <p
+   220→          className="line-clamp-2 cursor-pointer text-xs leading-relaxed text-foreground/50 transition-colors hover:text-foreground/70"
+   221→          onClick={() => onSelect(template)}
+   222→        >
+   223→          {template.description}
+   224→        </p>
+   225→
+   226→        {/* Badges */}
+   227→        <div className="flex flex-wrap gap-2">
+   228→          <Badge
+   229→            variant="outline"
+   230→            className={
+   231→              isFree
+   232→                ? 'border-accent/30 bg-accent/10 text-accent text-[10px] font-semibold hover:bg-accent/20'
+   233→                : 'border-green-500/30 bg-green-500/10 text-green-400 text-[10px] font-semibold hover:bg-green-500/20'
+   234→            }
+   235→          >
+   236→            {isFree ? '✦ GRATUITO' : formatPrice(template.price)}
+   237→          </Badge>
+   238→          <Badge
+   239→            variant="outline"
+   240→            className="border-border bg-secondary text-foreground/50 text-[10px] hover:bg-foreground/10"
+   241→          >
+   242→            {template.audience === 'Profesionales' ? '👨‍💼' : '👤'} {template.audience}
+   243→          </Badge>
+   244→        </div>
+   245→
+   246→        {/* Stats row */}
+   247→        <div className="flex items-center gap-4 text-[11px] text-foreground/40">
+   248→          <span className="flex items-center gap-1">
+   249→            <Clock className="h-3 w-3" /> {template.estimatedMinutes} min
+   250→          </span>
+   251→          <span className="flex items-center gap-1">
+   252→            <HelpCircle className="h-3 w-3" /> {template.estimatedQuestions} preguntas
+   253→          </span>
+   254→          <span className="flex items-center gap-1">
+   255→            <Star className="h-3 w-3 fill-accent text-accent" /> {template.rating.toFixed(1)}
+   256→          </span>
+   257→        </div>
+   258→
+   259→        {/* CTA */}
+   260→        <Button
+   261→          className="mt-auto w-full bg-accent/15 text-accent border border-accent/20 text-xs font-semibold transition-all hover:bg-accent/25 hover:border-accent/40 hover:text-accent"
+   262→          variant="outline"
+   263→          onClick={handleUse}
+   264→        >
+   265→          Comenzar
+   266→          <ArrowRight className="ml-1 h-3 w-3" />
+   267→        </Button>
+   268→      </CardContent>
+   269→    </Card>
+   270→  )
+   271→}
+   272→
+   273→/* -------------------------------------------------------------------------- */
+   274→/*  List row                                                                 */
+   275→/* -------------------------------------------------------------------------- */
+   276→
+   277→function TemplateRow({
+   278→  template,
+   279→  onSelect,
+   280→}: {
+   281→  template: Template
+   282→  onSelect: (t: Template) => void
+   283→}) {
+   284→  const { startWizard, startVisitorWizard, user } = useAppStore()
+   285→  const isFree = template.price === null || template.price === 0
+   286→  const handleUse = () => { if (user) startWizard(template.id); else startVisitorWizard(template.id) }
+   287→
+   288→  return (
+   289→    <div className="group flex flex-col gap-3 rounded-xl border border-border bg-card/80 p-4 backdrop-blur-sm transition-all hover:border-accent/20 hover:shadow-md hover:shadow-accent/5 sm:flex-row sm:items-center sm:gap-4">
+   290→      {/* Icon */}
+   291→      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-lg transition-colors group-hover:bg-accent/15">
+   292→        {getLegalAreaEmoji(template.legalArea)}
+   293→      </div>
+   294→
+   295→      {/* Name + description */}
+   296→      <div className="min-w-0 flex-1">
+   297→        <h3
+   298→          className="cursor-pointer truncate text-sm font-semibold text-foreground/90 transition-colors group-hover:text-accent"
+   299→          onClick={() => onSelect(template)}
+   300→        >
+   301→          {template.name}
+   302→        </h3>
+   303→        <p className="mt-0.5 line-clamp-1 text-xs text-foreground/40">
+   304→          {template.description}
+   305→        </p>
+   306→      </div>
+   307→
+   308→      {/* Badges */}
+   309→      <div className="flex flex-wrap gap-2">
+   310→        <Badge
+   311→          variant="outline"
+   312→          className={
+   313→            isFree
+   314→              ? 'border-accent/30 bg-accent/10 text-accent text-[10px] font-semibold hover:bg-accent/20'
+   315→              : 'border-green-500/30 bg-green-500/10 text-green-400 text-[10px] font-semibold hover:bg-green-500/20'
+   316→          }
+   317→        >
+   318→          {isFree ? '✦ GRATUITO' : formatPrice(template.price)}
+   319→        </Badge>
+   320→        <Badge
+   321→          variant="outline"
+   322→          className="border-border bg-secondary text-foreground/50 text-[10px] hover:bg-foreground/10"
+   323→        >
+   324→          {template.audience === 'Profesionales' ? '👨‍💼' : '👤'} {template.audience}
+   325→        </Badge>
+   326→      </div>
+   327→
+   328→      {/* Stats */}
+   329→      <div className="hidden md:flex shrink-0 items-center gap-3 text-[11px] text-foreground/40">
+   330→        <span className="flex items-center gap-1">
+   331→          <Clock className="h-3 w-3" /> {template.estimatedMinutes} min
+   332→        </span>
+   333→        <span className="flex items-center gap-1">
+   334→          <HelpCircle className="h-3 w-3" /> {template.estimatedQuestions}
+   335→        </span>
+   336→        <span className="flex items-center gap-1">
+   337→          <Star className="h-3 w-3 fill-accent text-accent" /> {template.rating.toFixed(1)}
+   338→        </span>
+   339→      </div>
+   340→
+   341→      {/* CTA */}
+   342→      <Button
+   343→        className="shrink-0 bg-accent/15 text-accent border border-accent/20 text-xs font-semibold transition-all hover:bg-accent/25 hover:border-accent/40 hover:text-accent"
+   344→        variant="outline"
+   345→        onClick={handleUse}
+   346→      >
+   347→        Comenzar
+   348→      </Button>
+   349→    </div>
+   350→  )
+   351→}
+   352→
+   353→/* -------------------------------------------------------------------------- */
+   354→/*  Detail dialog                                                            */
+   355→/* -------------------------------------------------------------------------- */
+   356→
+   357→function TemplateDetailDialog({
+   358→  template,
+   359→  open,
+   360→  onOpenChange,
+   361→}: {
+   362→  template: Template | null
+   363→  open: boolean
+   364→  onOpenChange: (open: boolean) => void
+   365→}) {
+   366→  const { user, startWizard, startVisitorWizard } = useAppStore()
+   367→
+   368→  if (!template) return null
+   369→
+   370→  const isFree = template.price === null || template.price === 0
+   371→  const handleStart = () => {
+   372→    onOpenChange(false)
+   373→    if (user) {
+   374→      startWizard(template.id)
+   375→    } else {
+   376→      startVisitorWizard(template.id)
+   377→    }
+   378→  }
+   379→
+   380→  return (
+   381→    <Dialog open={open} onOpenChange={onOpenChange}>
+   382→      <DialogContent className="max-h-[85vh] overflow-y-auto border-border bg-card sm:max-w-lg">
+   383→        <DialogHeader>
+   384→          <div className="flex items-center gap-3">
+   385→            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-2xl">
+   386→              {getLegalAreaEmoji(template.legalArea)}
+   387→            </div>
+   388→            <div>
+   389→              <DialogTitle className="text-base font-semibold text-foreground">
+   390→                {template.name}
+   391→              </DialogTitle>
+   392→              <DialogDescription className="text-xs text-foreground/40">
+   393→                {template.category} · {template.legalArea}
+   394→              </DialogDescription>
+   395→            </div>
+   396→          </div>
+   397→        </DialogHeader>
+   398→
+   399→        <div className="space-y-5 pt-2">
+   400→          {/* Description */}
+   401→          <div>
+   402→            <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-foreground/30">
+   403→              Descripción
+   404→            </h4>
+   405→            <p className="text-sm leading-relaxed text-foreground/60">
+   406→              {template.description}
+   407→            </p>
+   408→          </div>
+   409→
+   410→          {/* Badges */}
+   411→          <div className="flex flex-wrap gap-2">
+   412→            <Badge
+   413→              variant="outline"
+   414→              className={
+   415→                isFree
+   416→                  ? 'border-accent/30 bg-accent/10 text-accent text-[10px] font-semibold'
+   417→                  : 'border-green-500/30 bg-green-500/10 text-green-400 text-[10px] font-semibold'
+   418→              }
+   419→            >
+   420→              {isFree ? '✦ GRATUITO' : formatPrice(template.price)}
+   421→            </Badge>
+   422→            <Badge
+   423→              variant="outline"
+   424→              className="border-border bg-secondary text-foreground/50 text-[10px]"
+   425→            >
+   426→              {template.audience === 'Profesionales' ? '👨‍💼' : '👤'} {template.audience}
+   427→            </Badge>
+   428→            <Badge
+   429→              variant="outline"
+   430→              className="border-border bg-secondary text-foreground/50 text-[10px]"
+   431→            >
+   432→              {template._count?.documents ?? 0} documentos generados
+   433→            </Badge>
+   434→          </div>
+   435→
+   436→          {/* Stats */}
+   437→          <div className="grid grid-cols-3 gap-3">
+   438→            <div className="rounded-lg border border-border bg-secondary p-3 text-center">
+   439→              <Clock className="mx-auto mb-1 h-4 w-4 text-accent" />
+   440→              <p className="text-sm font-bold text-foreground">{template.estimatedMinutes} min</p>
+   441→              <p className="text-[10px] text-foreground/40">Tiempo estimado</p>
+   442→            </div>
+   443→            <div className="rounded-lg border border-border bg-secondary p-3 text-center">
+   444→              <HelpCircle className="mx-auto mb-1 h-4 w-4 text-accent" />
+   445→              <p className="text-sm font-bold text-foreground">{template.estimatedQuestions}</p>
+   446→              <p className="text-[10px] text-foreground/40">Preguntas</p>
+   447→            </div>
+   448→            <div className="rounded-lg border border-border bg-secondary p-3 text-center">
+   449→              <Star className="mx-auto mb-1 h-4 w-4 fill-accent text-accent" />
+   450→              <p className="text-sm font-bold text-foreground">{template.rating.toFixed(1)}</p>
+   451→              <p className="text-[10px] text-foreground/40">
+   452→                {template.ratingCount} {template.ratingCount === 1 ? 'reseña' : 'reseñas'}
+   453→              </p>
+   454→            </div>
+   455→          </div>
+   456→
+   457→          {/* Rating with stars */}
+   458→          <div className="flex items-center gap-2">
+   459→            {renderStars(template.rating)}
+   460→            <span className="text-xs text-foreground/40">
+   461→              {template.rating.toFixed(1)} de 5 · {template.ratingCount} calificaciones
+   462→            </span>
+   463→          </div>
+   464→
+   465→          {/* Normativity */}
+   466→          {template.normativity && template.normativity.length > 0 && (
+   467→            <div>
+   468→              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-foreground/30">
+   469→                Normativa aplicable
+   470→              </h4>
+   471→              <div className="space-y-1.5">
+   472→                {template.normativity.map((norm, i) => (
+   473→                  <div
+   474→                    key={i}
+   475→                    className="flex items-start gap-2 rounded-lg border border-border bg-secondary px-3 py-2"
+   476→                  >
+   477→                    <FileTextIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent/60" />
+   478→                    <div className="min-w-0">
+   479→                      <p className="text-xs font-medium text-foreground/70">{norm.lawName}</p>
+   480→                      <p className="text-[10px] text-foreground/40">{norm.lawReference}</p>
+   481→                    </div>
+   482→                  </div>
+   483→                ))}
+   484→              </div>
+   485→            </div>
+   486→          )}
+   487→
+   488→          {/* CTA */}
+   489→          <Button
+   490→            className="w-full bg-accent text-foreground font-semibold text-sm transition-all hover:bg-accent/90 hover:shadow-lg hover:shadow-accent/20"
+   491→            size="lg"
+   492→            onClick={handleStart}
+   493→          >
+   494→            Comenzar con esta plantilla
+   495→            <ArrowRight className="ml-1 h-4 w-4" />
+   496→          </Button>
+   497→        </div>
+   498→      </DialogContent>
+   499→    </Dialog>
+   500→  )
+   501→}
+   502→
+   503→/* -------------------------------------------------------------------------- */
+   504→/*  Empty state                                                              */
+   505→/* -------------------------------------------------------------------------- */
+   506→
+   507→function EmptyState({ hasFilters }: { hasFilters: boolean }) {
+   508→  const { setCurrentPage } = useAppStore()
+   509→
+   510→  return (
+   511→    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 px-6 py-16 text-center">
+   512→      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
+   513→        <Search className="h-6 w-6 text-foreground/20" />
+   514→      </div>
+   515→      <h3 className="text-base font-semibold text-foreground/60">
+   516→        {hasFilters ? 'Sin resultados' : 'No hay plantillas disponibles'}
+   517→      </h3>
+   518→      <p className="mt-1 max-w-sm text-sm text-foreground/30">
+   519→        {hasFilters
+   520→          ? 'Intenta ajustar los filtros o el término de búsqueda.'
+   521→          : 'Aún no hay plantillas en el catálogo. Vuelve más tarde.'}
+   522→      </p>
+   523→      <Button
+   524→        className="mt-6 bg-accent/15 text-accent border border-accent/20 text-xs font-semibold hover:bg-accent/25 hover:border-accent/40"
+   525→        variant="outline"
+   526→        onClick={() => setCurrentPage('documents')}
+   527→      >
+   528→        <Plus className="mr-1 h-3.5 w-3.5" />
+   529→        Solicitar documento personalizado
+   530→      </Button>
+   531→    </div>
+   532→  )
+   533→}
+   534→
+   535→/* -------------------------------------------------------------------------- */
+   536→/*  CatalogPage                                                              */
+   537→/* -------------------------------------------------------------------------- */
+   538→
+   539→export default function CatalogPage() {
+   540→  const { user, isVisitor, showLoginPage, hideLoginPage } = useAppStore()
+   541→  const { theme, setTheme } = useTheme()
+   542→
+   543→  /* ---- State ---- */
+   544→  const [templates, setTemplates] = useState<Template[]>([])
+   545→  const [loading, setLoading] = useState(true)
+   546→  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+   547→
+   548→  // Filters
+   549→  const [searchInput, setSearchInput] = useState('')
+   550→  const [debouncedSearch, setDebouncedSearch] = useState('')
+   551→  const [category, setCategory] = useState('all')
+   552→  const [legalArea, setLegalArea] = useState('all')
+   553→  const [audience, setAudience] = useState('all')
+   554→  const [priceFilter, setPriceFilter] = useState('all')
+   555→
+   556→  // Dialog
+   557→  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+   558→  const [dialogOpen, setDialogOpen] = useState(false)
+   559→
+   560→  // Debounce timer ref
+   561→  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+   562→
+   563→  /* ---- Debounced search ---- */
+   564→  const updateDebouncedSearch = useCallback((value: string) => {
+   565→    if (debounceTimerRef.current) {
+   566→      clearTimeout(debounceTimerRef.current)
+   567→    }
+   568→    debounceTimerRef.current = setTimeout(() => {
+   569→      setDebouncedSearch(value)
+   570→    }, 300)
+   571→  }, [])
+   572→
+   573→  // Sync search input to debounced value
+   574→  useEffect(() => {
+   575→    updateDebouncedSearch(searchInput)
+   576→    return () => {
+   577→      if (debounceTimerRef.current) {
+   578→        clearTimeout(debounceTimerRef.current)
+   579→      }
+   580→    }
+   581→  }, [searchInput, updateDebouncedSearch])
+   582→
+   583→  /* ---- Fetch templates ---- */
+   584→  const fetchTemplates = useCallback(async () => {
+   585→    setLoading(true)
+   586→    try {
+   587→      const params = new URLSearchParams()
+   588→
+   589→      if (category !== 'all') params.set('category', category)
+   590→      if (legalArea !== 'all') params.set('legalArea', legalArea)
+   591→      if (audience !== 'all') params.set('audience', audience)
+   592→      if (priceFilter === 'free') params.set('price', 'free')
+   593→      if (priceFilter === 'paid') params.set('price', 'paid')
+   594→      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
+   595→
+   596→      const query = params.toString() ? `?${params.toString()}` : ''
+   597→      const headers: HeadersInit = {}
+   598→      if (user) headers['x-user-id'] = user.id
+   599→      const res = await fetch(`/api/templates${query}`, { headers })
+   600→
+   601→      if (res.ok) {
+   602→        const data = await res.json()
+   603→        setTemplates(Array.isArray(data) ? data : data.templates || [])
+   604→      }
+   605→    } catch {
+   606→      // keep empty on error
+   607→    } finally {
+   608→      setLoading(false)
+   609→    }
+   610→  }, [user, category, legalArea, audience, priceFilter, debouncedSearch])
+   611→
+   612→  useEffect(() => {
+   613→    fetchTemplates()
+   614→  }, [fetchTemplates])
+   615→
+   616→  /* ---- Handlers ---- */
+   617→  const handleSelectTemplate = useCallback((template: Template) => {
+   618→    setSelectedTemplate(template)
+   619→    setDialogOpen(true)
+   620→  }, [])
+   621→
+   622→  const handleDialogClose = useCallback((open: boolean) => {
+   623→    setDialogOpen(open)
+   624→    if (!open) {
+   625→      // Keep template reference for animation but can clear if desired
+   626→    }
+   627→  }, [])
+   628→
+   629→  const hasActiveFilters =
+   630→    searchInput.trim() !== '' ||
+   631→    category !== 'all' ||
+   632→    legalArea !== 'all' ||
+   633→    audience !== 'all' ||
+   634→    priceFilter !== 'all'
+   635→
+   636→  /* ---- Render ---- */
+   637→  return (
+   638→    <main className="min-h-screen bg-background">
+   639→      {/* Visitor header bar */}
+   640→      {isVisitor && (
+   641→        <div className="border-b border-border bg-card/80 backdrop-blur-sm">
+   642→          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+   643→            <div className="flex items-center gap-4">
+   644→              <div className="flex items-center gap-2">
+   645→                {/* eslint-disable-next-line @next/next/no-img-element */}
+   646→                <img src="/logo.png" alt="CopyExpress" className="h-7 w-auto rounded" />
+   647→                <span className="text-sm font-bold text-foreground">CopyExpress</span>
+   648→              </div>
+   649→            </div>
+   650→            <div className="flex items-center gap-2">
+   651→              <Button
+   652→                variant="ghost"
+   653→                size="sm"
+   654→                onClick={() => {
+   655→                  const t = theme || 'light'
+   656→                  if (t === 'light') setTheme('dark')
+   657→                  else if (t === 'dark') setTheme('warm')
+   658→                  else setTheme('light')
+   659→                }}
+   660→                className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
+   661→              >
+   662→                {(theme || 'light') === 'dark' ? <Sun className="h-4 w-4" /> : (theme || 'light') === 'warm' ? <Palette className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+   663→              </Button>
+   664→              <Button
+   665→                variant="outline"
+   666→                size="sm"
+   667→                onClick={() => { showLoginPage() }}
+   668→                className="border-primary/30 text-primary text-xs font-medium hover:bg-primary/10"
+   669→              >
+   670→                <LogIn className="mr-1.5 h-3.5 w-3.5" />
+   671→                Iniciar sesion
+   672→              </Button>
+   673→            </div>
+   674→          </div>
+   675→        </div>
+   676→      )}
+   677→      <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+   678→        {/* ---------- Header ---------- */}
+   679→        <div>
+   680→          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+   681→            {isVisitor ? 'Genera tu Documento Legal' : 'Catálogo de Plantillas'}
+   682→          </h1>
+   683→          <p className="mt-1 text-sm text-foreground/50">
+   684→            {isVisitor
+   685→              ? 'Selecciona una plantilla, completa los campos y envia tu solicitud por WhatsApp.'
+   686→              : 'Explora y genera documentos legales colombianos con plantillas profesionales.'}
+   687→          </p>
+   688→        </div>
+   689→
+   690→        {/* ---------- Search bar ---------- */}
+   691→        <div className="relative">
+   692→          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-foreground/30" />
+   693→          <Input
+   694→            placeholder="Buscar plantillas por nombre, tipo o palabra clave..."
+   695→            value={searchInput}
+   696→            onChange={(e) => setSearchInput(e.target.value)}
+   697→            className="h-11 w-full border-border bg-card pl-10 pr-4 text-sm text-foreground placeholder:text-foreground/30 focus-visible:border-accent/40 focus-visible:ring-primary/20"
+   698→          />
+   699→        </div>
+   700→
+   701→        {/* ---------- Filters row ---------- */}
+   702→        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+   703→          {/* Category */}
+   704→          <Select value={category} onValueChange={setCategory}>
+   705→            <SelectTrigger
+   706→              className="w-full border-border bg-card text-foreground/70 text-xs sm:w-[155px]"
+   707→              size="sm"
+   708→            >
+   709→              <SelectValue placeholder="Categoría" />
+   710→            </SelectTrigger>
+   711→            <SelectContent className="border-border bg-card">
+   712→              <SelectItem value="all" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   713→                Todas
+   714→              </SelectItem>
+   715→              <SelectItem value="Contratos" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   716→                Contratos
+   717→              </SelectItem>
+   718→              <SelectItem value="Actas" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   719→                Actas
+   720→              </SelectItem>
+   721→              <SelectItem value="Derechos de Petición" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   722→                Derechos de Petición
+   723→              </SelectItem>
+   724→            </SelectContent>
+   725→          </Select>
+   726→
+   727→          {/* Legal Area */}
+   728→          <Select value={legalArea} onValueChange={setLegalArea}>
+   729→            <SelectTrigger
+   730→              className="w-full border-border bg-card text-foreground/70 text-xs sm:w-[165px]"
+   731→              size="sm"
+   732→            >
+   733→              <SelectValue placeholder="Área del Derecho" />
+   734→            </SelectTrigger>
+   735→            <SelectContent className="border-border bg-card">
+   736→              <SelectItem value="all" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   737→                Todos
+   738→              </SelectItem>
+   739→              <SelectItem value="Civil" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   740→                Civil
+   741→              </SelectItem>
+   742→              <SelectItem value="Mercantil" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   743→                Mercantil
+   744→              </SelectItem>
+   745→              <SelectItem value="Laboral" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   746→                Laboral
+   747→              </SelectItem>
+   748→              <SelectItem value="Constitucional" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   749→                Constitucional
+   750→              </SelectItem>
+   751→            </SelectContent>
+   752→          </Select>
+   753→
+   754→          {/* Audience */}
+   755→          <Select value={audience} onValueChange={setAudience}>
+   756→            <SelectTrigger
+   757→              className="w-full border-border bg-card text-foreground/70 text-xs sm:w-[155px]"
+   758→              size="sm"
+   759→            >
+   760→              <SelectValue placeholder="Audiencia" />
+   761→            </SelectTrigger>
+   762→            <SelectContent className="border-border bg-card">
+   763→              <SelectItem value="all" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   764→                Todos
+   765→              </SelectItem>
+   766→              <SelectItem value="Profesionales" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   767→                Profesionales
+   768→              </SelectItem>
+   769→              <SelectItem value="Particulares" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   770→                Particulares
+   771→              </SelectItem>
+   772→            </SelectContent>
+   773→          </Select>
+   774→
+   775→          {/* Price */}
+   776→          <Select value={priceFilter} onValueChange={setPriceFilter}>
+   777→            <SelectTrigger
+   778→              className="w-full border-border bg-card text-foreground/70 text-xs sm:w-[135px]"
+   779→              size="sm"
+   780→            >
+   781→              <SelectValue placeholder="Precio" />
+   782→            </SelectTrigger>
+   783→            <SelectContent className="border-border bg-card">
+   784→              <SelectItem value="all" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   785→                Todos
+   786→              </SelectItem>
+   787→              <SelectItem value="free" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   788→                Gratuito
+   789→              </SelectItem>
+   790→              <SelectItem value="paid" className="text-foreground/70 focus:bg-accent/10 focus:text-accent">
+   791→                De Pago
+   792→              </SelectItem>
+   793→            </SelectContent>
+   794→          </Select>
+   795→
+   796→          {/* Spacer */}
+   797→          <div className="flex-1" />
+   798→
+   799→          {/* View toggle */}
+   800→          <ToggleGroup
+   801→            type="single"
+   802→            value={viewMode}
+   803→            onValueChange={(v) => {
+   804→              if (v) setViewMode(v as 'grid' | 'list')
+   805→            }}
+   806→            className="border-border bg-card"
+   807→          >
+   808→            <ToggleGroupItem
+   809→              value="grid"
+   810→              aria-label="Vista de cuadrícula"
+   811→              className="data-[state=on]:bg-accent/15 data-[state=on]:text-accent text-foreground/40 hover:bg-secondary hover:text-foreground/60 h-8 w-8 rounded-l-md"
+   812→            >
+   813→              <LayoutGrid className="h-4 w-4" />
+   814→            </ToggleGroupItem>
+   815→            <ToggleGroupItem
+   816→              value="list"
+   817→              aria-label="Vista de lista"
+   818→              className="data-[state=on]:bg-accent/15 data-[state=on]:text-accent text-foreground/40 hover:bg-secondary hover:text-foreground/60 h-8 w-8 rounded-r-md"
+   819→            >
+   820→              <List className="h-4 w-4" />
+   821→            </ToggleGroupItem>
+   822→          </ToggleGroup>
+   823→        </div>
+   824→
+   825→        {/* ---------- Results count ---------- */}
+   826→        <div className="flex items-center justify-between">
+   827→          <p className="text-xs text-foreground/40">
+   828→            {loading
+   829→              ? 'Cargando...'
+   830→              : `${templates.length} plantilla${templates.length !== 1 ? 's' : ''} encontrada${templates.length !== 1 ? 's' : ''}`}
+   831→          </p>
+   832→          {hasActiveFilters && (
+   833→            <button
+   834→              onClick={() => {
+   835→                setSearchInput('')
+   836→                setCategory('all')
+   837→                setLegalArea('all')
+   838→                setAudience('all')
+   839→                setPriceFilter('all')
+   840→              }}
+   841→              className="text-[11px] font-medium text-accent/70 transition-colors hover:text-accent"
+   842→            >
+   843→              Limpiar filtros
+   844→            </button>
+   845→          )}
+   846→        </div>
+   847→
+   848→        {/* ---------- Content ---------- */}
+   849→        {loading ? (
+   850→          viewMode === 'grid' ? (
+   851→            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+   852→              {Array.from({ length: 6 }).map((_, i) => (
+   853→                <SkeletonCard key={i} />
+   854→              ))}
+   855→            </div>
+   856→          ) : (
+   857→            <div className="flex flex-col gap-3">
+   858→              {Array.from({ length: 6 }).map((_, i) => (
+   859→                <SkeletonRow key={i} />
+   860→              ))}
+   861→            </div>
+   862→          )
+   863→        ) : templates.length === 0 ? (
+   864→          <EmptyState hasFilters={hasActiveFilters} />
+   865→        ) : viewMode === 'grid' ? (
+   866→          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+   867→            {templates.map((t) => (
+   868→              <TemplateCard key={t.id} template={t} onSelect={handleSelectTemplate} />
+   869→            ))}
+   870→          </div>
+   871→        ) : (
+   872→          <div className="flex flex-col gap-3">
+   873→            {templates.map((t) => (
+   874→              <TemplateRow key={t.id} template={t} onSelect={handleSelectTemplate} />
+   875→            ))}
+   876→          </div>
+   877→        )}
+   878→
+   879→        {/* ---------- Bottom CTA (logged-in only) ---------- */}
+   880→        {!isVisitor && (
+   881→        <div className="flex items-center justify-center pt-4">
+   882→          <button
+   883→            className="group flex items-center gap-3 rounded-xl border border-accent/15 bg-card/60 px-6 py-4 text-left backdrop-blur-sm transition-all hover:border-accent/30 hover:bg-accent/5 hover:shadow-lg hover:shadow-accent/5"
+   884→          >
+   885→            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent transition-colors group-hover:bg-accent/25">
+   886→              <Plus className="h-5 w-5" />
+   887→            </div>
+   888→            <div className="min-w-0 flex-1">
+   889→              <p className="text-sm font-semibold text-foreground/80 group-hover:text-foreground">
+   890→                No encuentras lo que buscas?
+   891→              </p>
+   892→              <p className="text-xs text-foreground/40">
+   893→                Solicita un documento personalizado y nuestro equipo lo preparara para ti.
+   894→              </p>
+   895→            </div>
+   896→            <ArrowRight className="h-4 w-4 shrink-0 text-foreground/20 transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
+   897→          </button>
+   898→        </div>
+   899→        )}
+   900→      </div>
+   901→
+   902→      {/* ---------- Detail Dialog ---------- */}
+   903→      <TemplateDetailDialog
+   904→        template={selectedTemplate}
+   905→        open={dialogOpen}
+   906→        onOpenChange={handleDialogClose}
+   907→      />
+   908→
+   909→      {/* Visitor: Publications Panel (anchored left) */}
+   910→      {isVisitor && <PublicationsPanel />}
+   911→
+   912→      {/* Visitor: Footer */}
+   913→      {isVisitor && (
+   914→        <footer className="border-t border-border bg-card/60 backdrop-blur-sm py-4">
+   915→          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+   916→            <p className="text-center text-xs text-muted-foreground">
+   917→              CopyDocs · Diseñado con ❤️ por CopyExpress · Línea de soporte +573226575422
+   918→            </p>
+   919→          </div>
+   920→        </footer>
+   921→      )}
+   922→    </main>
+   923→  )
+   924→}
+   925→

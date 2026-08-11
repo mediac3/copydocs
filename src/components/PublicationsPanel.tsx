@@ -157,8 +157,8 @@ export default function PublicationsPanel() {
         className={`
           fixed left-0 top-0 h-full z-40
           bg-card/95 backdrop-blur-md border-r border-border
-          transition-all duration-300 ease-in-out
-          ${open ? 'w-72 translate-x-0' : 'w-0 -translate-x-full'}
+          transition-all duration-300 ease-in-out overflow-hidden
+          ${open ? 'w-72' : 'w-0'}
           shadow-xl
         `}
       >

@@ -678,11 +678,11 @@ export default function CatalogPage() {
         {/* ---------- Header ---------- */}
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            {isVisitor ? 'Genera tu Documento Legal' : 'Catálogo de Plantillas'}
+            {isVisitor ? 'CopyDocs' : 'Catálogo de Plantillas'}
           </h1>
           <p className="mt-1 text-sm text-foreground/50">
             {isVisitor
-              ? 'Selecciona una plantilla, completa los campos y envia tu solicitud por WhatsApp.'
+              ? '1. Selecciona  ·  2. Completa  ·  3. Envía'
               : 'Explora y genera documentos legales colombianos con plantillas profesionales.'}
           </p>
         </div>

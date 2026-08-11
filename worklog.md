@@ -1,55 +1,31 @@
 ---
 Task ID: 1
-Agent: main
-Task: Fix 'Sun is not defined' error and replace plan system with credit system
+Agent: Super Z (main)
+Task: Fix publications panel toggle, update visitor title, integrate TinyMCE, add knowledge base
 
 Work Log:
-- Fixed 'Sun is not defined' error by adding Sun to lucide-react imports in CatalogPage.tsx
-- Updated Prisma schema: removed SubscriptionPlan model, added credits field to User, added CreditTransaction model
-- Ran prisma db push to migrate database
-- Updated seed.ts: replaced subscriptionPlan/subscriptionEnd with credits (admin: 999, demo: 10)
-- Re-seeded database successfully
-- Created /api/credits/route.ts (GET: balance+transactions, POST: deduct credits)
-- Created /api/admin/credits/route.ts (GET: all users credits, POST: add credits to user)
-- Updated app-store.ts: replaced subscriptionPlan/subscriptionEnd with credits in user type
-- Updated /api/auth/me and login to return credits
-- Updated /api/admin/users to return credits
-- Rewrote PaymentsPage.tsx as credit balance page with transaction history
-- Updated AppLayout.tsx: sidebar nav labels (Pagos→Créditos, Precios→Créditos), icons (CreditCard→Coins), credit badge
-- Updated AdminPage.tsx: replaced Plan interface with CreditUser/CreditTransaction, replaced plan state/fetchers/actions with credit equivalents, replaced Precios tab UI with credit management table, add credits dialog, transaction history view
-- Updated admin users table: subscription column → credits column
-- Updated /api/admin route: totalRevenue → totalCredits aggregation
-- Updated WizardPage.tsx: credit check before generating document, credit deduction on completion
-- Disabled /api/plans endpoint (returns empty plans array)
-- Added Coins import to DashboardPage.tsx
-- Build verified successful
+- Fixed PublicationsPanel.tsx toggle: replaced translate-x-0/-translate-x-full with overflow-hidden on parent container so inner w-72 content gets clipped when parent is w-0
+- Changed CatalogPage.tsx visitor title from 'Genera tu Documento Legal' to 'CopyDocs' and subtitle from paragraph to '1. Selecciona  ·  2. Completa  ·  3. Envía'
+- Installed @tinymce/tinymce-react + tinymce packages
+- Copied TinyMCE assets (icons, models, plugins, skins, themes, JS) to public/tinymce/
+- Created reusable TinyMCEEditor component (src/components/ui/tinymce-editor.tsx) with dark mode, AI features, image upload support
+- Created /api/upload route for image file uploads (validates type/size, saves to public/uploads/)
+- Created /api/assistant/tinymce-ai route for TinyMCE AI assistant integration (uses knowledge base context)
+- Created /api/admin/knowledge route (full CRUD) for knowledge base management
+- Added KnowledgeBase model to Prisma schema and ran db push
+- Modified AdminPage.tsx:
+  - Replaced Contenido Base Textarea with TinyMCE (aiFeatures enabled)
+  - Replaced Publications content Textarea with TinyMCE (with image upload via /api/upload)
+  - Replaced Publications imageUrl input with file upload object (drag/click to upload, preview, delete)
+  - Added 'Base de Conocimiento' tab with full CRUD (table, create/edit dialog with TinyMCE, delete confirmation)
+  - Added Brain and ImageIcon imports, TinyMCEEditor dynamic import
+- Updated /api/assistant/route.ts to inject knowledge base entries into AI context
+- Verified build succeeds with no new TypeScript errors
 
 Stage Summary:
-- Sun is not defined error: FIXED (added import)
-- Plan system replaced with credit system: COMPLETE
-- Each user gets X credits, admin can add more via Créditos tab
-- 1 credit = 1 completed document by registered user
-- Build passes successfully
-
----
-Task ID: 2
-Agent: main
-Task: Fix 'en' TDZ error and remaining bugs
-
-Work Log:
-- Investigated 'en' TDZ error extensively: searched all source files, compiled chunks, dependencies - no variable 'en' found
-- Added themes={['light','dark','warm']} to ThemeProvider in layout.tsx (was missing, could cause next-themes initialization issues)
-- Added defensive theme handling: (theme || 'warm') fallback in CatalogPage and AppLayout to prevent undefined theme access
-- Fixed AdminPage CreditCard reference error (line 878): replaced with Coins (already imported)
-- Fixed AdminPage stats data mismatch: API returns data nested under 'stats' key but component read top-level keys. Fixed to destructure from data.stats
-- Fixed stale seed.ts references: removed subscriptionPlan/subscriptionEnd from user creation, removed PLANS constant and plan seeding loop
-- Re-seeded database with clean data (admin: 999 credits, demo: 10 credits)
-- Cleared .next cache to eliminate any stale Turbopack compilation artifacts
-- Final build verified successful
-
-Stage Summary:
-- 'en' TDZ error: Likely resolved via ThemeProvider themes prop fix + cache clear + defensive theme handling
-- AdminPage CreditCard error: FIXED
-- AdminPage stats mismatch: FIXED
-- Stale seed references: FIXED
-- Database re-seeded cleanly
+- All 5 tasks completed successfully
+- Publications panel now toggles correctly (overflow-hidden fix)
+- Visitor hero shows 'CopyDocs' + '1. Selecciona · 2. Completa · 3. Envía'
+- Contenido Base uses TinyMCE with table insertion, links, and AI generative features
+- Publications use TinyMCE for content + file upload for images
+- Knowledge Base module created: Prisma model, admin API, admin UI tab, AI context integration

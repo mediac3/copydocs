@@ -1,0 +1,1605 @@
+  1080→    id: string; title: string; description: string; content: string;
+  1081→    imageUrl: string | null; order: number; active: boolean; createdAt: string;
+  1082→  }
+  1083→  const [publications, setPublications] = useState<PubItem[]>([])
+  1084→  const [loadingPubs, setLoadingPubs] = useState(false)
+  1085→  const [pubDialogOpen, setPubDialogOpen] = useState(false)
+  1086→  const [editingPub, setEditingPub] = useState<PubItem | null>(null)
+  1087→  const [pubForm, setPubForm] = useState({ title: '', description: '', content: '', imageUrl: '', active: true })
+  1088→  const [deletingPubId, setDeletingPubId] = useState<string | null>(null)
+  1089→
+  1090→  const fetchPublications = useCallback(async () => {
+  1091→    setLoadingPubs(true)
+  1092→    try {
+  1093→      const res = await fetch('/api/admin/publications')
+  1094→      const data = await res.json()
+  1095→      setPublications(Array.isArray(data) ? data : [])
+  1096→    } catch { setPublications([]) }
+  1097→    finally { setLoadingPubs(false) }
+  1098→  }, [])
+  1099→
+  1100→  useEffect(() => {
+  1101→    if (activeTab === 'publicaciones') fetchPublications()
+  1102→  }, [activeTab, fetchPublications])
+  1103→
+  1104→  const handleOpenPubDialog = (pub?: PubItem) => {
+  1105→    if (pub) {
+  1106→      setEditingPub(pub)
+  1107→      setPubForm({ title: pub.title, description: pub.description, content: pub.content || '', imageUrl: pub.imageUrl || '', active: pub.active })
+  1108→    } else {
+  1109→      setEditingPub(null)
+  1110→      setPubForm({ title: '', description: '', content: '', imageUrl: '', active: true })
+  1111→    }
+  1112→    setPubDialogOpen(true)
+  1113→  }
+  1114→
+  1115→  const handleSavePub = async () => {
+  1116→    if (!pubForm.title.trim() || !pubForm.description.trim()) {
+  1117→      toast.error('Titulo y descripcion son requeridos')
+  1118→      return
+  1119→    }
+  1120→    try {
+  1121→      const url = editingPub ? '/api/admin/publications' : '/api/admin/publications'
+  1122→      const method = editingPub ? 'PUT' : 'POST'
+  1123→      const body = { ...pubForm, ...(editingPub ? { id: editingPub.id } : {}) }
+  1124→      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  1125→      if (!res.ok) throw new Error()
+  1126→      toast.success(editingPub ? 'Publicacion actualizada' : 'Publicacion creada')
+  1127→      setPubDialogOpen(false)
+  1128→      fetchPublications()
+  1129→    } catch { toast.error('Error al guardar publicacion') }
+  1130→  }
+  1131→
+  1132→  const handleDeletePub = async (id: string) => {
+  1133→    try {
+  1134→      const res = await fetch(`/api/admin/publications?id=${id}`, { method: 'DELETE' })
+  1135→      if (!res.ok) throw new Error()
+  1136→      toast.success('Publicacion eliminada')
+  1137→      fetchPublications()
+  1138→    } catch { toast.error('Error al eliminar publicacion') }
+  1139→    setDeletingPubId(null)
+  1140→  }
+  1141→
+  1142→  const handleTogglePubActive = async (pub: PubItem) => {
+  1143→    try {
+  1144→      await fetch('/api/admin/publications', {
+  1145→        method: 'PUT',
+  1146→        headers: { 'Content-Type': 'application/json' },
+  1147→        body: JSON.stringify({ id: pub.id, active: !pub.active }),
+  1148→      })
+  1149→      fetchPublications()
+  1150→    } catch { toast.error('Error al cambiar estado') }
+  1151→  }
+  1152→
+  1153→  /* ========================================================================== */
+  1154→  /*  ACTION HANDLERS                                                           */
+  1155→  /* ========================================================================== */
+  1156→
+  1157→  /* ---- Template actions ---- */
+  1158→  const handleOpenTemplateDialog = (template?: Template) => {
+  1159→    if (template) {
+  1160→      setEditingTemplate(template)
+  1161→      let parsedWizard: WizardStepDef[] = []
+  1162→      try {
+  1163→        if (template.wizardConfig) {
+  1164→          const raw = typeof template.wizardConfig === 'string'
+  1165→            ? JSON.parse(template.wizardConfig)
+  1166→            : template.wizardConfig
+  1167→          if (Array.isArray(raw)) {
+  1168→            parsedWizard = raw
+  1169→          } else if (raw && Array.isArray(raw.steps)) {
+  1170→            parsedWizard = raw.steps
+  1171→          }
+  1172→        }
+  1173→      } catch { parsedWizard = [] }
+  1174→      setTemplateForm({
+  1175→        name: template.name,
+  1176→        description: template.description || '',
+  1177→        category: template.category,
+  1178→        legalArea: template.legalArea,
+  1179→        audience: template.audience || '',
+  1180→        price: String(template.price),
+  1181→        baseContent: template.baseContent || '',
+  1182→        headerContent: template.headerContent || '',
+  1183→        footerContent: template.footerContent || '',
+  1184→        status: template.status,
+  1185→        wizardConfig: parsedWizard,
+  1186→      })
+  1187→    } else {
+  1188→      setEditingTemplate(null)
+  1189→      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft', wizardConfig: [] })
+  1190→    }
+  1191→    setTemplateDialogOpen(true)
+  1192→  }
+  1193→
+  1194→  const handleSaveTemplate = async () => {
+  1195→    if (!templateForm.name.trim()) {
+  1196→      toast.error('El nombre es obligatorio')
+  1197→      return
+  1198→    }
+  1199→    setSavingTemplate(true)
+  1200→    try {
+  1201→      const payload = {
+  1202→        action: editingTemplate ? 'update_template' : 'create_template',
+  1203→        templateId: editingTemplate?.id,
+  1204→        ...templateForm,
+  1205→        price: Number(templateForm.price) || 0,
+  1206→      }
+  1207→      const res = await fetch('/api/admin', {
+  1208→        method: 'POST',
+  1209→        headers: authHeaders(),
+  1210→        body: JSON.stringify(payload),
+  1211→      })
+  1212→      if (res.ok) {
+  1213→        toast.success(editingTemplate ? 'Plantilla actualizada' : 'Plantilla creada')
+  1214→        setTemplateDialogOpen(false)
+  1215→        fetchTemplates()
+  1216→      } else {
+  1217→        toast.error('Error al guardar la plantilla')
+  1218→      }
+  1219→    } catch {
+  1220→      toast.error('Error de conexión')
+  1221→    } finally {
+  1222→      setSavingTemplate(false)
+  1223→    }
+  1224→  }
+  1225→
+  1226→  const handleUpdateTemplateStatus = async (templateId: string, newStatus: string) => {
+  1227→    try {
+  1228→      const res = await fetch('/api/admin', {
+  1229→        method: 'POST',
+  1230→        headers: authHeaders(),
+  1231→        body: JSON.stringify({ action: 'update_template_status', templateId, status: newStatus }),
+  1232→      })
+  1233→      if (res.ok) {
+  1234→        toast.success(`Estado cambiado a ${TEMPLATE_STATUS_CONFIG[newStatus]?.label || newStatus}`)
+  1235→        fetchTemplates()
+  1236→      } else {
+  1237→        toast.error('Error al cambiar estado')
+  1238→      }
+  1239→    } catch {
+  1240→      toast.error('Error de conexión')
+  1241→    }
+  1242→  }
+  1243→
+  1244→  /* ---- Clause actions ---- */
+  1245→  const handleOpenClauseDialog = (clause?: Clause) => {
+  1246→    if (clause) {
+  1247→      setEditingClause(clause)
+  1248→      setClauseForm({ title: clause.title, content: clause.content, legalArea: clause.legalArea })
+  1249→    } else {
+  1250→      setEditingClause(null)
+  1251→      setClauseForm({ title: '', content: '', legalArea: '' })
+  1252→    }
+  1253→    setClauseDialogOpen(true)
+  1254→  }
+  1255→
+  1256→  const handleSaveClause = async () => {
+  1257→    if (!clauseForm.title.trim() || !clauseForm.content.trim()) {
+  1258→      toast.error('Título y contenido son obligatorios')
+  1259→      return
+  1260→    }
+  1261→    setSavingClause(true)
+  1262→    try {
+  1263→      const payload = {
+  1264→        ...clauseForm,
+  1265→        clauseId: editingClause?.id,
+  1266→      }
+  1267→      const res = await fetch('/api/admin/clauses', {
+  1268→        method: 'POST',
+  1269→        headers: authHeaders(),
+  1270→        body: JSON.stringify(payload),
+  1271→      })
+  1272→      if (res.ok) {
+  1273→        toast.success(editingClause ? 'Cláusula actualizada' : 'Cláusula creada')
+  1274→        setClauseDialogOpen(false)
+  1275→        fetchClauses()
+  1276→      } else {
+  1277→        toast.error('Error al guardar la cláusula')
+  1278→      }
+  1279→    } catch {
+  1280→      toast.error('Error de conexión')
+  1281→    } finally {
+  1282→      setSavingClause(false)
+  1283→    }
+  1284→  }
+  1285→
+  1286→  const handleDeleteClause = async () => {
+  1287→    if (!deleteClauseId) return
+  1288→    try {
+  1289→      const res = await fetch('/api/admin/clauses', {
+  1290→        method: 'POST',
+  1291→        headers: authHeaders(),
+  1292→        body: JSON.stringify({ action: 'delete_clause', clauseId: deleteClauseId }),
+  1293→      })
+  1294→      if (res.ok) {
+  1295→        toast.success('Cláusula eliminada')
+  1296→        setDeleteClauseId(null)
+  1297→        fetchClauses()
+  1298→      } else {
+  1299→        toast.error('Error al eliminar la cláusula')
+  1300→      }
+  1301→    } catch {
+  1302→      toast.error('Error de conexión')
+  1303→    }
+  1304→  }
+  1305→
+  1306→  /* ---- User actions ---- */
+  1307→  const handleUpdateUserStatus = async (userId: string, newStatus: string) => {
+  1308→    try {
+  1309→      const res = await fetch('/api/admin', {
+  1310→        method: 'POST',
+  1311→        headers: authHeaders(),
+  1312→        body: JSON.stringify({ action: 'update_user_status', userId, status: newStatus }),
+  1313→      })
+  1314→      if (res.ok) {
+  1315→        toast.success(`Usuario ${newStatus === 'active' ? 'activado' : 'suspendido'}`)
+  1316→        fetchUsers()
+  1317→      } else {
+  1318→        toast.error('Error al actualizar usuario')
+  1319→      }
+  1320→    } catch {
+  1321→      toast.error('Error de conexión')
+  1322→    }
+  1323→  }
+  1324→
+  1325→  const handleChangeUserRole = async (userId: string, newRole: string) => {
+  1326→    try {
+  1327→      const res = await fetch('/api/admin', {
+  1328→        method: 'POST',
+  1329→        headers: authHeaders(),
+  1330→        body: JSON.stringify({ action: 'update_user_status', userId, role: newRole }),
+  1331→      })
+  1332→      if (res.ok) {
+  1333→        toast.success('Rol actualizado')
+  1334→        fetchUsers()
+  1335→      } else {
+  1336→        toast.error('Error al cambiar rol')
+  1337→      }
+  1338→    } catch {
+  1339→      toast.error('Error de conexión')
+  1340→    }
+  1341→  }
+  1342→
+  1343→  /* ---- Request actions ---- */
+  1344→  const handleRequestAction = async (requestId: string, action: 'aprobada' | 'rechazada' | 'en_desarrollo', notes?: string) => {
+  1345→    try {
+  1346→      const res = await fetch('/api/admin', {
+  1347→        method: 'POST',
+  1348→        headers: authHeaders(),
+  1349→        body: JSON.stringify({ action: 'handle_request', requestId, status: action, notes }),
+  1350→      })
+  1351→      if (res.ok) {
+  1352→        toast.success(`Solicitud marcada como ${REQUEST_STATUS_CONFIG[action]?.label || action}`)
+  1353→        setRequestNotesId(null)
+  1354→        setRequestNotes('')
+  1355→        fetchRequests()
+  1356→      } else {
+  1357→        toast.error('Error al procesar solicitud')
+  1358→      }
+  1359→    } catch {
+  1360→      toast.error('Error de conexión')
+  1361→    }
+  1362→  }
+  1363→
+  1364→  /* ---- Credit actions ---- */
+  1365→  const handleOpenCreditDialog = (user: CreditUser) => {
+  1366→    setSelectedCreditUser(user)
+  1367→    setAddCreditsAmount('')
+  1368→    setAddCreditsDesc('')
+  1369→    setCreditDialogOpen(true)
+  1370→  }
+  1371→
+  1372→  const handleViewCreditHistory = (user: CreditUser) => {
+  1373→    setSelectedCreditUser(user)
+  1374→    fetchCreditTransactions(user.id)
+  1375→  }
+  1376→
+  1377→  const handleAddCredits = async () => {
+  1378→    if (!selectedCreditUser || !addCreditsAmount || Number(addCreditsAmount) <= 0) {
+  1379→      toast.error('Ingresa una cantidad válida')
+  1380→      return
+  1381→    }
+  1382→    setAddingCredits(true)
+  1383→    try {
+  1384→      const res = await fetch('/api/admin/credits', {
+  1385→        method: 'POST',
+  1386→        headers: authHeaders(),
+  1387→        body: JSON.stringify({
+  1388→          userId: selectedCreditUser.id,
+  1389→          amount: Number(addCreditsAmount),
+  1390→          description: addCreditsDesc || undefined,
+  1391→        }),
+  1392→      })
+  1393→      if (res.ok) {
+  1394→        const data = await res.json()
+  1395→        toast.success(data.message || 'Créditos agregados')
+  1396→        setCreditDialogOpen(false)
+  1397→        fetchCreditUsers()
+  1398→        if (selectedCreditUser) fetchCreditTransactions(selectedCreditUser.id)
+  1399→      } else {
+  1400→        toast.error('Error al agregar créditos')
+  1401→      }
+  1402→    } catch {
+  1403→      toast.error('Error de conexión')
+  1404→    } finally {
+  1405→      setAddingCredits(false)
+  1406→    }
+  1407→  }
+  1408→
+  1409→  /* ========================================================================== */
+  1410→  /*  SKELETON LOADER                                                           */
+  1411→  /* ========================================================================== */
+  1412→
+  1413→  function TableSkeleton({ rows = 5, cols = 6 }: { rows?: number; cols?: number }) {
+  1414→    return (
+  1415→      <div className="space-y-3 p-4">
+  1416→        {Array.from({ length: rows }).map((_, r) => (
+  1417→          <div key={r} className="flex gap-4">
+  1418→            {Array.from({ length: cols }).map((_, c) => (
+  1419→              <div
+  1420→                key={c}
+  1421→                className="h-5 flex-1 animate-pulse rounded bg-white/[0.04]"
+  1422→              />
+  1423→            ))}
+  1424→          </div>
+  1425→        ))}
+  1426→      </div>
+  1427→    )
+  1428→  }
+  1429→
+  1430→  /* ========================================================================== */
+  1431→  /*  NAV TABS CONFIG                                                          */
+  1432→  /* ========================================================================== */
+  1433→
+  1434→  const adminTabs = [
+  1435→    { value: 'resumen', label: 'Resumen', icon: BarChart3 },
+  1436→    { value: 'plantillas', label: 'Plantillas', icon: Layout },
+  1437→    { value: 'clausulas', label: 'Cláusulas', icon: BookOpen },
+  1438→    { value: 'usuarios', label: 'Usuarios', icon: Users },
+  1439→    { value: 'solicitudes', label: 'Solicitudes', icon: MessageSquare },
+  1440→    { value: 'precios', label: 'Créditos', icon: Coins },
+  1441→    { value: 'terminos', label: 'Términos', icon: FileText },
+  1442→    { value: 'publicaciones', label: 'Publicaciones', icon: Newspaper },
+  1443→    { value: 'conocimiento', label: 'Base de Conocimiento', icon: Brain },
+  1444→  ]
+  1445→
+  1446→  /* ========================================================================== */
+  1447→  /*  RENDER                                                                   */
+  1448→  /* ========================================================================== */
+  1449→
+  1450→  return (
+  1451→    <main className="min-h-screen bg-[#0A1628]">
+  1452→      <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+  1453→        {/* ---------- Header ---------- */}
+  1454→        <div className="mb-8">
+  1455→          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+  1456→            Panel de Administración
+  1457→          </h1>
+  1458→          <p className="mt-1 text-sm text-white/50">
+  1459→            Gestiona plantillas, cláusulas, usuarios y más en CopyExpress.
+  1460→          </p>
+  1461→        </div>
+  1462→
+  1463→        {/* ---------- Tabs Layout ---------- */}
+  1464→        <div className="flex flex-col gap-6 lg:flex-row">
+  1465→          {/* Vertical nav on lg, horizontal on mobile */}
+  1466→          <Tabs value={activeTab} onValueChange={handleTabChange} className="flex w-full flex-col lg:flex-row">
+  1467→            <TabsList className="mb-4 flex h-auto w-full flex-row flex-wrap gap-1 bg-[#0F1D32]/80 p-1 lg:mb-0 lg:w-56 lg:flex-col lg:flex-nowrap lg:overflow-y-auto lg:rounded-xl lg:border lg:border-white/5">
+  1468→              {adminTabs.map((tab) => (
+  1469→                <TabsTrigger
+  1470→                  key={tab.value}
+  1471→                  value={tab.value}
+  1472→                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white/50 data-[state=active]:bg-[#C9A94E]/10 data-[state=active]:text-[#C9A94E] lg:w-full justify-start"
+  1473→                >
+  1474→                  <tab.icon className="h-4 w-4 shrink-0" />
+  1475→                  <span className="hidden sm:inline">{tab.label}</span>
+  1476→                </TabsTrigger>
+  1477→              ))}
+  1478→            </TabsList>
+  1479→
+  1480→            {/* ============================================================ */}
+  1481→            {/*  1. RESUMEN                                                  */}
+  1482→            {/* ============================================================ */}
+  1483→            <TabsContent value="resumen" className="mt-0 flex-1 lg:ml-6">
+  1484→              <div className="space-y-6">
+  1485→                {/* Stat Cards */}
+  1486→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  1487→                  <AdminStatCard
+  1488→                    label="Total usuarios"
+  1489→                    value={loadingStats ? '…' : (stats?.totalUsers ?? 0)}
+  1490→                    icon={<Users className="h-5 w-5" />}
+  1491→                    accentBg="bg-blue-500/15"
+  1492→                    accentText="text-blue-400"
+  1493→                    accentBorder="border-blue-500/20"
+  1494→                  />
+  1495→                  <AdminStatCard
+  1496→                    label="Total documentos"
+  1497→                    value={loadingStats ? '…' : (stats?.totalDocuments ?? 0)}
+  1498→                    icon={<FileText className="h-5 w-5" />}
+  1499→                    accentBg="bg-[#C9A94E]/15"
+  1500→                    accentText="text-[#C9A94E]"
+  1501→                    accentBorder="border-[#C9A94E]/20"
+  1502→                  />
+  1503→                  <AdminStatCard
+  1504→                    label="Plantillas activas"
+  1505→                    value={loadingStats ? '…' : (stats?.activeTemplates ?? 0)}
+  1506→                    icon={<Layout className="h-5 w-5" />}
+  1507→                    accentBg="bg-green-500/15"
+  1508→                    accentText="text-green-400"
+  1509→                    accentBorder="border-green-500/20"
+  1510→                  />
+  1511→                  <AdminStatCard
+  1512→                    label="Ingresos totales"
+  1513→                    value={loadingStats ? '…' : formatCurrency(stats?.totalRevenue ?? 0)}
+  1514→                    icon={<Coins className="h-5 w-5" />}
+  1515→                    accentBg="bg-purple-500/15"
+  1516→                    accentText="text-purple-400"
+  1517→                    accentBorder="border-purple-500/20"
+  1518→                  />
+  1519→                </div>
+  1520→
+  1521→                {/* Chart */}
+  1522→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1523→                  <CardHeader className="pb-2">
+  1524→                    <CardTitle className="text-base font-semibold text-white">
+  1525→                      Generación de documentos
+  1526→                    </CardTitle>
+  1527→                  </CardHeader>
+  1528→                  <CardContent className="pt-0">
+  1529→                    {loadingStats ? (
+  1530→                      <div className="flex h-[320px] items-center justify-center">
+  1531→                        <div className="h-64 w-full animate-pulse rounded-lg bg-white/[0.04]" />
+  1532→                      </div>
+  1533→                    ) : (stats?.documentsByMonth?.length ?? 0) > 0 ? (
+  1534→                      <div className="h-[320px] w-full">
+  1535→                        <ResponsiveContainer width="100%" height="100%">
+  1536→                          <BarChart data={stats!.documentsByMonth} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
+  1537→                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+  1538→                            <XAxis
+  1539→                              dataKey="month"
+  1540→                              tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+  1541→                              axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+  1542→                              tickLine={false}
+  1543→                            />
+  1544→                            <YAxis
+  1545→                              tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+  1546→                              axisLine={false}
+  1547→                              tickLine={false}
+  1548→                              allowDecimals={false}
+  1549→                            />
+  1550→                            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(201,169,78,0.06)' }} />
+  1551→                            <Bar dataKey="count" name="Documentos" fill="#C9A94E" radius={[4, 4, 0, 0]} maxBarSize={48} />
+  1552→                          </BarChart>
+  1553→                        </ResponsiveContainer>
+  1554→                      </div>
+  1555→                    ) : (
+  1556→                      <EmptyState icon={BarChart3} message="No hay datos de generación disponibles" />
+  1557→                    )}
+  1558→                  </CardContent>
+  1559→                </Card>
+  1560→
+  1561→                {/* Top 5 Templates */}
+  1562→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1563→                  <CardHeader className="pb-3">
+  1564→                    <CardTitle className="text-base font-semibold text-white">
+  1565→                      Top 5 plantillas más usadas
+  1566→                    </CardTitle>
+  1567→                  </CardHeader>
+  1568→                  <CardContent className="pt-0">
+  1569→                    {loadingStats ? (
+  1570→                      <TableSkeleton rows={5} cols={3} />
+  1571→                    ) : (stats?.topTemplates?.length ?? 0) > 0 ? (
+  1572→                      <Table>
+  1573→                        <TableHeader>
+  1574→                          <TableRow className="border-white/5 hover:bg-transparent">
+  1575→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">#</TableHead>
+  1576→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+  1577→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Categoría</TableHead>
+  1578→                            <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Documentos</TableHead>
+  1579→                          </TableRow>
+  1580→                        </TableHeader>
+  1581→                        <TableBody className="divide-y divide-white/5">
+  1582→                          {stats!.topTemplates.slice(0, 5).map((tpl, idx) => (
+  1583→                            <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+  1584→                              <TableCell className="font-medium text-[#C9A94E]">{idx + 1}</TableCell>
+  1585→                              <TableCell className="font-medium text-white/80">{tpl.name}</TableCell>
+  1586→                              <TableCell className="text-white/40">{tpl.category}</TableCell>
+  1587→                              <TableCell className="text-right">
+  1588→                                <span className="flex items-center justify-end gap-1.5 font-medium text-white/70">
+  1589→                                  <TrendingUp className="h-3.5 w-3.5 text-[#C9A94E]/70" />
+  1590→                                  {tpl.count}
+  1591→                                </span>
+  1592→                              </TableCell>
+  1593→                            </TableRow>
+  1594→                          ))}
+  1595→                        </TableBody>
+  1596→                      </Table>
+  1597→                    ) : (
+  1598→                      <EmptyState icon={Layout} message="No hay datos de plantillas disponibles" />
+  1599→                    )}
+  1600→                  </CardContent>
+  1601→                </Card>
+  1602→              </div>
+  1603→            </TabsContent>
+  1604→
+  1605→            {/* ============================================================ */}
+  1606→            {/*  2. GESTIÓN DE PLANTILLAS                                    */}
+  1607→            {/* ============================================================ */}
+  1608→            <TabsContent value="plantillas" className="mt-0 flex-1 lg:ml-6">
+  1609→              <div className="space-y-6">
+  1610→                <div className="flex items-center justify-between">
+  1611→                  <div>
+  1612→                    <h2 className="text-lg font-semibold text-white">Gestión de Plantillas</h2>
+  1613→                    <p className="text-xs text-white/40">Administra todas las plantillas del sistema</p>
+  1614→                  </div>
+  1615→                  <Button
+  1616→                    onClick={() => handleOpenTemplateDialog()}
+  1617→                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1618→                  >
+  1619→                    <Plus className="mr-2 h-4 w-4" />
+  1620→                    Crear Plantilla
+  1621→                  </Button>
+  1622→                </div>
+  1623→
+  1624→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1625→                  <CardContent className="p-0">
+  1626→                    {loadingTemplates ? (
+  1627→                      <TableSkeleton rows={6} cols={7} />
+  1628→                    ) : templates.length > 0 ? (
+  1629→                      <div className="overflow-x-auto">
+  1630→                        <Table>
+  1631→                          <TableHeader>
+  1632→                            <TableRow className="border-white/5 hover:bg-transparent">
+  1633→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+  1634→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Categoría</TableHead>
+  1635→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Área Legal</TableHead>
+  1636→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  1637→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Precio</TableHead>
+  1638→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Docs</TableHead>
+  1639→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  1640→                            </TableRow>
+  1641→                          </TableHeader>
+  1642→                          <TableBody className="divide-y divide-white/5">
+  1643→                            {templates.map((tpl) => (
+  1644→                              <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+  1645→                                <TableCell className="max-w-[200px] truncate font-medium text-white/80">{tpl.name}</TableCell>
+  1646→                                <TableCell className="hidden text-white/40 md:table-cell">{tpl.category}</TableCell>
+  1647→                                <TableCell className="hidden text-white/40 lg:table-cell">{tpl.legalArea}</TableCell>
+  1648→                                <TableCell>
+  1649→                                  <DropdownMenu>
+  1650→                                    <DropdownMenuTrigger asChild>
+  1651→                                      <button className="cursor-pointer">
+  1652→                                        <StatusBadge status={tpl.status} config={TEMPLATE_STATUS_CONFIG} />
+  1653→                                      </button>
+  1654→                                    </DropdownMenuTrigger>
+  1655→                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+  1656→                                      {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+  1657→                                        <DropdownMenuItem
+  1658→                                          key={key}
+  1659→                                          onClick={() => handleUpdateTemplateStatus(tpl.id, key)}
+  1660→                                          disabled={key === tpl.status}
+  1661→                                          className="focus:bg-white/5 focus:text-white"
+  1662→                                        >
+  1663→                                          {val.label}
+  1664→                                        </DropdownMenuItem>
+  1665→                                      ))}
+  1666→                                    </DropdownMenuContent>
+  1667→                                  </DropdownMenu>
+  1668→                                </TableCell>
+  1669→                                <TableCell className="text-right font-medium text-white/70">{formatCurrency(tpl.price)}</TableCell>
+  1670→                                <TableCell className="hidden text-right text-white/40 sm:table-cell">{tpl.documentCount}</TableCell>
+  1671→                                <TableCell className="text-right">
+  1672→                                  <div className="flex items-center justify-end gap-1">
+  1673→                                    <Button
+  1674→                                      variant="ghost"
+  1675→                                      size="icon"
+  1676→                                      className="h-8 w-8 text-white/40 hover:text-[#C9A94E] hover:bg-[#C9A94E]/10"
+  1677→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+  1678→                                    >
+  1679→                                      <Eye className="h-4 w-4" />
+  1680→                                    </Button>
+  1681→                                    <Button
+  1682→                                      variant="ghost"
+  1683→                                      size="icon"
+  1684→                                      className="h-8 w-8 text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+  1685→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+  1686→                                    >
+  1687→                                      <Edit className="h-4 w-4" />
+  1688→                                    </Button>
+  1689→                                  </div>
+  1690→                                </TableCell>
+  1691→                              </TableRow>
+  1692→                            ))}
+  1693→                          </TableBody>
+  1694→                        </Table>
+  1695→                      </div>
+  1696→                    ) : (
+  1697→                      <EmptyState icon={Layout} message="No hay plantillas registradas" />
+  1698→                    )}
+  1699→                  </CardContent>
+  1700→                </Card>
+  1701→              </div>
+  1702→
+  1703→              {/* Create/Edit Template Dialog */}
+  1704→              <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+  1705→                <DialogContent className="max-h-[90vh] overflow-y-auto border-white/10 bg-[#0F1D32] sm:max-w-2xl">
+  1706→                  <DialogHeader>
+  1707→                    <DialogTitle className="text-white">
+  1708→                      {editingTemplate ? 'Editar Plantilla' : 'Crear Plantilla'}
+  1709→                    </DialogTitle>
+  1710→                  </DialogHeader>
+  1711→                  <div className="grid gap-4 py-4">
+  1712→                    <div className="grid gap-2">
+  1713→                      <Label className="text-white/70">Nombre *</Label>
+  1714→                      <Input
+  1715→                        value={templateForm.name}
+  1716→                        onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+  1717→                        placeholder="Nombre de la plantilla"
+  1718→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1719→                      />
+  1720→                    </div>
+  1721→                    <div className="grid gap-2">
+  1722→                      <Label className="text-white/70">Descripción</Label>
+  1723→                      <Textarea
+  1724→                        value={templateForm.description}
+  1725→                        onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))}
+  1726→                        placeholder="Descripción de la plantilla"
+  1727→                        rows={3}
+  1728→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1729→                      />
+  1730→                    </div>
+  1731→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  1732→                      <div className="grid gap-2">
+  1733→                        <Label className="text-white/70">Categoría</Label>
+  1734→                        <Input
+  1735→                          value={templateForm.category}
+  1736→                          onChange={(e) => setTemplateForm((f) => ({ ...f, category: e.target.value }))}
+  1737→                          placeholder="Ej: Contratos"
+  1738→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1739→                        />
+  1740→                      </div>
+  1741→                      <div className="grid gap-2">
+  1742→                        <Label className="text-white/70">Área Legal</Label>
+  1743→                        <Input
+  1744→                          value={templateForm.legalArea}
+  1745→                          onChange={(e) => setTemplateForm((f) => ({ ...f, legalArea: e.target.value }))}
+  1746→                          placeholder="Ej: Derecho Civil"
+  1747→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1748→                        />
+  1749→                      </div>
+  1750→                    </div>
+  1751→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+  1752→                      <div className="grid gap-2">
+  1753→                        <Label className="text-white/70">Audiencia</Label>
+  1754→                        <Input
+  1755→                          value={templateForm.audience}
+  1756→                          onChange={(e) => setTemplateForm((f) => ({ ...f, audience: e.target.value }))}
+  1757→                          placeholder="Ej: Empresas"
+  1758→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1759→                        />
+  1760→                      </div>
+  1761→                      <div className="grid gap-2">
+  1762→                        <Label className="text-white/70">Precio (COP)</Label>
+  1763→                        <Input
+  1764→                          type="number"
+  1765→                          value={templateForm.price}
+  1766→                          onChange={(e) => setTemplateForm((f) => ({ ...f, price: e.target.value }))}
+  1767→                          placeholder="0"
+  1768→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1769→                        />
+  1770→                      </div>
+  1771→                      <div className="grid gap-2">
+  1772→                        <Label className="text-white/70">Estado</Label>
+  1773→                        <Select
+  1774→                          value={templateForm.status}
+  1775→                          onValueChange={(v) => setTemplateForm((f) => ({ ...f, status: v }))}
+  1776→                        >
+  1777→                          <SelectTrigger className="border-white/10 bg-white/5 text-white">
+  1778→                            <SelectValue />
+  1779→                          </SelectTrigger>
+  1780→                          <SelectContent className="border-white/10 bg-[#0F1D32]">
+  1781→                            {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+  1782→                              <SelectItem key={key} value={key} className="text-white focus:bg-white/5 focus:text-white">
+  1783→                                {val.label}
+  1784→                              </SelectItem>
+  1785→                            ))}
+  1786→                          </SelectContent>
+  1787→                        </Select>
+  1788→                      </div>
+  1789→                    </div>
+  1790→                    <div className="grid gap-2">
+  1791→                      <Label className="text-white/70">Contenido Base</Label>
+  1792→                      <div className="rounded-lg border border-white/10 overflow-hidden">
+  1793→                        <TinyMCEEditor
+  1794→                          value={templateForm.baseContent}
+  1795→                          onValueChange={(val) => setTemplateForm((f) => ({ ...f, baseContent: val }))}
+  1796→                          height={350}
+  1797→                          placeholder="Contenido base de la plantilla con {{variables}}..."
+  1798→                          darkMode={true}
+  1799→                          aiFeatures={true}
+  1800→                        />
+  1801→                      </div>
+  1802→                    </div>
+  1803→
+  1804→                    {/* ===== Wizard Config Editor ===== */}
+  1805→                    <div className="grid gap-3">
+  1806→                      <div className="flex items-center justify-between">
+  1807→                        <div>
+  1808→                          <Label className="text-white/70">Campos del Formulario (Wizard)</Label>
+  1809→                          <p className="text-[11px] text-white/30 mt-0.5">Define los pasos y tipos de campo que el visitante completará. Usa los mismos nombres de variable del contenido base.</p>
+  1810→                        </div>
+  1811→                        <Button
+  1812→                          type="button"
+  1813→                          variant="outline"
+  1814→                          size="sm"
+  1815→                          className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white text-xs"
+  1816→                          onClick={() => {
+  1817→                            const vars = [...new Set((templateForm.baseContent.match(/\{\{([\w_]+)\}\}/g) || []).map(m => m.replace(/\{\{/g, '').replace(/\}\}/g, '')))]
+  1818→                            const existingKeys = new Set(templateForm.wizardConfig.flatMap(s => s.fields.map(f => f.key)))
+  1819→                            const missing = vars.filter(v => !existingKeys.has(v))
+  1820→                            if (missing.length === 0) {
+  1821→                              toast.info('Todas las variables ya tienen campos definidos')
+  1822→                              return
+  1823→                            }
+  1824→                            const newStep: WizardStepDef = {
+  1825→                              title: `Paso ${templateForm.wizardConfig.length + 1}`,
+  1826→                              fields: missing.map(v => ({ key: v, label: v.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), type: 'text' as const }))
+  1827→                            }
+  1828→                            setTemplateForm(f => ({ ...f, wizardConfig: [...f.wizardConfig, newStep] }))
+  1829→                            toast.success(`Se agregaron ${missing.length} campos automáticamente`)
+  1830→                          }}
+  1831→                        >
+  1832→                          <Plus className="mr-1 h-3 w-3" />
+  1833→                          Auto-detectar variables
+  1834→                        </Button>
+  1835→                      </div>
+  1836→
+  1837→                      {templateForm.wizardConfig.length === 0 ? (
+  1838→                        <div className="rounded-lg border border-dashed border-white/10 p-8 text-center">
+  1839→                          <p className="text-xs text-white/30 mb-2">No hay pasos definidos. Puedes:</p>
+  1840→                          <div className="flex items-center justify-center gap-2">
+  1841→                            <Button
+  1842→                              type="button"
+  1843→                              variant="outline"
+  1844→                              size="sm"
+  1845→                              className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white text-xs"
+  1846→                              onClick={() => setTemplateForm(f => ({ ...f, wizardConfig: [...f.wizardConfig, { title: `Paso ${f.wizardConfig.length + 1}`, fields: [] }] }))}
+  1847→                            >
+  1848→                              <Plus className="mr-1 h-3 w-3" />
+  1849→                              Agregar paso manualmente
+  1850→                            </Button>
+  1851→                            <span className="text-white/20 text-xs">o escribe el contenido base y usa "Auto-detectar variables"</span>
+  1852→                          </div>
+  1853→                        </div>
+  1854→                      ) : (
+  1855→                        <div className="space-y-3">
+  1856→                          {templateForm.wizardConfig.map((step, si) => (
+  1857→                            <WizardStepEditor
+  1858→                              key={si}
+  1859→                              step={step}
+  1860→                              stepIndex={si}
+  1861→                              allSteps={templateForm.wizardConfig}
+  1862→                              onChange={(updated) => {
+  1863→                                const wc = [...templateForm.wizardConfig]
+  1864→                                wc[si] = updated
+  1865→                                setTemplateForm(f => ({ ...f, wizardConfig: wc }))
+  1866→                              }}
+  1867→                              onRemove={() => setTemplateForm(f => ({ ...f, wizardConfig: f.wizardConfig.filter((_, i) => i !== si) }))}
+  1868→                            />
+  1869→                          ))}
+  1870→                          <Button
+  1871→                            type="button"
+  1872→                            variant="outline"
+  1873→                            size="sm"
+  1874→                            className="w-full border-dashed border-white/10 bg-transparent text-white/40 hover:bg-white/5 hover:text-white/70 text-xs"
+  1875→                            onClick={() => setTemplateForm(f => ({ ...f, wizardConfig: [...f.wizardConfig, { title: `Paso ${f.wizardConfig.length + 1}`, fields: [] }] }))}
+  1876→                          >
+  1877→                            <Plus className="mr-1 h-3 w-3" />
+  1878→                            Agregar otro paso
+  1879→                          </Button>
+  1880→                        </div>
+  1881→                      )}
+  1882→                    </div>
+  1883→
+  1884→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  1885→                      <MediaFieldEditor
+  1886→                        label="Encabezado (opcional)"
+  1887→                        rawValue={templateForm.headerContent}
+  1888→                        onChange={(v) => setTemplateForm((f) => ({ ...f, headerContent: v }))}
+  1889→                        defaultW={468}
+  1890→                        defaultH={60}
+  1891→                        maxH={80}
+  1892→                        hint="Recomendado: 468 x 60 px"
+  1893→                      />
+  1894→                      <MediaFieldEditor
+  1895→                        label="Pie de Página (opcional)"
+  1896→                        rawValue={templateForm.footerContent}
+  1897→                        onChange={(v) => setTemplateForm((f) => ({ ...f, footerContent: v }))}
+  1898→                        defaultW={468}
+  1899→                        defaultH={40}
+  1900→                        maxH={50}
+  1901→                        hint="Recomendado: 468 x 40 px"
+  1902→                      />
+  1903→                    </div>
+  1904→                  </div>
+  1905→                  <DialogFooter>
+  1906→                    <Button
+  1907→                      variant="ghost"
+  1908→                      onClick={() => setTemplateDialogOpen(false)}
+  1909→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  1910→                    >
+  1911→                      Cancelar
+  1912→                    </Button>
+  1913→                    <Button
+  1914→                      onClick={handleSaveTemplate}
+  1915→                      disabled={savingTemplate}
+  1916→                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1917→                    >
+  1918→                      {savingTemplate ? 'Guardando...' : 'Guardar'}
+  1919→                    </Button>
+  1920→                  </DialogFooter>
+  1921→                </DialogContent>
+  1922→              </Dialog>
+  1923→            </TabsContent>
+  1924→
+  1925→            {/* ============================================================ */}
+  1926→            {/*  3. BIBLIOTECA DE CLÁUSULAS                                  */}
+  1927→            {/* ============================================================ */}
+  1928→            <TabsContent value="clausulas" className="mt-0 flex-1 lg:ml-6">
+  1929→              <div className="space-y-6">
+  1930→                <div className="flex items-center justify-between">
+  1931→                  <div>
+  1932→                    <h2 className="text-lg font-semibold text-white">Biblioteca de Cláusulas</h2>
+  1933→                    <p className="text-xs text-white/40">Gestiona las cláusulas legales disponibles</p>
+  1934→                  </div>
+  1935→                  <Button
+  1936→                    onClick={() => handleOpenClauseDialog()}
+  1937→                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1938→                  >
+  1939→                    <Plus className="mr-2 h-4 w-4" />
+  1940→                    Nueva Cláusula
+  1941→                  </Button>
+  1942→                </div>
+  1943→
+  1944→                {loadingClauses ? (
+  1945→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1946→                    {Array.from({ length: 6 }).map((_, i) => (
+  1947→                      <div key={i} className="h-40 animate-pulse rounded-xl border border-white/5 bg-white/[0.03]" />
+  1948→                    ))}
+  1949→                  </div>
+  1950→                ) : clauses.length > 0 ? (
+  1951→                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+  1952→                    {clauses.map((clause) => (
+  1953→                      <Card key={clause.id} className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5">
+  1954→                        <CardHeader className="pb-2">
+  1955→                          <div className="flex items-start justify-between gap-2">
+  1956→                            <CardTitle className="text-sm font-semibold text-white line-clamp-1">{clause.title}</CardTitle>
+  1957→                            <Badge variant="outline" className="shrink-0 border-[#C9A94E]/20 bg-[#C9A94E]/10 text-[#C9A94E] text-[10px]">
+  1958→                              {clause.legalArea}
+  1959→                            </Badge>
+  1960→                          </div>
+  1961→                        </CardHeader>
+  1962→                        <CardContent className="pt-0">
+  1963→                          <p className="line-clamp-3 text-xs leading-relaxed text-white/40">{clause.content}</p>
+  1964→                          <div className="mt-4 flex items-center gap-1">
+  1965→                            <Button
+  1966→                              variant="ghost"
+  1967→                              size="sm"
+  1968→                              className="h-7 text-xs text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+  1969→                              onClick={() => handleOpenClauseDialog(clause)}
+  1970→                            >
+  1971→                              <Edit className="mr-1 h-3 w-3" />
+  1972→                              Editar
+  1973→                            </Button>
+  1974→                            <Button
+  1975→                              variant="ghost"
+  1976→                              size="sm"
+  1977→                              className="h-7 text-xs text-white/40 hover:text-red-400 hover:bg-red-400/10"
+  1978→                              onClick={() => setDeleteClauseId(clause.id)}
+  1979→                            >
+  1980→                              <Trash2 className="mr-1 h-3 w-3" />
+  1981→                              Eliminar
+  1982→                            </Button>
+  1983→                          </div>
+  1984→                        </CardContent>
+  1985→                      </Card>
+  1986→                    ))}
+  1987→                  </div>
+  1988→                ) : (
+  1989→                  <EmptyState icon={BookOpen} message="No hay cláusulas registradas" />
+  1990→                )}
+  1991→              </div>
+  1992→
+  1993→              {/* Create/Edit Clause Dialog */}
+  1994→              <Dialog open={clauseDialogOpen} onOpenChange={setClauseDialogOpen}>
+  1995→                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-lg">
+  1996→                  <DialogHeader>
+  1997→                    <DialogTitle className="text-white">
+  1998→                      {editingClause ? 'Editar Cláusula' : 'Nueva Cláusula'}
+  1999→                    </DialogTitle>
+  2000→                  </DialogHeader>
+  2001→                  <div className="grid gap-4 py-4">
+  2002→                    <div className="grid gap-2">
+  2003→                      <Label className="text-white/70">Título *</Label>
+  2004→                      <Input
+  2005→                        value={clauseForm.title}
+  2006→                        onChange={(e) => setClauseForm((f) => ({ ...f, title: e.target.value }))}
+  2007→                        placeholder="Título de la cláusula"
+  2008→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  2009→                      />
+  2010→                    </div>
+  2011→                    <div className="grid gap-2">
+  2012→                      <Label className="text-white/70">Área Legal</Label>
+  2013→                      <Input
+  2014→                        value={clauseForm.legalArea}
+  2015→                        onChange={(e) => setClauseForm((f) => ({ ...f, legalArea: e.target.value }))}
+  2016→                        placeholder="Ej: Derecho Laboral"
+  2017→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  2018→                      />
+  2019→                    </div>
+  2020→                    <div className="grid gap-2">
+  2021→                      <Label className="text-white/70">Contenido *</Label>
+  2022→                      <Textarea
+  2023→                        value={clauseForm.content}
+  2024→                        onChange={(e) => setClauseForm((f) => ({ ...f, content: e.target.value }))}
+  2025→                        placeholder="Texto de la cláusula..."
+  2026→                        rows={8}
+  2027→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  2028→                      />
+  2029→                    </div>
+  2030→                  </div>
+  2031→                  <DialogFooter>
+  2032→                    <Button
+  2033→                      variant="ghost"
+  2034→                      onClick={() => setClauseDialogOpen(false)}
+  2035→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  2036→                    >
+  2037→                      Cancelar
+  2038→                    </Button>
+  2039→                    <Button
+  2040→                      onClick={handleSaveClause}
+  2041→                      disabled={savingClause}
+  2042→                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  2043→                    >
+  2044→                      {savingClause ? 'Guardando...' : 'Guardar'}
+  2045→                    </Button>
+  2046→                  </DialogFooter>
+  2047→                </DialogContent>
+  2048→              </Dialog>
+  2049→
+  2050→              {/* Delete Clause Confirmation */}
+  2051→              <AlertDialog open={!!deleteClauseId} onOpenChange={(open) => !open && setDeleteClauseId(null)}>
+  2052→                <AlertDialogContent className="border-white/10 bg-[#0F1D32]">
+  2053→                  <AlertDialogHeader>
+  2054→                    <AlertDialogTitle className="text-white">¿Eliminar cláusula?</AlertDialogTitle>
+  2055→                    <AlertDialogDescription className="text-white/50">
+  2056→                      Esta acción no se puede deshacer. La cláusula será eliminada permanentemente.
+  2057→                    </AlertDialogDescription>
+  2058→                  </AlertDialogHeader>
+  2059→                  <AlertDialogFooter>
+  2060→                    <AlertDialogCancel className="border-white/10 text-white/50 hover:bg-white/5 hover:text-white">
+  2061→                      Cancelar
+  2062→                    </AlertDialogCancel>
+  2063→                    <AlertDialogAction
+  2064→                      onClick={handleDeleteClause}
+  2065→                      className="bg-red-500/20 text-red-400 hover:bg-red-500/30"
+  2066→                    >
+  2067→                      Eliminar
+  2068→                    </AlertDialogAction>
+  2069→                  </AlertDialogFooter>
+  2070→                </AlertDialogContent>
+  2071→              </AlertDialog>
+  2072→            </TabsContent>
+  2073→
+  2074→            {/* ============================================================ */}
+  2075→            {/*  4. GESTIÓN DE USUARIOS                                      */}
+  2076→            {/* ============================================================ */}
+  2077→            <TabsContent value="usuarios" className="mt-0 flex-1 lg:ml-6">
+  2078→              <div className="space-y-6">
+  2079→                <div>
+  2080→                  <h2 className="text-lg font-semibold text-white">Gestión de Usuarios</h2>
+  2081→                  <p className="text-xs text-white/40">Administra los usuarios registrados en la plataforma</p>
+  2082→                </div>
+  2083→
+  2084→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  2085→                  <CardContent className="p-0">
+  2086→                    {loadingUsers ? (
+  2087→                      <TableSkeleton rows={6} cols={8} />
+  2088→                    ) : users.length > 0 ? (
+  2089→                      <div className="overflow-x-auto">
+  2090→                        <Table>
+  2091→                          <TableHeader>
+  2092→                            <TableRow className="border-white/5 hover:bg-transparent">
+  2093→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+  2094→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Usuario</TableHead>
+  2095→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Email</TableHead>
+  2096→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Rol</TableHead>
+  2097→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  2098→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Créditos</TableHead>
+  2099→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Docs</TableHead>
+  2100→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 xl:table-cell">Último acceso</TableHead>
+  2101→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  2102→                            </TableRow>
+  2103→                          </TableHeader>
+  2104→                          <TableBody className="divide-y divide-white/5">
+  2105→                            {users.map((u) => (
+  2106→                              <TableRow key={u.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+  2107→                                <TableCell className="font-medium text-white/80">{u.name}</TableCell>
+  2108→                                <TableCell className="hidden text-white/40 md:table-cell">@{u.username}</TableCell>
+  2109→                                <TableCell className="hidden max-w-[200px] truncate text-white/40 lg:table-cell">{u.email}</TableCell>
+  2110→                                <TableCell>
+  2111→                                  <DropdownMenu>
+  2112→                                    <DropdownMenuTrigger asChild>
+  2113→                                      <button className="cursor-pointer">
+  2114→                                        <Badge variant="outline" className={`${ROLE_BADGE_CONFIG[u.role] || 'bg-gray-500/15 text-gray-400 border-gray-500/25'} hover:${ROLE_BADGE_CONFIG[u.role] || ''}`}>
+  2115→                                          {u.role}
+  2116→                                        </Badge>
+  2117→                                      </button>
+  2118→                                    </DropdownMenuTrigger>
+  2119→                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+  2120→                                      {['admin', 'user', 'editor'].map((role) => (
+  2121→                                        <DropdownMenuItem
+  2122→                                          key={role}
+  2123→                                          onClick={() => handleChangeUserRole(u.id, role)}
+  2124→                                          disabled={role === u.role}
+  2125→                                          className="capitalize focus:bg-white/5 focus:text-white"
+  2126→                                        >
+  2127→                                          {role}
+  2128→                                        </DropdownMenuItem>
+  2129→                                      ))}
+  2130→                                    </DropdownMenuContent>
+  2131→                                  </DropdownMenu>
+  2132→                                </TableCell>
+  2133→                                <TableCell>
+  2134→                                  <StatusBadge status={u.status} config={USER_STATUS_CONFIG} />
+  2135→                                </TableCell>
+  2136→                                <TableCell className="hidden text-white/40 sm:table-cell"><span className="font-semibold text-[#C9A94E]">{u.credits}</span></TableCell>
+  2137→                                <TableCell className="hidden text-right text-white/40 lg:table-cell">{u.documentCount}</TableCell>
+  2138→                                <TableCell className="hidden text-right text-white/40 xl:table-cell">{u.lastAccess ? formatDate(u.lastAccess) : '—'}</TableCell>
+  2139→                                <TableCell className="text-right">
+  2140→                                  <DropdownMenu>
+  2141→                                    <DropdownMenuTrigger asChild>
+  2142→                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/5">
+  2143→                                        <MoreVertical className="h-4 w-4" />
+  2144→                                      </Button>
+  2145→                                    </DropdownMenuTrigger>
+  2146→                                    <DropdownMenuContent align="end" className="border-white/10 bg-[#0F1D32] text-white">
+  2147→                                      {u.status === 'active' ? (
+  2148→                                        <DropdownMenuItem
+  2149→                                          onClick={() => handleUpdateUserStatus(u.id, 'suspended')}
+  2150→                                          className="focus:bg-red-500/10 focus:text-red-400"
+  2151→                                        >
+  2152→                                          <X className="mr-2 h-4 w-4" />
+  2153→                                          Suspender
+  2154→                                        </DropdownMenuItem>
+  2155→                                      ) : (
+  2156→                                        <DropdownMenuItem
+  2157→                                          onClick={() => handleUpdateUserStatus(u.id, 'active')}
+  2158→                                          className="focus:bg-green-500/10 focus:text-green-400"
+  2159→                                        >
+  2160→                                          <Check className="mr-2 h-4 w-4" />
+  2161→                                          Activar
+  2162→                                        </DropdownMenuItem>
+  2163→                                      )}
+  2164→                                    </DropdownMenuContent>
+  2165→                                  </DropdownMenu>
+  2166→                                </TableCell>
+  2167→                              </TableRow>
+  2168→                            ))}
+  2169→                          </TableBody>
+  2170→                        </Table>
+  2171→                      </div>
+  2172→                    ) : (
+  2173→                      <EmptyState icon={Users} message="No hay usuarios registrados" />
+  2174→                    )}
+  2175→                  </CardContent>
+  2176→                </Card>
+  2177→              </div>
+  2178→            </TabsContent>
+  2179→
+  2180→            {/* ============================================================ */}
+  2181→            {/*  5. SOLICITUDES DE NUEVOS DOCUMENTOS                         */}
+  2182→            {/* ============================================================ */}
+  2183→            <TabsContent value="solicitudes" className="mt-0 flex-1 lg:ml-6">
+  2184→              <div className="space-y-6">
+  2185→                <div>
+  2186→                  <h2 className="text-lg font-semibold text-white">Solicitudes de Nuevos Documentos</h2>
+  2187→                  <p className="text-xs text-white/40">Revisa y gestiona las solicitudes de la comunidad</p>
+  2188→                </div>
+  2189→
+  2190→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  2191→                  <CardContent className="p-0">
+  2192→                    {loadingRequests ? (
+  2193→                      <TableSkeleton rows={5} cols={5} />
+  2194→                    ) : requests.length > 0 ? (
+  2195→                      <div className="overflow-x-auto">
+  2196→                        <Table>
+  2197→                          <TableHeader>
+  2198→                            <TableRow className="border-white/5 hover:bg-transparent">
+  2199→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Título</TableHead>
+  2200→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Descripción</TableHead>
+  2201→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Usuario</TableHead>
+  2202→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+  2203→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  2204→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  2205→                            </TableRow>
+  2206→                          </TableHeader>
+  2207→                          <TableBody className="divide-y divide-white/5">
+  2208→                            {requests.map((req) => (
+  2209→                              <TableRow key={req.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+  2210→                                <TableCell className="max-w-[180px] truncate font-medium text-white/80">{req.title}</TableCell>
+  2211→                                <TableCell className="hidden max-w-[250px] truncate text-white/40 md:table-cell">{req.description}</TableCell>
+  2212→                                <TableCell className="hidden text-white/40 lg:table-cell">{req.user}</TableCell>
+  2213→                                <TableCell className="whitespace-nowrap text-white/40">{formatDate(req.date)}</TableCell>
+  2214→                                <TableCell>
+  2215→                                  <StatusBadge status={req.status} config={REQUEST_STATUS_CONFIG} />
+  2216→                                </TableCell>
+  2217→                                <TableCell className="text-right">
+  2218→                                  {req.status === 'pendiente' ? (
+  2219→                                    <div className="flex items-center justify-end gap-1">
+  2220→                                      <Button
+  2221→                                        variant="ghost"
+  2222→                                        size="sm"
+  2223→                                        className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+  2224→                                        onClick={() => handleRequestAction(req.id, 'aprobada')}
+  2225→                                      >
+  2226→                                        <Check className="mr-1 h-3 w-3" />
+  2227→                                        Aprobar
+  2228→                                      </Button>
+  2229→                                      <Button
+  2230→                                        variant="ghost"
+  2231→                                        size="sm"
+  2232→                                        className="h-7 text-xs text-red-400 hover:bg-red-400/10"
+  2233→                                        onClick={() => handleRequestAction(req.id, 'rechazada')}
+  2234→                                      >
+  2235→                                        <X className="mr-1 h-3 w-3" />
+  2236→                                        Rechazar
+  2237→                                      </Button>
+  2238→                                      <Button
+  2239→                                        variant="ghost"
+  2240→                                        size="sm"
+  2241→                                        className="h-7 text-xs text-blue-400 hover:bg-blue-400/10"
+  2242→                                        onClick={() => { setRequestNotesId(req.id); setRequestNotes('') }}
+  2243→                                      >
+  2244→                                        <AlertCircle className="mr-1 h-3 w-3" />
+  2245→                                        En desarrollo
+  2246→                                      </Button>
+  2247→                                    </div>
+  2248→                                  ) : (
+  2249→                                    <span className="text-xs text-white/20">—</span>
+  2250→                                  )}
+  2251→                                </TableCell>
+  2252→                              </TableRow>
+  2253→                            ))}
+  2254→                          </TableBody>
+  2255→                        </Table>
+  2256→                      </div>
+  2257→                    ) : (
+  2258→                      <EmptyState icon={MessageSquare} message="No hay solicitudes pendientes" />
+  2259→                    )}
+  2260→                  </CardContent>
+  2261→                </Card>
+  2262→
+  2263→                {/* Visitor completed documents */}
+  2264→                <div className="pt-2">
+  2265→                  <h3 className="text-base font-semibold text-white mb-1">Documentos de Visitantes</h3>
+  2266→                  <p className="text-xs text-white/40 mb-4">Documentos generados por usuarios no registrados</p>
+  2267→                  <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  2268→                    <CardContent className="p-0">
+  2269→                      {loadingVisitorDocs ? (
+  2270→                        <TableSkeleton rows={3} cols={5} />
+  2271→                      ) : visitorDocs.length > 0 ? (
+  2272→                      <div className="overflow-x-auto">
+  2273→                        <Table>
+  2274→                          <TableHeader>
+  2275→                            <TableRow className="border-white/5 hover:bg-transparent">
+  2276→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Documento</TableHead>
+  2277→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Nombre</TableHead>
+  2278→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Teléfono</TableHead>
+  2279→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+  2280→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  2281→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Descargar</TableHead>
+  2282→                            </TableRow>
+  2283→                          </TableHeader>
+  2284→                          <TableBody className="divide-y divide-white/5">
+  2285→                            {visitorDocs.map((doc) => (
+  2286→                              <TableRow key={doc.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+  2287→                                <TableCell className="max-w-[200px] truncate font-medium text-white/80">{doc.title}</TableCell>
+  2288→                                <TableCell className="hidden text-white/40 sm:table-cell">{doc.visitorName || '—'}</TableCell>
+  2289→                                <TableCell className="hidden text-white/40 md:table-cell">{doc.visitorPhone || '—'}</TableCell>
+  2290→                                <TableCell className="whitespace-nowrap text-white/40">{formatDate(doc.createdAt)}</TableCell>
+  2291→                                <TableCell>
+  2292→                                  <Badge className="bg-green-500/15 text-green-400 border-0 text-[10px]">Completado</Badge>
+  2293→                                </TableCell>
+  2294→                                <TableCell className="text-right">
+  2295→                                  <div className="flex items-center justify-end gap-1">
+  2296→                                    <Button
+  2297→                                      variant="ghost"
+  2298→                                      size="sm"
+  2299→                                      className="h-7 text-xs text-blue-400 hover:bg-blue-400/10"
+  2300→                                      onClick={() => handleExportVisitor(doc.id, 'pdf')}
+  2301→                                    >
+  2302→                                      <Download className="mr-1 h-3 w-3" />
+  2303→                                      PDF
+  2304→                                    </Button>
+  2305→                                    <Button
+  2306→                                      variant="ghost"
+  2307→                                      size="sm"
+  2308→                                      className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+  2309→                                      onClick={() => handleExportVisitor(doc.id, 'docx')}
+  2310→                                    >
+  2311→                                      <Download className="mr-1 h-3 w-3" />
+  2312→                                      DOCX
+  2313→                                    </Button>
+  2314→                                  </div>
+  2315→                                </TableCell>
+  2316→                              </TableRow>
+  2317→                            ))}
+  2318→                          </TableBody>
+  2319→                        </Table>
+  2320→                      </div>
+  2321→                    ) : (
+  2322→                      <div className="flex flex-col items-center justify-center py-10 text-center">
+  2323→                        <FileText className="h-8 w-8 text-white/10 mb-2" />
+  2324→                        <p className="text-sm text-white/30">No hay documentos de visitantes</p>
+  2325→                      </div>
+  2326→                    )}
+  2327→                    </CardContent>
+  2328→                  </Card>
+  2329→                </div>
+  2330→              </div>
+  2331→
+  2332→              {/* Notes Dialog for "En desarrollo" */}
+  2333→              <Dialog open={!!requestNotesId} onOpenChange={(open) => { if (!open) setRequestNotesId(null) }}>
+  2334→                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-md">
+  2335→                  <DialogHeader>
+  2336→                    <DialogTitle className="text-white">Marcar como En Desarrollo</DialogTitle>
+  2337→                  </DialogHeader>
+  2338→                  <div className="grid gap-4 py-4">
+  2339→                    <div className="grid gap-2">
+  2340→                      <Label className="text-white/70">Notas (opcional)</Label>
+  2341→                      <Textarea
+  2342→                        value={requestNotes}
+  2343→                        onChange={(e) => setRequestNotes(e.target.value)}
+  2344→                        placeholder="Agrega notas sobre el progreso..."
+  2345→                        rows={4}
+  2346→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  2347→                      />
+  2348→                    </div>
+  2349→                  </div>
+  2350→                  <DialogFooter>
+  2351→                    <Button
+  2352→                      variant="ghost"
+  2353→                      onClick={() => setRequestNotesId(null)}
+  2354→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  2355→                    >
+  2356→                      Cancelar
+  2357→                    </Button>
+  2358→                    <Button
+  2359→                      onClick={() => requestNotesId && handleRequestAction(requestNotesId, 'en_desarrollo', requestNotes)}
+  2360→                      className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+  2361→                    >
+  2362→                      Confirmar
+  2363→                    </Button>
+  2364→                  </DialogFooter>
+  2365→                </DialogContent>
+  2366→              </Dialog>
+  2367→            </TabsContent>
+  2368→
+  2369→            {/* ============================================================ */}
+  2370→            {/*  6. GESTION DE CREDITOS                                     */}
+  2371→            {/* ============================================================ */}
+  2372→            <TabsContent value="precios" className="mt-0 flex-1 lg:ml-6">
+  2373→              <div className="space-y-6">
+  2374→                <div>
+  2375→                  <h2 className="text-lg font-semibold text-white">Gestión de Créditos</h2>
+  2376→                  <p className="text-xs text-white/40">Administra los créditos de los usuarios. Cada crédito equivale a un documento.</p>
+  2377→                </div>
+  2378→
+  2379→                {loadingCreditUsers ? (
+  2380→                  <TableSkeleton rows={4} cols={5} />
+  2381→                ) : creditUsers.length > 0 ? (
+  2382→                  <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  2383→                    <CardContent className="p-0">
+  2384→                      <div className="overflow-x-auto">
+  2385→                        <Table>
+  2386→                          <TableHeader>
+  2387→                            <TableRow className="border-white/5 hover:bg-transparent">
+  2388→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Usuario</TableHead>
+  2389→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Email</TableHead>
+  2390→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  2391→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30 text-center">Créditos</TableHead>
+  2392→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  2393→                            </TableRow>
+  2394→                          </TableHeader>
+  2395→                          <TableBody className="divide-y divide-white/5">
+  2396→                            {creditUsers.map((cu) => (
+  2397→                              <TableRow key={cu.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+  2398→                                <TableCell>
+  2399→                                  <div>
+  2400→                                    <p className="text-sm font-medium text-white/90">{cu.name}</p>
+  2401→                                    <p className="text-xs text-white/40">@{cu.username}</p>
+  2402→                                  </div>
+  2403→                                </TableCell>
+  2404→                                <TableCell className="hidden text-white/40 text-sm md:table-cell">{cu.email || '—'}</TableCell>
+  2405→                                <TableCell>
+  2406→                                  <Badge className={cu.status === 'active' ? 'bg-green-500/15 text-green-400 border-green-500/25' : 'bg-red-500/15 text-red-400 border-red-500/25'} variant="outline">
+  2407→                                    {cu.status === 'active' ? 'Activo' : 'Suspendido'}
+  2408→                                  </Badge>
+  2409→                                </TableCell>
+  2410→                                <TableCell className="text-center">
+  2411→                                  <span className={`text-lg font-bold ${cu.credits > 5 ? 'text-[#C9A94E]' : cu.credits > 0 ? 'text-amber-400' : 'text-red-400'}`}>{cu.credits}</span>
+  2412→                                </TableCell>
+  2413→                                <TableCell className="text-right">
+  2414→                                  <div className="flex items-center justify-end gap-1">
+  2415→                                    <Button
+  2416→                                      variant="ghost"
+  2417→                                      size="sm"
+  2418→                                      className="h-7 text-xs text-green-400 hover:bg-green-400/10"
+  2419→                                      onClick={() => handleOpenCreditDialog(cu)}
+  2420→                                    >
+  2421→                                      <Plus className="mr-1 h-3 w-3" />
+  2422→                                      Agregar
+  2423→                                    </Button>
+  2424→                                    <Button
+  2425→                                      variant="ghost"
+  2426→                                      size="sm"
+  2427→                                      className="h-7 text-xs text-blue-400 hover:bg-blue-400/10"
+  2428→                                      onClick={() => handleViewCreditHistory(cu)}
+  2429→                                    >
+  2430→                                      <Eye className="mr-1 h-3 w-3" />
+  2431→                                      Historial
+  2432→                                    </Button>
+  2433→                                  </div>
+  2434→                                </TableCell>
+  2435→                              </TableRow>
+  2436→                            ))}
+  2437→                          </TableBody>
+  2438→                        </Table>
+  2439→                      </div>
+  2440→                    </CardContent>
+  2441→                  </Card>
+  2442→                ) : (
+  2443→                  <EmptyState icon={Coins} message="No hay usuarios registrados" />
+  2444→                )}
+  2445→
+  2446→                {selectedCreditUser && (
+  2447→                  <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  2448→                    <CardHeader className="pb-3">
+  2449→                      <div className="flex items-center justify-between">
+  2450→                        <CardTitle className="text-base font-semibold text-white">
+  2451→                          Historial de {selectedCreditUser.name}
+  2452→                        </CardTitle>
+  2453→                        <button onClick={() => setSelectedCreditUser(null)} className="text-white/30 hover:text-white/60">
+  2454→                          <X className="h-4 w-4" />
+  2455→                        </button>
+  2456→                      </div>
+  2457→                    </CardHeader>
+  2458→                    <CardContent className="p-0">
+  2459→                      {loadingCreditTx ? (
+  2460→                        <TableSkeleton rows={3} cols={4} />
+  2461→                      ) : creditTransactions.length > 0 ? (
+  2462→                        <div className="overflow-x-auto">
+  2463→                          <Table>
+  2464→                            <TableHeader>
+  2465→                              <TableRow className="border-white/5 hover:bg-transparent">
+  2466→                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Fecha</TableHead>
+  2467→                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Descripción</TableHead>
+  2468→                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30 text-center">Tipo</TableHead>
+  2469→                                <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30 text-right">Cantidad</TableHead>
+  2470→                              </TableRow>
+  2471→                            </TableHeader>
+  2472→                            <TableBody className="divide-y divide-white/5">
+  2473→                              {creditTransactions.map((tx) => (
+  2474→                                <TableRow key={tx.id} className="border-white/5 transition-colors hover:bg-white/[0.02]">
+  2475→                                  <TableCell className="text-white/40 text-sm">{formatDate(tx.createdAt)}</TableCell>
+  2476→                                  <TableCell className="text-white/80 text-sm">{tx.description || tx.type}</TableCell>
+  2477→                                  <TableCell className="text-center">
+  2478→                                    <Badge variant="outline" className={tx.type === 'admin_grant' ? 'bg-green-500/15 text-green-400 border-green-500/25' : 'bg-red-500/15 text-red-400 border-red-500/25'}>
+  2479→                                      {tx.type === 'admin_grant' ? 'Recarga' : 'Uso'}
+  2480→                                    </Badge>
+  2481→                                  </TableCell>
+  2482→                                  <TableCell className={`text-right font-mono font-semibold ${tx.amount > 0 ? 'text-green-400' : 'text-red-400'}`}>
+  2483→                                    {tx.amount > 0 ? '+' : ''}{tx.amount}
+  2484→                                  </TableCell>
+  2485→                                </TableRow>
+  2486→                              ))}
+  2487→                            </TableBody>
+  2488→                          </Table>
+  2489→                        </div>
+  2490→                      ) : (
+  2491→                        <div className="flex flex-col items-center justify-center py-10 text-center">
+  2492→                          <Coins className="h-8 w-8 text-white/10 mb-2" />
+  2493→                          <p className="text-sm text-white/30">Sin movimientos</p>
+  2494→                        </div>
+  2495→                      )}
+  2496→                    </CardContent>
+  2497→                  </Card>
+  2498→                )}
+  2499→              </div>
+  2500→
+  2501→              <Dialog open={creditDialogOpen} onOpenChange={setCreditDialogOpen}>
+  2502→                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-md">
+  2503→                  <DialogHeader>
+  2504→                    <DialogTitle className="text-white flex items-center gap-2">
+  2505→                      <Coins className="h-5 w-5 text-[#C9A94E]" />
+  2506→                      Agregar Créditos
+  2507→                    </DialogTitle>
+  2508→                  </DialogHeader>
+  2509→                  <div className="grid gap-4 py-4">
+  2510→                    <div className="rounded-lg bg-white/5 p-3 border border-white/10">
+  2511→                      <p className="text-sm text-white/70">Usuario:</p>
+  2512→                      <p className="text-base font-semibold text-white">{selectedCreditUser?.name} <span className="text-white/40 font-normal">(@{selectedCreditUser?.username})</span></p>
+  2513→                      <p className="text-xs text-white/40 mt-1">Saldo actual: <span className="font-semibold text-[#C9A94E]">{selectedCreditUser?.credits}</span> crédito{selectedCreditUser?.credits !== 1 ? 's' : ''}</p>
+  2514→                    </div>
+  2515→                    <div className="grid gap-2">
+  2516→                      <Label className="text-white/70">Cantidad de créditos *</Label>
+  2517→                      <Input type="number" min="1" value={addCreditsAmount} onChange={(e) => setAddCreditsAmount(e.target.value)} placeholder="Ej: 10" className="border-white/10 bg-white/5 text-white placeholder:text-white/30" />
+  2518→                    </div>
+  2519→                    <div className="grid gap-2">
+  2520→                      <Label className="text-white/70">Nota / Descripción (opcional)</Label>
+  2521→                      <Input value={addCreditsDesc} onChange={(e) => setAddCreditsDesc(e.target.value)} placeholder="Ej: Recarga mensual" className="border-white/10 bg-white/5 text-white placeholder:text-white/30" />
+  2522→                    </div>
+  2523→                  </div>
+  2524→                  <DialogFooter className="gap-2 sm:gap-0">
+  2525→                    <Button variant="ghost" onClick={() => setCreditDialogOpen(false)} className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</Button>
+  2526→                    <Button onClick={handleAddCredits} disabled={addingCredits} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965] font-semibold min-w-[120px]">
+  2527→                      {addingCredits ? (
+  2528→                        <span className="flex items-center gap-2"><span className="animate-spin rounded-full h-4 w-4 border-2 border-[#0A1628] border-t-transparent" />Procesando…</span>
+  2529→                      ) : 'Agregar'}
+  2530→                    </Button>
+  2531→                  </DialogFooter>
+  2532→                </DialogContent>
+  2533→              </Dialog>
+  2534→            </TabsContent>
+  2535→
+  2536→            {/* 7. TERMINOS Y CONDICIONES */}
+  2537→            <TabsContent value="terminos" className="mt-0 flex-1 lg:ml-6">
+  2538→              <InlineTerms />
+  2539→            </TabsContent>
+  2540→            <TabsContent value="publicaciones" className="mt-0 flex-1 lg:ml-6">
+  2541→              <div className="space-y-4">
+  2542→                <div className="flex items-center justify-between">
+  2543→                  <div>
+  2544→                    <h3 className="text-lg font-semibold text-white">Publicaciones</h3>
+  2545→                    <p className="text-sm text-white/50">Gestiona las publicaciones que se muestran en el panel lateral de los visitantes.</p>
+  2546→                  </div>
+  2547→                  <Button onClick={() => handleOpenPubDialog()} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#C9A94E]/90">
+  2548→                    <Plus className="h-4 w-4 mr-1.5" /> Nueva publicacion
+  2549→                  </Button>
+  2550→                </div>
+  2551→
+  2552→                <Card className="bg-[#0F1D32] border-white/5">
+  2553→                  <CardContent className="p-0">
+  2554→                    {loadingPubs ? (
+  2555→                      <div className="p-8 text-center text-white/40">Cargando...</div>
+  2556→                    ) : publications.length === 0 ? (
+  2557→                      <div className="p-8 text-center text-white/40">No hay publicaciones. Crea una para que aparezca en el panel lateral.</div>
+  2558→                    ) : (
+  2559→                      <Table>
+  2560→                        <TableHeader>
+  2561→                          <TableRow className="border-white/5 hover:bg-transparent">
+  2562→                            <TableHead className="text-white/50 text-xs">Imagen</TableHead>
+  2563→                            <TableHead className="text-white/50 text-xs">Titulo</TableHead>
+  2564→                            <TableHead className="text-white/50 text-xs hidden md:table-cell">Descripcion</TableHead>
+  2565→                            <TableHead className="text-white/50 text-xs">Orden</TableHead>
+  2566→                            <TableHead className="text-white/50 text-xs">Estado</TableHead>
+  2567→                            <TableHead className="text-white/50 text-xs text-right">Acciones</TableHead>
+  2568→                          </TableRow>
+  2569→                        </TableHeader>
+  2570→                        <TableBody>
+  2571→                          {publications.map((pub) => (
+  2572→                            <TableRow key={pub.id} className="border-white/5 hover:bg-white/[0.02]">
+  2573→                              <TableCell>
+  2574→                                {pub.imageUrl ? (
+  2575→                                  // eslint-disable-next-line @next/next/no-img-element
+  2576→                                  <img src={pub.imageUrl} alt="" className="w-12 h-8 rounded object-cover border border-white/10" />
+  2577→                                ) : (
+  2578→                                  <div className="w-12 h-8 rounded bg-white/5 border border-white/10 flex items-center justify-center">
+  2579→                                    <ImageOff className="h-3 w-3 text-white/20" />
+  2580→                                  </div>
+  2581→                                )}
+  2582→                              </TableCell>
+  2583→                              <TableCell className="text-white font-medium text-sm">{pub.title}</TableCell>
+  2584→                              <TableCell className="text-white/50 text-xs hidden md:table-cell max-w-[200px] truncate">{pub.description}</TableCell>
+  2585→                              <TableCell className="text-white/40 text-xs">{pub.order}</TableCell>
+  2586→                              <TableCell>
+  2587→                                <button
+  2588→                                  onClick={() => handleTogglePubActive(pub)}
+  2589→                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${pub.active ? 'bg-[#28A745]/15 text-[#28A745]' : 'bg-white/5 text-white/30'}`}
+  2590→                                >
+  2591→                                  {pub.active ? 'Activa' : 'Inactiva'}
+  2592→                                </button>
+  2593→                              </TableCell>
+  2594→                              <TableCell className="text-right">
+  2595→                                <div className="flex items-center justify-end gap-1">
+  2596→                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white/40 hover:text-white hover:bg-white/5" onClick={() => handleOpenPubDialog(pub)}>
+  2597→                                    <Edit className="h-3.5 w-3.5" />
+  2598→                                  </Button>
+  2599→                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400/60 hover:text-red-400 hover:bg-red-400/10" onClick={() => setDeletingPubId(pub.id)}>
+  2600→                                    <Trash2 className="h-3.5 w-3.5" />
+  2601→                                  </Button>
+  2602→                                </div>
+  2603→                              </TableCell>
+  2604→                            </TableRow>
+  2605→                          ))}
+  2606→                        </TableBody>
+  2607→                      </Table>
+  2608→                    )}
+  2609→                  </CardContent>
+  2610→                </Card>
+  2611→              </div>
+  2612→
+  2613→              {/* Create/Edit Dialog */}
+  2614→              <Dialog open={pubDialogOpen} onOpenChange={setPubDialogOpen}>
+  2615→                <DialogContent className="bg-[#0F1D32] border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+  2616→                  <DialogHeader>
+  2617→                    <DialogTitle>{editingPub ? 'Editar publicacion' : 'Nueva publicacion'}</DialogTitle>
+  2618→                  </DialogHeader>
+  2619→                  <div className="space-y-4 mt-2">
+  2620→                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  2621→                      <div className="space-y-2">
+  2622→                        <Label className="text-white/70 text-xs">Titulo *</Label>
+  2623→                        <Input value={pubForm.title} onChange={(e) => setPubForm({ ...pubForm, title: e.target.value })} placeholder="Titulo de la publicacion" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+  2624→                      </div>
+  2625→                      <div className="space-y-2">
+  2626→                        <Label className="text-white/70 text-xs">URL de imagen (opcional)</Label>
+  2627→                        <Input value={pubForm.imageUrl} onChange={(e) => setPubForm({ ...pubForm, imageUrl: e.target.value })} placeholder="https://ejemplo.com/imagen.jpg" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+  2628→                      </div>
+  2629→                    </div>
+  2630→                    <div className="space-y-2">
+  2631→                      <Label className="text-white/70 text-xs">Descripcion *</Label>
+  2632→                      <Textarea value={pubForm.description} onChange={(e) => setPubForm({ ...pubForm, description: e.target.value })} placeholder="Breve descripcion que se muestra en el panel lateral..." rows={2} className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+  2633→                    </div>
+  2634→                    <div className="space-y-2">
+  2635→                      <Label className="text-white/70 text-xs">Contenido completo (HTML - soporta enlaces y tablas)</Label>
+  2636→                      <Textarea
+  2637→                        value={pubForm.content}
+  2638→                        onChange={(e) => setPubForm({ ...pubForm, content: e.target.value })}
+  2639→                        placeholder={"Texto, enlaces y tablas en formato HTML..."}
+  2640→                        rows={10}
+  2641→                        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 font-mono text-xs"
+  2642→                      />
+  2643→                      <p className="text-[10px] text-white/30">Puedes usar etiquetas HTML como a, table, tr, th, td, p, strong, em, ul, li, img</p>
+  2644→                    </div>
+  2645→                    <div className="flex items-center gap-3">
+  2646→                      <button
+  2647→                        type="button"
+  2648→                        onClick={() => setPubForm({ ...pubForm, active: !pubForm.active })}
+  2649→                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${pubForm.active ? 'bg-[#28A745]' : 'bg-white/10'}`}
+  2650→                      >
+  2651→                        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${pubForm.active ? 'translate-x-4' : 'translate-x-1'}`} />
+  2652→                      </button>
+  2653→                      <Label className="text-white/70 text-xs">Publicacion activa</Label>
+  2654→                    </div>
+  2655→                  </div>
+  2656→                  <DialogFooter className="mt-4">
+  2657→                    <Button variant="ghost" onClick={() => setPubDialogOpen(false)} className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</Button>
+  2658→                    <Button onClick={handleSavePub} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#C9A94E]/90">
+  2659→                      {editingPub ? 'Guardar cambios' : 'Crear publicacion'}
+  2660→                    </Button>
+  2661→                  </DialogFooter>
+  2662→                </DialogContent>
+  2663→              </Dialog>
+  2664→
+  2665→              {/* Delete Confirmation */}
+  2666→              <AlertDialog open={!!deletingPubId} onOpenChange={(open) => !open && setDeletingPubId(null)}>
+  2667→                <AlertDialogContent className="bg-[#0F1D32] border-white/10">
+  2668→                  <AlertDialogHeader>
+  2669→                    <AlertDialogTitle className="text-white">Eliminar publicacion</AlertDialogTitle>
+  2670→                    <AlertDialogDescription className="text-white/50">Esta accion no se puede deshacer. La publicacion sera eliminada permanentemente.</AlertDialogDescription>
+  2671→                  </AlertDialogHeader>
+  2672→                  <AlertDialogFooter>
+  2673→                    <AlertDialogCancel className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</AlertDialogCancel>
+  2674→                    <AlertDialogAction onClick={() => deletingPubId && handleDeletePub(deletingPubId)} className="bg-red-500 text-white hover:bg-red-600">Eliminar</AlertDialogAction>
+  2675→                  </AlertDialogFooter>
+  2676→                </AlertDialogContent>
+  2677→              </AlertDialog>
+  2678→            </TabsContent>
+  2679→          </Tabs>
+  2680→        </div>
+  2681→      </div>
+  2682→    </main>
+  2683→  )
+  2684→}

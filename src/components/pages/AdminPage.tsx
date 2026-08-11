@@ -34,6 +34,8 @@ import {
   ToggleLeft,
   Newspaper,
   ImageOff,
+  Brain,
+  ImageIcon,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -73,6 +75,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import { useAppStore, type Page } from '@/store/app-store'
+import dynamic from 'next/dynamic'
+
+const TinyMCEEditor = dynamic(() => import('@/components/ui/tinymce-editor'), { ssr: false })
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                    */
@@ -1082,6 +1087,91 @@ export default function AdminPage() {
   const [pubForm, setPubForm] = useState({ title: '', description: '', content: '', imageUrl: '', active: true })
   const [deletingPubId, setDeletingPubId] = useState<string | null>(null)
 
+  /* ---- Knowledge Base ---- */
+  interface KBItem {
+    id: string; title: string; content: string; category: string; active: boolean; createdAt: string
+  }
+  const [kbEntries, setKbEntries] = useState<KBItem[]>([])
+  const [loadingKB, setLoadingKB] = useState(false)
+  const [kbDialogOpen, setKbDialogOpen] = useState(false)
+  const [editingKB, setEditingKB] = useState<KBItem | null>(null)
+  const [kbForm, setKbForm] = useState({ title: '', content: '', category: 'general', active: true })
+  const [deletingKBId, setDeletingKBId] = useState<string | null>(null)
+
+  const KB_CATEGORIES = [
+    { value: 'general', label: 'General' },
+    { value: 'civil', label: 'Derecho Civil' },
+    { value: 'laboral', label: 'Derecho Laboral' },
+    { value: 'mercantil', label: 'Derecho Mercantil' },
+    { value: 'administrativo', label: 'Derecho Administrativo' },
+    { value: 'penal', label: 'Derecho Penal' },
+    { value: 'familia', label: 'Derecho de Familia' },
+    { value: 'inmobiliario', label: 'Derecho Inmobiliario' },
+    { value: 'procesal', label: 'Derecho Procesal' },
+  ]
+
+  const fetchKB = useCallback(async () => {
+    setLoadingKB(true)
+    try {
+      const res = await fetch('/api/admin/knowledge')
+      const data = await res.json()
+      setKbEntries(Array.isArray(data) ? data : [])
+    } catch { setKbEntries([]) }
+    finally { setLoadingKB(false) }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'conocimiento') fetchKB()
+  }, [activeTab, fetchKB])
+
+  const handleOpenKBDialog = (entry?: KBItem) => {
+    if (entry) {
+      setEditingKB(entry)
+      setKbForm({ title: entry.title, content: entry.content, category: entry.category || 'general', active: entry.active })
+    } else {
+      setEditingKB(null)
+      setKbForm({ title: '', content: '', category: 'general', active: true })
+    }
+    setKbDialogOpen(true)
+  }
+
+  const handleSaveKB = async () => {
+    if (!kbForm.title.trim() || !kbForm.content.trim()) {
+      toast.error('Titulo y contenido son requeridos')
+      return
+    }
+    try {
+      const method = editingKB ? 'PUT' : 'POST'
+      const body = { ...kbForm, ...(editingKB ? { id: editingKB.id } : {}) }
+      const res = await fetch('/api/admin/knowledge', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!res.ok) throw new Error()
+      toast.success(editingKB ? 'Entrada actualizada' : 'Entrada creada')
+      setKbDialogOpen(false)
+      fetchKB()
+    } catch { toast.error('Error al guardar entrada') }
+  }
+
+  const handleDeleteKB = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/knowledge?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast.success('Entrada eliminada')
+      fetchKB()
+    } catch { toast.error('Error al eliminar entrada') }
+    setDeletingKBId(null)
+  }
+
+  const handleToggleKBActive = async (entry: KBItem) => {
+    try {
+      await fetch('/api/admin/knowledge', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: entry.id, active: !entry.active }),
+      })
+      fetchKB()
+    } catch { toast.error('Error al cambiar estado') }
+  }
+
   const fetchPublications = useCallback(async () => {
     setLoadingPubs(true)
     try {
@@ -1435,6 +1525,7 @@ export default function AdminPage() {
     { value: 'precios', label: 'Créditos', icon: Coins },
     { value: 'terminos', label: 'Términos', icon: FileText },
     { value: 'publicaciones', label: 'Publicaciones', icon: Newspaper },
+    { value: 'conocimiento', label: 'Base de Conocimiento', icon: Brain },
   ]
 
   /* ========================================================================== */
@@ -1783,13 +1874,16 @@ export default function AdminPage() {
                     </div>
                     <div className="grid gap-2">
                       <Label className="text-white/70">Contenido Base</Label>
-                      <Textarea
-                        value={templateForm.baseContent}
-                        onChange={(e) => setTemplateForm((f) => ({ ...f, baseContent: e.target.value }))}
-                        placeholder="Contenido base de la plantilla con {{variables}}..."
-                        rows={8}
-                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
-                      />
+                      <div className="rounded-lg border border-white/10 overflow-hidden">
+                        <TinyMCEEditor
+                          value={templateForm.baseContent}
+                          onValueChange={(val) => setTemplateForm((f) => ({ ...f, baseContent: val }))}
+                          height={350}
+                          placeholder="Contenido base de la plantilla con {{variables}}..."
+                          darkMode={true}
+                          aiFeatures={true}
+                        />
+                      </div>
                     </div>
 
                     {/* ===== Wizard Config Editor ===== */}
@@ -2614,8 +2708,33 @@ export default function AdminPage() {
                         <Input value={pubForm.title} onChange={(e) => setPubForm({ ...pubForm, title: e.target.value })} placeholder="Titulo de la publicacion" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-white/70 text-xs">URL de imagen (opcional)</Label>
-                        <Input value={pubForm.imageUrl} onChange={(e) => setPubForm({ ...pubForm, imageUrl: e.target.value })} placeholder="https://ejemplo.com/imagen.jpg" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+                        <Label className="text-white/70 text-xs">Imagen (opcional)</Label>
+                        <div className="flex items-center gap-2">
+                          <label className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg border border-dashed border-white/20 bg-white/5 text-white/40 hover:text-white/60 hover:border-white/30 cursor-pointer transition-colors text-xs">
+                            <ImageIcon className="h-4 w-4" />
+                            {pubForm.imageUrl ? 'Cambiar imagen' : 'Subir imagen'}
+                            <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                              const file = e.target.files?.[0]
+                              if (!file) return
+                              const formData = new FormData()
+                              formData.append('file', file)
+                              try {
+                                const res = await fetch('/api/upload', { method: 'POST', body: formData })
+                                const data = await res.json()
+                                if (data.url) setPubForm((f) => ({ ...f, imageUrl: data.url }))
+                              } catch { toast.error('Error al subir imagen') }
+                            }} />
+                          </label>
+                          {pubForm.imageUrl && (
+                            <button onClick={() => setPubForm((f) => ({ ...f, imageUrl: '' }))} className="h-10 px-3 rounded-lg border border-white/10 bg-white/5 text-white/40 hover:text-red-400 text-xs">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        {pubForm.imageUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={pubForm.imageUrl} alt="Preview" className="mt-2 w-full h-24 rounded-lg object-cover border border-white/10" />
+                        )}
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -2623,15 +2742,17 @@ export default function AdminPage() {
                       <Textarea value={pubForm.description} onChange={(e) => setPubForm({ ...pubForm, description: e.target.value })} placeholder="Breve descripcion que se muestra en el panel lateral..." rows={2} className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-white/70 text-xs">Contenido completo (HTML - soporta enlaces y tablas)</Label>
-                      <Textarea
-                        value={pubForm.content}
-                        onChange={(e) => setPubForm({ ...pubForm, content: e.target.value })}
-                        placeholder={"Texto, enlaces y tablas en formato HTML..."}
-                        rows={10}
-                        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 font-mono text-xs"
-                      />
-                      <p className="text-[10px] text-white/30">Puedes usar etiquetas HTML como a, table, tr, th, td, p, strong, em, ul, li, img</p>
+                      <Label className="text-white/70 text-xs">Contenido completo</Label>
+                      <div className="rounded-lg border border-white/10 overflow-hidden">
+                        <TinyMCEEditor
+                          value={pubForm.content}
+                          onValueChange={(val) => setPubForm((f) => ({ ...f, content: val }))}
+                          height={350}
+                          placeholder="Escribe el contenido de la publicacion..."
+                          darkMode={true}
+                          imagesUploadUrl="/api/upload"
+                        />
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <button
@@ -2663,6 +2784,148 @@ export default function AdminPage() {
                   <AlertDialogFooter>
                     <AlertDialogCancel className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</AlertDialogCancel>
                     <AlertDialogAction onClick={() => deletingPubId && handleDeletePub(deletingPubId)} className="bg-red-500 text-white hover:bg-red-600">Eliminar</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </TabsContent>
+
+            {/* 9. BASE DE CONOCIMIENTO */}
+            <TabsContent value="conocimiento" className="mt-0 flex-1 lg:ml-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Base de Conocimiento</h3>
+                    <p className="text-sm text-white/50">Gestiona el conocimiento que alimenta el Asistente de IA. Las entradas activas se inyectan como contexto en las respuestas.</p>
+                  </div>
+                  <Button onClick={() => handleOpenKBDialog()} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#C9A94E]/90">
+                    <Plus className="h-4 w-4 mr-1.5" /> Nueva entrada
+                  </Button>
+                </div>
+
+                <Card className="bg-[#0F1D32] border-white/5">
+                  <CardContent className="p-0">
+                    {loadingKB ? (
+                      <div className="p-8 text-center text-white/40">Cargando...</div>
+                    ) : kbEntries.length === 0 ? (
+                      <div className="p-8 text-center text-white/40">No hay entradas. Crea una para enriquecer el conocimiento del asistente.</div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-white/5 hover:bg-transparent">
+                            <TableHead className="text-white/50 text-xs">Titulo</TableHead>
+                            <TableHead className="text-white/50 text-xs hidden md:table-cell">Categoria</TableHead>
+                            <TableHead className="text-white/50 text-xs hidden lg:table-cell">Contenido (resumen)</TableHead>
+                            <TableHead className="text-white/50 text-xs">Estado</TableHead>
+                            <TableHead className="text-white/50 text-xs text-right">Acciones</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {kbEntries.map((entry) => (
+                            <TableRow key={entry.id} className="border-white/5 hover:bg-white/[0.02]">
+                              <TableCell className="text-white font-medium text-sm">{entry.title}</TableCell>
+                              <TableCell className="text-white/50 text-xs hidden md:table-cell">
+                                <Badge variant="outline" className="border-white/10 bg-white/5 text-white/50 text-[10px]">
+                                  {KB_CATEGORIES.find((c) => c.value === entry.category)?.label || entry.category}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-white/40 text-xs hidden lg:table-cell max-w-[250px] truncate">{entry.content.replace(/<[^>]*>/g, '').slice(0, 80)}</TableCell>
+                              <TableCell>
+                                <button
+                                  onClick={() => handleToggleKBActive(entry)}
+                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${entry.active ? 'bg-[#28A745]/15 text-[#28A745]' : 'bg-white/5 text-white/30'}`}
+                                >
+                                  {entry.active ? 'Activa' : 'Inactiva'}
+                                </button>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white/40 hover:text-white hover:bg-white/5" onClick={() => handleOpenKBDialog(entry)}>
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400/60 hover:text-red-400 hover:bg-red-400/10" onClick={() => setDeletingKBId(entry.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Create/Edit Dialog */}
+              <Dialog open={kbDialogOpen} onOpenChange={setKbDialogOpen}>
+                <DialogContent className="bg-[#0F1D32] border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{editingKB ? 'Editar entrada' : 'Nueva entrada'}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-white/70 text-xs">Titulo *</Label>
+                        <Input value={kbForm.title} onChange={(e) => setKbForm({ ...kbForm, title: e.target.value })} placeholder="Ej: Formato de contratos de arrendamiento" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-white/70 text-xs">Categoria</Label>
+                        <Select value={kbForm.category} onValueChange={(val) => setKbForm({ ...kbForm, category: val })}>
+                          <SelectTrigger className="border-white/10 bg-white/5 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="border-white/10 bg-[#0F1D32]">
+                            {KB_CATEGORIES.map((cat) => (
+                              <SelectItem key={cat.value} value={cat.value} className="text-white focus:bg-white/5 focus:text-white">
+                                {cat.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-white/70 text-xs">Contenido *</Label>
+                      <div className="rounded-lg border border-white/10 overflow-hidden">
+                        <TinyMCEEditor
+                          value={kbForm.content}
+                          onValueChange={(val) => setKbForm({ ...kbForm, content: val })}
+                          height={400}
+                          placeholder="Escribe el conocimiento que el asistente usara como contexto..."
+                          darkMode={true}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setKbForm({ ...kbForm, active: !kbForm.active })}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${kbForm.active ? 'bg-[#28A745]' : 'bg-white/10'}`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${kbForm.active ? 'translate-x-4' : 'translate-x-1'}`} />
+                      </button>
+                      <Label className="text-white/70 text-xs">Entrada activa</Label>
+                    </div>
+                  </div>
+                  <DialogFooter className="mt-4">
+                    <Button variant="ghost" onClick={() => setKbDialogOpen(false)} className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</Button>
+                    <Button onClick={handleSaveKB} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#C9A94E]/90">
+                      {editingKB ? 'Guardar cambios' : 'Crear entrada'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Delete Confirmation */}
+              <AlertDialog open={!!deletingKBId} onOpenChange={(open) => !open && setDeletingKBId(null)}>
+                <AlertDialogContent className="bg-[#0F1D32] border-white/10">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white">Eliminar entrada</AlertDialogTitle>
+                    <AlertDialogDescription className="text-white/50">Esta accion no se puede deshacer. La entrada sera eliminada permanentemente.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => deletingKBId && handleDeleteKB(deletingKBId)} className="bg-red-500 text-white hover:bg-red-600">Eliminar</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
