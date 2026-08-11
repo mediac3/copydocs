@@ -230,15 +230,13 @@ async function generatePDF(content: string, title: string, headerContent: string
         const dims = headerImg.scale(1);
         let imgW = dims.width;
         let imgH = dims.height;
-        // Use admin-specified dimensions as reference, scale proportionally to fit
-        const targetW = headerImgData.width || 468;
-        const targetH = headerImgData.height || 60;
-        const scale = Math.min(usableWidth / imgW, targetH / imgH, 1);
-        imgW *= scale;
+        // Scale proportionally to full page width (edge-to-edge, no margins)
+        const scale = pageWidth / imgW;
+        imgW = pageWidth;
         imgH *= scale;
-        const imgX = margin.left + (usableWidth - imgW) / 2;
-        page.drawImage(headerImg, { x: imgX, y: y - imgH, width: imgW, height: imgH });
-        y -= imgH + 8;
+        // Draw flush to top edge (no top, left, or right spacing)
+        page.drawImage(headerImg, { x: 0, y: pageHeight - imgH, width: imgW, height: imgH });
+        y = pageHeight - imgH - 8;
       }
     } catch (e) {
       console.warn('Failed to embed header image:', e);
@@ -308,10 +306,12 @@ async function generatePDF(content: string, title: string, headerContent: string
         const dims = footerImgEmbedded.scale(1);
         let imgW = dims.width;
         let imgH = dims.height;
-        const targetH = footerImgData.height || 40;
-        const scale = Math.min(usableWidth / imgW, targetH / imgH, 1);
-        footerImgW = imgW * scale;
-        footerImgH = imgH * scale;
+        // Scale proportionally to full page width (edge-to-edge, no margins)
+        const scale = pageWidth / imgW;
+        imgW = pageWidth;
+        imgH *= scale;
+        footerImgW = imgW;
+        footerImgH = imgH;
       }
     } catch (e) {
       console.warn('Failed to embed footer image:', e);
@@ -322,8 +322,8 @@ async function generatePDF(content: string, title: string, headerContent: string
 
   for (const { page: p, num } of pageStarts) {
     if (footerImgEmbedded) {
-      const imgX = margin.left + (usableWidth - footerImgW) / 2;
-      p.drawImage(footerImgEmbedded, { x: imgX, y: margin.bottom - 20 - footerImgH, width: footerImgW, height: footerImgH });
+      // Draw flush to bottom-left corner (no bottom, left, or right spacing)
+      p.drawImage(footerImgEmbedded, { x: 0, y: 0, width: footerImgW, height: footerImgH });
     } else if (footerTxt) {
       const fw = font.widthOfTextAtSize(footerTxt, 7);
       const fx = margin.left + (usableWidth - fw) / 2;
@@ -344,7 +344,7 @@ async function generatePDF(content: string, title: string, headerContent: string
     const pnX = margin.left + (usableWidth - pnW) / 2;
     p.drawText(pnText, {
       x: pnX > margin.left ? pnX : margin.left,
-      y: margin.bottom - 22 - (footerImgEmbedded ? footerImgH : 0),
+      y: footerImgEmbedded ? footerImgH + 4 : margin.bottom - 22,
       size: 7,
       font,
       color: colorFooter,
