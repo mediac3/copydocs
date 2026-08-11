@@ -2713,21 +2713,20 @@ export default function AdminPage() {
                           <label className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg border border-dashed border-white/20 bg-white/5 text-white/40 hover:text-white/60 hover:border-white/30 cursor-pointer transition-colors text-xs">
                             <ImageIcon className="h-4 w-4" />
                             {pubForm.imageUrl ? 'Cambiar imagen' : 'Subir imagen'}
-                            <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                               const file = e.target.files?.[0]
                               if (!file) return
                               if (file.size > 5 * 1024 * 1024) { toast.error('La imagen no debe superar 5 MB'); return }
                               const formData = new FormData()
                               formData.append('file', file)
-                              try {
-                                const res = await fetch('/api/upload', { method: 'POST', body: formData })
-                                const data = await res.json()
-                                if (res.ok && data.url) {
-                                  setPubForm((f) => ({ ...f, imageUrl: data.url }))
-                                } else {
-                                  toast.error(data.error || 'Error al subir imagen')
-                                }
-                              } catch { toast.error('Error de conexion al subir imagen') }
+                              fetch('/api/upload', { method: 'POST', body: formData })
+                                .then(res => res.json())
+                                .then(data => { if (data.url) setPubForm(f => ({ ...f, imageUrl: data.url })) })
+                                .catch(() => {
+                                  const reader = new FileReader()
+                                  reader.onload = () => setPubForm(f => ({ ...f, imageUrl: reader.result as string }))
+                                  reader.readAsDataURL(file)
+                                })
                             }} />
                           </label>
                           {pubForm.imageUrl && (

@@ -304,21 +304,17 @@ export default function TinyMCEEditor({
         const data = await res.json()
         if (res.ok && data.url) {
           editor.chain().focus().setImage({ src: data.url }).run()
-        } else {
-          alert(data.error || 'Error al subir imagen')
+          return
         }
-      } catch {
-        alert('Error de conexion al subir imagen')
-      }
-    } else {
-      /* Base64 fallback */
-      const reader = new FileReader()
-      reader.onload = () => {
-        const dataUrl = reader.result as string
-        editor.chain().focus().setImage({ src: dataUrl }).run()
-      }
-      reader.readAsDataURL(file)
+      } catch { /* fall through to base64 */ }
     }
+    /* Base64 fallback — always works */
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      editor.chain().focus().setImage({ src: dataUrl }).run()
+    }
+    reader.readAsDataURL(file)
   }, [editor, imagesUploadUrl])
 
   /* ---- AI handler ---- */

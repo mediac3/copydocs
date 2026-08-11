@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server'
-import { writeFile } from 'fs/promises'
-import { join } from 'path'
+import { writeFile, mkdir, access } from 'fs/promises'
+import { join, extname } from 'path'
 import { randomUUID } from 'crypto'
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
 const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
-const UPLOAD_DIR = join(process.cwd(), 'uploads')
+
+function getUploadDir(): string {
+  return join(process.cwd(), 'uploads')
+}
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
@@ -24,16 +29,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'El archivo excede el limite de 5 MB' }, { status: 400 })
     }
 
-    const bytes = await file.arrayBuffer()
-    const ext = file.name.split('.').pop() || 'png'
-    const filename = `${randomUUID()}.${ext}`
-    const filepath = join(UPLOAD_DIR, filename)
+    const uploadDir = getUploadDir()
 
-    await writeFile(filepath, Buffer.from(bytes))
+    // Ensure uploads directory exists
+    await mkdir(uploadDir, { recursive: true })
+
+    // Verify directory is writable
+    await access(uploadDir, 2) // 2 = W_OK
+
+    const bytes = Buffer.from(await file.arrayBuffer())
+    const ext = (file.name && extname(file.name)) || '.png'
+    const filename = `${randomUUID()}${ext}`
+    const filepath = join(uploadDir, filename)
+
+    await writeFile(filepath, bytes)
 
     return NextResponse.json({ url: `/api/uploads/${filename}` })
   } catch (error) {
-    console.error('Upload error:', error)
-    return NextResponse.json({ error: 'Error al subir archivo' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('Upload error:', msg, error)
+    return NextResponse.json({ error: `Error al subir: ${msg}` }, { status: 500 })
   }
 }
