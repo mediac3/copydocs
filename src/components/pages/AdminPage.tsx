@@ -32,6 +32,8 @@ import {
   AlignLeft,
   List,
   ToggleLeft,
+  Newspaper,
+  ImageOff,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -812,6 +814,7 @@ const PAGE_TO_TAB: Record<string, string> = {
   'admin-requests': 'solicitudes',
   'admin-pricing': 'precios',
   'admin-terminos': 'terminos',
+  'admin-publications': 'publicaciones',
 }
 
 export default function AdminPage() {
@@ -829,7 +832,7 @@ export default function AdminPage() {
   // Update store page when tab changes
   const handleTabChange = (value: string) => {
     setActiveTab(value)
-    const pageMap: Record<string, string> = { resumen: 'admin', plantillas: 'admin-templates', clausulas: 'admin-clauses', usuarios: 'admin-users', solicitudes: 'admin-requests', precios: 'admin-pricing', terminos: 'admin-terminos' }
+    const pageMap: Record<string, string> = { resumen: 'admin', plantillas: 'admin-templates', clausulas: 'admin-clauses', usuarios: 'admin-users', solicitudes: 'admin-requests', precios: 'admin-pricing', terminos: 'admin-terminos', publicaciones: 'admin-publications' }
     const page = pageMap[value]
     if (page && page !== currentPage) setCurrentPage(page as Page)
   }
@@ -1066,6 +1069,81 @@ export default function AdminPage() {
   useEffect(() => {
     if (activeTab === 'precios') fetchCreditUsers()
   }, [activeTab, fetchCreditUsers])
+
+  /* ---- Publications state ---- */
+  interface PubItem {
+    id: string; title: string; description: string; content: string;
+    imageUrl: string | null; order: number; active: boolean; createdAt: string;
+  }
+  const [publications, setPublications] = useState<PubItem[]>([])
+  const [loadingPubs, setLoadingPubs] = useState(false)
+  const [pubDialogOpen, setPubDialogOpen] = useState(false)
+  const [editingPub, setEditingPub] = useState<PubItem | null>(null)
+  const [pubForm, setPubForm] = useState({ title: '', description: '', content: '', imageUrl: '', active: true })
+  const [deletingPubId, setDeletingPubId] = useState<string | null>(null)
+
+  const fetchPublications = useCallback(async () => {
+    setLoadingPubs(true)
+    try {
+      const res = await fetch('/api/admin/publications')
+      const data = await res.json()
+      setPublications(Array.isArray(data) ? data : [])
+    } catch { setPublications([]) }
+    finally { setLoadingPubs(false) }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'publicaciones') fetchPublications()
+  }, [activeTab, fetchPublications])
+
+  const handleOpenPubDialog = (pub?: PubItem) => {
+    if (pub) {
+      setEditingPub(pub)
+      setPubForm({ title: pub.title, description: pub.description, content: pub.content || '', imageUrl: pub.imageUrl || '', active: pub.active })
+    } else {
+      setEditingPub(null)
+      setPubForm({ title: '', description: '', content: '', imageUrl: '', active: true })
+    }
+    setPubDialogOpen(true)
+  }
+
+  const handleSavePub = async () => {
+    if (!pubForm.title.trim() || !pubForm.description.trim()) {
+      toast.error('Titulo y descripcion son requeridos')
+      return
+    }
+    try {
+      const url = editingPub ? '/api/admin/publications' : '/api/admin/publications'
+      const method = editingPub ? 'PUT' : 'POST'
+      const body = { ...pubForm, ...(editingPub ? { id: editingPub.id } : {}) }
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!res.ok) throw new Error()
+      toast.success(editingPub ? 'Publicacion actualizada' : 'Publicacion creada')
+      setPubDialogOpen(false)
+      fetchPublications()
+    } catch { toast.error('Error al guardar publicacion') }
+  }
+
+  const handleDeletePub = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/publications?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast.success('Publicacion eliminada')
+      fetchPublications()
+    } catch { toast.error('Error al eliminar publicacion') }
+    setDeletingPubId(null)
+  }
+
+  const handleTogglePubActive = async (pub: PubItem) => {
+    try {
+      await fetch('/api/admin/publications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: pub.id, active: !pub.active }),
+      })
+      fetchPublications()
+    } catch { toast.error('Error al cambiar estado') }
+  }
 
   /* ========================================================================== */
   /*  ACTION HANDLERS                                                           */
@@ -1356,6 +1434,7 @@ export default function AdminPage() {
     { value: 'solicitudes', label: 'Solicitudes', icon: MessageSquare },
     { value: 'precios', label: 'Créditos', icon: Coins },
     { value: 'terminos', label: 'Términos', icon: FileText },
+    { value: 'publicaciones', label: 'Publicaciones', icon: Newspaper },
   ]
 
   /* ========================================================================== */
@@ -2445,11 +2524,148 @@ export default function AdminPage() {
               </Dialog>
             </TabsContent>
 
-            {/* ============================================================ */}
-            {/*  7. TERMINOS Y CONDICIONES                                   */}
-            {/* ============================================================ */}
+            {/* 7. TERMINOS Y CONDICIONES */}
             <TabsContent value="terminos" className="mt-0 flex-1 lg:ml-6">
               <InlineTerms />
+            </TabsContent>
+            <TabsContent value="publicaciones" className="mt-0 flex-1 lg:ml-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Publicaciones</h3>
+                    <p className="text-sm text-white/50">Gestiona las publicaciones que se muestran en el panel lateral de los visitantes.</p>
+                  </div>
+                  <Button onClick={() => handleOpenPubDialog()} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#C9A94E]/90">
+                    <Plus className="h-4 w-4 mr-1.5" /> Nueva publicacion
+                  </Button>
+                </div>
+
+                <Card className="bg-[#0F1D32] border-white/5">
+                  <CardContent className="p-0">
+                    {loadingPubs ? (
+                      <div className="p-8 text-center text-white/40">Cargando...</div>
+                    ) : publications.length === 0 ? (
+                      <div className="p-8 text-center text-white/40">No hay publicaciones. Crea una para que aparezca en el panel lateral.</div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-white/5 hover:bg-transparent">
+                            <TableHead className="text-white/50 text-xs">Imagen</TableHead>
+                            <TableHead className="text-white/50 text-xs">Titulo</TableHead>
+                            <TableHead className="text-white/50 text-xs hidden md:table-cell">Descripcion</TableHead>
+                            <TableHead className="text-white/50 text-xs">Orden</TableHead>
+                            <TableHead className="text-white/50 text-xs">Estado</TableHead>
+                            <TableHead className="text-white/50 text-xs text-right">Acciones</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {publications.map((pub) => (
+                            <TableRow key={pub.id} className="border-white/5 hover:bg-white/[0.02]">
+                              <TableCell>
+                                {pub.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={pub.imageUrl} alt="" className="w-12 h-8 rounded object-cover border border-white/10" />
+                                ) : (
+                                  <div className="w-12 h-8 rounded bg-white/5 border border-white/10 flex items-center justify-center">
+                                    <ImageOff className="h-3 w-3 text-white/20" />
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-white font-medium text-sm">{pub.title}</TableCell>
+                              <TableCell className="text-white/50 text-xs hidden md:table-cell max-w-[200px] truncate">{pub.description}</TableCell>
+                              <TableCell className="text-white/40 text-xs">{pub.order}</TableCell>
+                              <TableCell>
+                                <button
+                                  onClick={() => handleTogglePubActive(pub)}
+                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${pub.active ? 'bg-[#28A745]/15 text-[#28A745]' : 'bg-white/5 text-white/30'}`}
+                                >
+                                  {pub.active ? 'Activa' : 'Inactiva'}
+                                </button>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-white/40 hover:text-white hover:bg-white/5" onClick={() => handleOpenPubDialog(pub)}>
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400/60 hover:text-red-400 hover:bg-red-400/10" onClick={() => setDeletingPubId(pub.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Create/Edit Dialog */}
+              <Dialog open={pubDialogOpen} onOpenChange={setPubDialogOpen}>
+                <DialogContent className="bg-[#0F1D32] border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{editingPub ? 'Editar publicacion' : 'Nueva publicacion'}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-white/70 text-xs">Titulo *</Label>
+                        <Input value={pubForm.title} onChange={(e) => setPubForm({ ...pubForm, title: e.target.value })} placeholder="Titulo de la publicacion" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-white/70 text-xs">URL de imagen (opcional)</Label>
+                        <Input value={pubForm.imageUrl} onChange={(e) => setPubForm({ ...pubForm, imageUrl: e.target.value })} placeholder="https://ejemplo.com/imagen.jpg" className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-white/70 text-xs">Descripcion *</Label>
+                      <Textarea value={pubForm.description} onChange={(e) => setPubForm({ ...pubForm, description: e.target.value })} placeholder="Breve descripcion que se muestra en el panel lateral..." rows={2} className="bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-white/70 text-xs">Contenido completo (HTML - soporta enlaces y tablas)</Label>
+                      <Textarea
+                        value={pubForm.content}
+                        onChange={(e) => setPubForm({ ...pubForm, content: e.target.value })}
+                        placeholder={"Texto, enlaces y tablas en formato HTML..."}
+                        rows={10}
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/20 font-mono text-xs"
+                      />
+                      <p className="text-[10px] text-white/30">Puedes usar etiquetas HTML como a, table, tr, th, td, p, strong, em, ul, li, img</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setPubForm({ ...pubForm, active: !pubForm.active })}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${pubForm.active ? 'bg-[#28A745]' : 'bg-white/10'}`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${pubForm.active ? 'translate-x-4' : 'translate-x-1'}`} />
+                      </button>
+                      <Label className="text-white/70 text-xs">Publicacion activa</Label>
+                    </div>
+                  </div>
+                  <DialogFooter className="mt-4">
+                    <Button variant="ghost" onClick={() => setPubDialogOpen(false)} className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</Button>
+                    <Button onClick={handleSavePub} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#C9A94E]/90">
+                      {editingPub ? 'Guardar cambios' : 'Crear publicacion'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Delete Confirmation */}
+              <AlertDialog open={!!deletingPubId} onOpenChange={(open) => !open && setDeletingPubId(null)}>
+                <AlertDialogContent className="bg-[#0F1D32] border-white/10">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white">Eliminar publicacion</AlertDialogTitle>
+                    <AlertDialogDescription className="text-white/50">Esta accion no se puede deshacer. La publicacion sera eliminada permanentemente.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="text-white/50 hover:text-white hover:bg-white/5">Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => deletingPubId && handleDeletePub(deletingPubId)} className="bg-red-500 text-white hover:bg-red-600">Eliminar</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </TabsContent>
           </Tabs>
         </div>

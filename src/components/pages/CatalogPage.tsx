@@ -41,6 +41,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useAppStore } from '@/store/app-store'
 import { useTheme } from 'next-themes'
+import PublicationsPanel from '@/components/PublicationsPanel'
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                    */
@@ -641,9 +642,8 @@ export default function CatalogPage() {
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-                  <FileTextIcon className="h-4 w-4 text-primary-foreground" />
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="CopyExpress" className="h-7 w-auto rounded" />
                 <span className="text-sm font-bold text-foreground">CopyExpress</span>
               </div>
             </div>
@@ -905,6 +905,20 @@ export default function CatalogPage() {
         open={dialogOpen}
         onOpenChange={handleDialogClose}
       />
+
+      {/* Visitor: Publications Panel (anchored left) */}
+      {isVisitor && <PublicationsPanel />}
+
+      {/* Visitor: Footer */}
+      {isVisitor && (
+        <footer className="border-t border-border bg-card/60 backdrop-blur-sm py-4">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <p className="text-center text-xs text-muted-foreground">
+              CopyDocs · Diseñado con ❤️ por CopyExpress · Línea de soporte +573226575422
+            </p>
+          </div>
+        </footer>
+      )}
     </main>
   )
 }

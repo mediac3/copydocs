@@ -57,6 +57,7 @@ export default function Home() {
       case 'admin-requests':
       case 'admin-pricing':
       case 'admin-terminos':
+      case 'admin-publications':
         return <AdminPage />;
       default: return <DashboardPage />;
     }

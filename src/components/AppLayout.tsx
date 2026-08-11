@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   LayoutDashboard, FileText, Library, FileStack, Users, Settings, Coins,
-  ChevronLeft, ChevronRight, LogOut, Shield, Menu, X, Sun, Moon, Palette
+  ChevronLeft, ChevronRight, LogOut, Shield, Menu, X, Sun, Moon, Palette, Newspaper
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
@@ -29,6 +29,7 @@ const ADMIN_NAV: { icon: typeof LayoutDashboard; label: string; page: Page }[] =
   { icon: Users, label: 'Usuarios', page: 'admin-users' },
   { icon: Settings, label: 'Solicitudes', page: 'admin-requests' },
   { icon: Coins, label: 'Créditos', page: 'admin-pricing' },
+  { icon: Newspaper, label: 'Publicaciones', page: 'admin-publications' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -72,9 +73,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}>
           <div className="flex items-center h-16 px-4 border-b border-sidebar-border">
             <button onClick={toggleFocusMode} className="flex items-center gap-2.5 group">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 group-hover:shadow-[0_0_12px_rgba(40,167,69,0.3)] transition-shadow">
-                <FileText className="w-4.5 h-4.5 text-primary-foreground" />
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="CopyExpress" className="h-8 w-auto rounded flex-shrink-0" />
               {sidebarOpen && (
                 <span className="text-sidebar-primary font-bold text-lg tracking-tight animate-fade-in-right">CopyExpress</span>
               )}
@@ -149,9 +149,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}>
           <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
             <button onClick={toggleFocusMode} className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <FileText className="w-4.5 h-4.5 text-primary-foreground" />
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="CopyExpress" className="h-8 w-auto rounded" />
               <span className="text-sidebar-primary font-bold text-lg">CopyExpress</span>
             </button>
             <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)} className="text-sidebar-foreground hover:text-white">
