@@ -1,0 +1,25 @@
+# Docker Compose for local development / testing of the production image
+# Usage: docker compose up --build
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/db/custom.db
+      - ADMIN_SECRET=copyexpress-admin-export
+      - FONT_REGULAR=/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf
+      - FONT_BOLD=/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf
+    volumes:
+      # Persist the SQLite database across container restarts
+      - db-data:/app/db
+      # Persist user-uploaded files
+      - uploads-data:/app/uploads
+
+volumes:
+  db-data:
+  uploads-data:

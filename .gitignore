@@ -41,7 +41,15 @@ yarn-error.log*
 # Database files (created on deploy via db:push + db:seed)
 /db/*.db
 /db/*.db-journal
+*.db
+*.db-journal
 !/db/.gitkeep
+
+# Uploads (user-uploaded files)
+uploads/
+
+# Tool results (AI agent artifacts)
+tool-results/
 
 # vercel
 .vercel

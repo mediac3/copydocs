@@ -1,0 +1,62 @@
+# Dependencies
+node_modules
+
+# Build output
+.next
+/out
+/build
+
+# Version control
+.git
+.gitignore
+
+# Environment files (real secrets live on the host / in CI)
+.env
+.env.local
+.env.production
+
+# Database files (created at runtime inside the container)
+db/*.db
+db/*.db-journal
+*.db
+*.db-journal
+
+# User-uploaded files (persisted via volume)
+uploads/
+
+# AI agent / tool artifacts
+tool-results/
+
+# Misc
+.DS_Store
+*.pem
+*.log
+dev.log
+dev.out.log
+server.log
+test
+prompt
+.claude
+.z-ai-config
+local-*
+
+# Documentation / examples
+download/
+examples/
+worklog.md
+README.md
+
+# Docker files (no need to copy themselves)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Caddy
+caddy
+Caddyfile
+
+# Skills
+skills/
+
+# Bun lock is fine to keep but bun binary is not needed
+bun.lockb

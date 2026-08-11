@@ -342,7 +342,7 @@ export async function GET(request: Request) {
 
   try {
     let doc;
-    if (adminSecret === 'copyexpress-admin-export') {
+    if (adminSecret === (process.env.ADMIN_SECRET || 'copyexpress-admin-export')) {
       doc = await db.userDocument.findFirst({
         where: { id },
         include: { template: true },
@@ -395,10 +395,13 @@ async function generatePDF(content: string, title: string, headerContent: string
   let font: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
   let fontBold: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
 
+  const FONT_REG = process.env.FONT_REGULAR || '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf';
+  const FONT_BLD = process.env.FONT_BOLD || '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf';
+
   try {
     pdfDoc.registerFontkit(fontkit);
-    const fontBytes = readFileSync('/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf');
-    const fontBoldBytes = readFileSync('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf');
+    const fontBytes = readFileSync(FONT_REG);
+    const fontBoldBytes = readFileSync(FONT_BLD);
     font = await pdfDoc.embedFont(fontBytes);
     fontBold = await pdfDoc.embedFont(fontBoldBytes);
   } catch {

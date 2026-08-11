@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
-const ADMIN_SECRET = 'copyexpress-admin-export'
+const ADMIN_SECRET = process.env.ADMIN_SECRET || 'copyexpress-admin-export'
 
 async function verifyAdmin(): Promise<boolean> {
   const h = await headers()
