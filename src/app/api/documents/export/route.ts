@@ -536,7 +536,7 @@ async function generatePDF(content: string, title: string, headerContent: string
         y -= 2;
       }
     } else if (block.type === 'table') {
-      // Render table as PDF
+      // Render table as PDF — draw backgrounds first, then grid lines (no gaps)
       const { rows } = block;
       if (rows.length === 0) continue;
 
@@ -546,10 +546,10 @@ async function generatePDF(content: string, title: string, headerContent: string
       const cellLineHeight = fontSize * 1.4;
       const rowHeaderHeight = cellLineHeight + cellPadding * 2;
 
+      // Pre-calculate row heights
+      const rowHeights: number[] = [];
       for (let ri = 0; ri < rows.length; ri++) {
         const row = rows[ri];
-
-        // Calculate row height (max cell height)
         let maxCellHeight = rowHeaderHeight;
         for (const cell of row) {
           const f = cell.bold ? fontBold : font;
@@ -569,6 +569,12 @@ async function generatePDF(content: string, title: string, headerContent: string
           const cellHeight = lines * cellLineHeight + cellPadding * 2;
           if (cellHeight > maxCellHeight) maxCellHeight = cellHeight;
         }
+        rowHeights.push(maxCellHeight);
+      }
+
+      for (let ri = 0; ri < rows.length; ri++) {
+        const row = rows[ri];
+        const maxCellHeight = rowHeights[ri];
 
         // Check page break
         if (y - maxCellHeight < margin.bottom) newPage();
@@ -577,37 +583,53 @@ async function generatePDF(content: string, title: string, headerContent: string
         const cellBottom = y - maxCellHeight;
         let colIndex = 0;
 
+        // Pass 1: Draw cell backgrounds only (no borders)
         for (let ci = 0; ci < row.length; ci++) {
           const cell = row[ci];
           const cellX = margin.left + colIndex * colWidth;
           const cellW = colWidth * cell.colspan;
-
-          // Resolve colors
-          const borderC = cell.borderColor ? hexToRgb(cell.borderColor) : null;
           const bgC = cell.bgColor ? hexToRgb(cell.bgColor) : null;
-          const borderColor = borderC ? rgb(borderC.r, borderC.g, borderC.b) : defaultBorderColor;
           const headerBg = bgC ? rgb(bgC.r, bgC.g, bgC.b) : (cell.bold ? defaultHeaderBg : null);
-
-          // Draw cell background
           if (headerBg) {
             page.drawRectangle({
               x: cellX, y: cellBottom, width: cellW, height: maxCellHeight,
               color: headerBg,
             });
           }
+          colIndex += cell.colspan;
+        }
 
-          // Draw cell border
-          page.drawRectangle({
-            x: cellX, y: cellBottom, width: cellW, height: maxCellHeight,
-            borderColor: borderColor,
-            borderWidth: 0.75,
-          });
+        // Pass 2: Draw grid lines (individual line segments — no gaps between cells)
+        colIndex = 0;
+        for (let ci = 0; ci < row.length; ci++) {
+          const cell = row[ci];
+          const cellX = margin.left + colIndex * colWidth;
+          const cellW = colWidth * cell.colspan;
+          const borderC = cell.borderColor ? hexToRgb(cell.borderColor) : null;
+          const lineColor = borderC ? rgb(borderC.r, borderC.g, borderC.b) : defaultBorderColor;
+          const bw = 0.75;
 
-          // Draw cell text
+          // Top line
+          page.drawLine({ start: { x: cellX, y: cellTop }, end: { x: cellX + cellW, y: cellTop }, thickness: bw, color: lineColor });
+          // Bottom line
+          page.drawLine({ start: { x: cellX, y: cellBottom }, end: { x: cellX + cellW, y: cellBottom }, thickness: bw, color: lineColor });
+          // Left line
+          page.drawLine({ start: { x: cellX, y: cellTop }, end: { x: cellX, y: cellBottom }, thickness: bw, color: lineColor });
+          // Right line
+          page.drawLine({ start: { x: cellX + cellW, y: cellTop }, end: { x: cellX + cellW, y: cellBottom }, thickness: bw, color: lineColor });
+
+          colIndex += cell.colspan;
+        }
+
+        // Pass 3: Draw cell text
+        colIndex = 0;
+        for (let ci = 0; ci < row.length; ci++) {
+          const cell = row[ci];
+          const cellX = margin.left + colIndex * colWidth;
+          const cellW = colWidth * cell.colspan;
           if (cell.text) {
             const f = cell.bold ? fontBold : font;
             const textY = cellTop - cellPadding - fontSize;
-            // Word wrap within cell
             const words = cell.text.split(' ');
             let currentLine = '';
             let lineY = textY;
@@ -624,7 +646,6 @@ async function generatePDF(content: string, title: string, headerContent: string
               }
             }
             if (currentLine) {
-              // Draw the last line at lineY position
               const textWidth = f.widthOfTextAtSize(currentLine, fontSize);
               let tx = cellX + cellPadding;
               if (cell.align === 'center') tx = cellX + (cellW - textWidth) / 2;
@@ -632,7 +653,6 @@ async function generatePDF(content: string, title: string, headerContent: string
               page.drawText(currentLine, { x: tx, y: lineY, size: fontSize, font: f, color: colorText });
             }
           }
-
           colIndex += cell.colspan;
         }
 

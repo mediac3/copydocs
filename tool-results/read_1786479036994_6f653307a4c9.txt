@@ -1,0 +1,889 @@
+     1→import { db } from '@/lib/db';
+     2→import { NextResponse } from 'next/server';
+     3→import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+     4→import fontkit from '@pdf-lib/fontkit';
+     5→import {
+     6→  Document as DocxDocument,
+     7→  Paragraph,
+     8→  TextRun,
+     9→  ImageRun,
+    10→  Packer,
+    11→  AlignmentType,
+    12→  HeadingLevel,
+    13→  Table as DocxTable,
+    14→  TableRow as DocxTableRow,
+    15→  TableCell as DocxTableCell,
+    16→  WidthType,
+    17→  BorderStyle,
+    18→} from 'docx';
+    19→import { readFileSync } from 'fs';
+    20→import { Buffer } from 'node:buffer';
+    21→
+    22→function isBase64Image(value: string | null | undefined): boolean {
+    23→  if (!value) return false
+    24→  if (value.startsWith('data:image/')) return true
+    25→  try {
+    26→    const parsed = JSON.parse(value);
+    27→    return parsed?.type === 'image' && !!parsed.dataUrl;
+    28→  } catch { return false }
+    29→}
+    30→
+    31→function decodeMediaImage(value: string): { buffer: Buffer; mimeType: string; width?: number; height?: number } | null {
+    32→  let dataUrl: string;
+    33→  let width: number | undefined;
+    34→  let height: number | undefined;
+    35→  if (value.startsWith('data:image/')) {
+    36→    dataUrl = value;
+    37→  } else {
+    38→    try {
+    39→      const parsed = JSON.parse(value);
+    40→      if (parsed?.type === 'image' && parsed.dataUrl) {
+    41→        dataUrl = parsed.dataUrl;
+    42→        width = parsed.width;
+    43→        height = parsed.height;
+    44→      } else return null;
+    45→    } catch { return null }
+    46→  }
+    47→  const matches = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+    48→  if (!matches) return null;
+    49→  return { buffer: Buffer.from(matches[2], 'base64'), mimeType: matches[1], width, height };
+    50→}
+    51→
+    52→function isMediaText(value: string | null | undefined): string | null {
+    53→  if (!value) return null;
+    54→  if (value.startsWith('{')) {
+    55→    try {
+    56→      const parsed = JSON.parse(value);
+    57→      if (parsed?.type === 'text') return parsed.text || null;
+    58→    } catch {}
+    59→    return null;
+    60→  }
+    61→  if (!value.startsWith('data:image')) return value;
+    62→  return null;
+    63→}
+    64→
+    65→function renderContent(content: string, answers: Record<string, string>): string {
+    66→  let rendered = content;
+    67→  for (const [key, value] of Object.entries(answers)) {
+    68→    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    69→    const regex = new RegExp(`\\$?\\{\\{${escaped}\\}\\}`, 'g');
+    70→    rendered = rendered.replace(regex, value || `[${key}]`);
+    71→  }
+    72→  rendered = rendered.replace(/\$?\{\{[^}]+\}\}/g, '');
+    73→  return rendered;
+    74→}
+    75→
+    76→/* ========================================================================== */
+    77→/*  HTML → structured blocks for PDF/DOCX rendering                            */
+    78→/* ========================================================================== */
+    79→
+    80→type CellAlign = 'left' | 'center' | 'right';
+    81→
+    82→interface ParsedCell {
+    83→  text: string;
+    84→  bold: boolean;
+    85→  align: CellAlign;
+    86→  bgColor: string | null;   // e.g. '#ffeeee'
+    87→  borderColor: string | null; // e.g. '#cccccc'
+    88→  colspan: number;
+    89→  rowspan: number;
+    90→}
+    91→
+    92→interface ParsedTable {
+    93→  type: 'table';
+    94→  rows: ParsedCell[][];
+    95→  borderColor: string | null; // table-level border override
+    96→}
+    97→
+    98→interface ParsedBlock {
+    99→  type: 'text';
+   100→  text: string;
+   101→  isHeading: boolean;
+   102→  isBold: boolean;
+   103→  isItalic: boolean;
+   104→  isSignature: boolean;
+   105→}
+   106→
+   107→type ContentBlock = ParsedBlock | ParsedTable;
+   108→
+   109→/** Strip HTML tags and decode entities */
+   110→function stripHtml(html: string): string {
+   111→  return html
+   112→    .replace(/<br\s*\/?>/gi, '\n')
+   113→    .replace(/<\/p>/gi, '\n')
+   114→    .replace(/<\/h[1-6]>/gi, '\n')
+   115→    .replace(/<\/li>/gi, '\n')
+   116→    .replace(/<li[^>]*>/gi, '  - ')
+   117→    .replace(/<[^>]+>/g, '')
+   118→    .replace(/&nbsp;/g, ' ')
+   119→    .replace(/&amp;/g, '&')
+   120→    .replace(/&lt;/g, '<')
+   121→    .replace(/&gt;/g, '>')
+   122→    .replace(/&quot;/g, '"')
+   123→    .replace(/&#39;/g, "'")
+   124→    .replace(/&iacute;/g, 'í')
+   125→    .replace(/&eacute;/g, 'é')
+   126→    .replace(/&aacute;/g, 'á')
+   127→    .replace(/&oacute;/g, 'ó')
+   128→    .replace(/&uacute;/g, 'ú')
+   129→    .replace(/&ntilde;/g, 'ñ')
+   130→    .replace(/&Ntilde;/g, 'Ñ')
+   131→    .replace(/&iquest;/g, '¿')
+   132→    .replace(/&iexcl;/g, '¡')
+   133→    .replace(/\u00a0/g, ' ')
+   134→    .trim();
+   135→}
+   136→
+   137→/** Parse inline style string to extract background-color, text-align, border-color */
+   138→function parseStyle(style: string): { bgColor: string | null; align: CellAlign; borderColor: string | null } {
+   139→  let bgColor: string | null = null;
+   140→  let align: CellAlign = 'left';
+   141→  let borderColor: string | null = null;
+   142→
+   143→  const parts = style.split(';');
+   144→  for (const part of parts) {
+   145→    const [key, val] = part.split(':').map(s => s.trim().toLowerCase());
+   146→    if (!key || !val) continue;
+   147→    if (key === 'background-color' || key === 'background') {
+   148→      bgColor = val;
+   149→    } else if (key === 'text-align') {
+   150→      if (val === 'center') align = 'center';
+   151→      else if (val === 'right') align = 'right';
+   152→      else if (val === 'justify') align = 'left';
+   153→    } else if (key === 'border-color') {
+   154→      borderColor = val;
+   155→    }
+   156→  }
+   157→  return { bgColor, align, borderColor };
+   158→}
+   159→
+   160→/** Parse HTML content into structured blocks */
+   161→function parseHTMLContent(html: string): ContentBlock[] {
+   162→  const blocks: ContentBlock[] = [];
+   163→
+   164→  // Check if content has HTML tables
+   165→  const hasTables = /<table[\s>]/i.test(html);
+   166→
+   167→  if (!hasTables) {
+   168→    // Legacy plain-text mode
+   169→    const lines = html.split('\n');
+   170→    for (const line of lines) {
+   171→      const text = stripHtml(line).trim();
+   172→      if (!text) {
+   173→        blocks.push({ type: 'text', text: '', isHeading: false, isBold: false, isItalic: false, isSignature: false });
+   174→        continue;
+   175→      }
+   176→      const isHeading = /^(CONTRATO|PODER|DEMANDA|DERECHO|ACTA|ESCRITURA|CARTA|CLÁUSULA|ARTÍCULO|PRIMERA|SEGUNDA|TERCERA|CUARTA|QUINTA|SEXTA|SÉPTIMA|OCTAVA|NOVENA|DÉCIMA|I\\.|II\\.|III\\.|IV\\.|V\\.|VI\\.|VII\\.|VIII\\.|IX\\.|X\\.|ANEXOS|PARA CONSTANCIA|Del señor)/i.test(text);
+   177→      const isSignature = /^[\s_\-]+$/.test(text) || /^________________/.test(text);
+   178→      blocks.push({ type: 'text', text, isHeading, isBold: false, isItalic: false, isSignature });
+   179→    }
+   180→    return blocks;
+   181→  }
+   182→
+   183→  // HTML mode: split by top-level blocks (tables vs everything else)
+   184→  // Strategy: find all <table>...</table> blocks, treat rest as text paragraphs
+   185→  const tableRegex = /<table[^>]*>[\s\S]*?<\/table>/gi;
+   186→  let lastIndex = 0;
+   187→  let match: RegExpExecArray | null;
+   188→
+   189→  while ((match = tableRegex.exec(html)) !== null) {
+   190→    // Text before this table
+   191→    const before = html.slice(lastIndex, match.index);
+   192→    if (before.trim()) {
+   193→      parseTextBlocks(before, blocks);
+   194→    }
+   195→    // Parse the table
+   196→    const table = parseTableHTML(match[0]);
+   197→    if (table) blocks.push(table);
+   198→    lastIndex = match.index + match[0].length;
+   199→  }
+   200→
+   201→  // Remaining text after last table
+   202→  const after = html.slice(lastIndex);
+   203→  if (after.trim()) {
+   204→    parseTextBlocks(after, blocks);
+   205→  }
+   206→
+   207→  return blocks;
+   208→}
+   209→
+   210→/** Parse non-table HTML into text blocks */
+   211→function parseTextBlocks(html: string, blocks: ContentBlock[]) {
+   212→  // Split by block-level elements
+   213→  const parts = html.split(/<\/(p|h[1-6]|div|blockquote|li)>/i);
+   214→  for (const part of parts) {
+   215→    // Check for headings
+   216→    const hMatch = part.match(/<h([1-3])[^>]*>([\s\S]*?)<\/h[1-3]>/i);
+   217→    if (hMatch) {
+   218→      const text = stripHtml(hMatch[2]).trim();
+   219→      if (text) {
+   220→        blocks.push({ type: 'text', text, isHeading: true, isBold: true, isItalic: false, isSignature: false });
+   221→      }
+   222→      continue;
+   223→    }
+   224→    // Check for bold/italic paragraphs
+   225→    const isBoldWrap = /<(strong|b)[^>]*>/i.test(part);
+   226→    const isItalicWrap = /<(em|i)[^>]*>/i.test(part);
+   227→    const text = stripHtml(part).trim();
+   228→    if (!text) continue;
+   229→    const isHeading = /^(CONTRATO|PODER|DEMANDA|DERECHO|ACTA|ESCRITURA|CARTA|CLÁUSULA|ARTÍCULO|PRIMERA|SEGUNDA|TERCERA|CUARTA|QUINTA|SEXTA|SÉPTIMA|OCTAVA|NOVENA|DÉCIMA|I\\.|II\\.|III\\.|IV\\.|V\\.|VI\\.|VII\\.|VIII\\.|IX\\.|X\\.|ANEXOS|PARA CONSTANCIA|Del señor)/i.test(text);
+   230→    const isSignature = /^[\s_\-]+$/.test(text) || /^________________/.test(text);
+   231→    blocks.push({ type: 'text', text, isHeading, isBold: isBoldWrap || isHeading, isItalic: isItalicWrap, isSignature });
+   232→  }
+   233→}
+   234→
+   235→/** Parse an HTML table into a ParsedTable */
+   236→function parseTableHTML(tableHtml: string): ParsedTable | null {
+   237→  // Extract table-level border-color from style
+   238→  const tableStyleMatch = tableHtml.match(/<table[^>]*style=["']([^"']+)["'][^>]*>/i)
+   239→    let tableBorderColor: string | null = null;
+   240→  if (tableStyleMatch) {
+   241→    const parsed = parseStyle(tableStyleMatch[1]);
+   242→    tableBorderColor = parsed.borderColor;
+   243→  }
+   244→
+   245→  // Extract rows
+   246→  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+   247→  const rows: ParsedCell[][] = [];
+   248→  let rowMatch: RegExpExecArray | null;
+   249→
+   250→  while ((rowMatch = rowRegex.exec(tableHtml)) !== null) {
+   251→    const rowContent = rowMatch[1];
+   252→    const cells: ParsedCell[] = [];
+   253→
+   254→    // Match both <th> and <td>
+   255→    const cellRegex = /<(th|td)([^>]*)>([\s\S]*?)<\/(th|td)>/gi;
+   256→    let cellMatch: RegExpExecArray | null;
+   257→
+   258→    while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
+   259→    // Skip if this looks like a nested table's cell (simplified check)
+   260→      const tag = cellMatch[1].toLowerCase();
+   261→      const attrs = cellMatch[2];
+   262→      const innerHtml = cellMatch[3];
+   263→
+   264→      // Parse attributes
+   265→      const colspanMatch = attrs.match(/colspan=["']?(\d+)["']?/i);
+   266→      const rowspanMatch = attrs.match(/rowspan=["']?(\d+)["']?/i);
+   267→      const styleMatch = attrs.match(/style=["']([^"']+)["']/i);
+   268→
+   269→      const { bgColor, align, borderColor } = styleMatch ? parseStyle(styleMatch[1]) : { bgColor: null, align: 'left' as CellAlign, borderColor: null };
+   270→
+   271→      const text = stripHtml(innerHtml).trim();
+   272→
+   273→      cells.push({
+   274→        text,
+   275→        bold: tag === 'th',
+   276→        align,
+   277→        bgColor,
+   278→        borderColor: borderColor || tableBorderColor,
+   279→        colspan: colspanMatch ? parseInt(colspanMatch[1]) : 1,
+   280→        rowspan: rowspanMatch ? parseInt(rowspanMatch[1]) : 1,
+   281→      });
+   282→    }
+   283→
+   284→    if (cells.length > 0) rows.push(cells);
+   285→  }
+   286→
+   287→  if (rows.length === 0) return null;
+   288→  return { type: 'table', rows, borderColor: tableBorderColor };
+   289→}
+   290→
+   291→/** Convert hex color string to pdf-lib rgb */
+   292→function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+   293→  const cleaned = hex.replace(/^#/, '');
+   294→  if (cleaned.length === 3) {
+   295→    const r = parseInt(cleaned[0] + cleaned[0], 16) / 255;
+   296→    const g = parseInt(cleaned[1] + cleaned[1], 16) / 255;
+   297→    const b = parseInt(cleaned[2] + cleaned[2], 16) / 255;
+   298→    return { r, g, b };
+   299→  }
+   300→  if (cleaned.length === 6) {
+   301→    const r = parseInt(cleaned.slice(0, 2), 16) / 255;
+   302→    const g = parseInt(cleaned.slice(2, 4), 16) / 255;
+   303→    const b = parseInt(cleaned.slice(4, 6), 16) / 255;
+   304→    return { r, g, b };
+   305→  }
+   306→  // Handle rgb(r,g,b) format
+   307→  const rgbMatch = hex.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+   308→  if (rgbMatch) {
+   309→    return { r: parseInt(rgbMatch[1]) / 255, g: parseInt(rgbMatch[2]) / 255, b: parseInt(rgbMatch[3]) / 255 };
+   310→  }
+   311→  return null;
+   312→}
+   313→
+   314→/** Convert hex/rgb to DOCX hex color (6-char) */
+   315→function toDocxColor(color: string | null, fallback: string): string {
+   316→  if (!color) return fallback;
+   317→  const c = hexToRgb(color);
+   318→  if (!c) return fallback;
+   319→  const toHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, '0');
+   320→  return `${toHex(c.r)}${toHex(c.g)}${toHex(c.b)}`;
+   321→}
+   322→
+   323→/* ========================================================================== */
+   324→/*  API Route                                                                */
+   325→/* ========================================================================== */
+   326→
+   327→export async function GET(request: Request) {
+   328→  const userId = request.headers.get('x-user-id');
+   329→  const adminSecret = request.headers.get('x-admin-export');
+   330→
+   331→  const { searchParams } = new URL(request.url);
+   332→  const id = searchParams.get('id');
+   333→  const format = searchParams.get('format');
+   334→
+   335→  if (!id || !format) {
+   336→    return NextResponse.json({ error: 'ID y formato requeridos' }, { status: 400 });
+   337→  }
+   338→
+   339→  if (format !== 'pdf' && format !== 'docx') {
+   340→    return NextResponse.json({ error: 'Formato no soportado. Use pdf o docx.' }, { status: 400 });
+   341→  }
+   342→
+   343→  try {
+   344→    let doc;
+   345→    if (adminSecret === 'copyexpress-admin-export') {
+   346→      doc = await db.userDocument.findFirst({
+   347→        where: { id },
+   348→        include: { template: true },
+   349→      });
+   350→    } else {
+   351→      if (!userId) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+   352→      doc = await db.userDocument.findFirst({
+   353→        where: { id, userId },
+   354→        include: { template: true },
+   355→      });
+   356→    }
+   357→
+   358→    if (!doc) {
+   359→      return NextResponse.json({ error: 'Documento no encontrado' }, { status: 404 });
+   360→    }
+   361→
+   362→    const answers: Record<string, string> =
+   363→      typeof doc.answers === 'string' ? JSON.parse(doc.answers) : (doc.answers as Record<string, string>) || {};
+   364→
+   365→    let content: string;
+   366→    if (doc.template?.baseContent && Object.keys(answers).length > 0) {
+   367→      content = renderContent(doc.template.baseContent, answers);
+   368→    } else if (doc.generatedContent && doc.generatedContent.length > 100) {
+   369→      content = doc.generatedContent;
+   370→    } else {
+   371→      content = `Documento: ${doc.title}\n\n[No se encontró contenido para exportar. El documento puede estar incompleto.]`;
+   372→    }
+   373→
+   374→    const headerContent = doc.template?.headerContent || null;
+   375→    const footerContent = doc.template?.footerContent || null;
+   376→
+   377→    if (format === 'pdf') {
+   378→      return await generatePDF(content, doc.title, headerContent, footerContent);
+   379→    } else {
+   380→      return await generateDOCX(content, doc.title, headerContent, footerContent);
+   381→    }
+   382→  } catch (error) {
+   383→    console.error('Export error:', error);
+   384→    return NextResponse.json({ error: 'Error al exportar documento' }, { status: 500 });
+   385→  }
+   386→}
+   387→
+   388→/* ========================================================================== */
+   389→/*  PDF Generation with HTML Table Support                                     */
+   390→/* ========================================================================== */
+   391→
+   392→async function generatePDF(content: string, title: string, headerContent: string | null, footerContent: string | null): Promise<NextResponse> {
+   393→  const pdfDoc = await PDFDocument.create();
+   394→
+   395→  let font: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
+   396→  let fontBold: Awaited<ReturnType<typeof pdfDoc.embedFont>>;
+   397→
+   398→  try {
+   399→    pdfDoc.registerFontkit(fontkit);
+   400→    const fontBytes = readFileSync('/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf');
+   401→    const fontBoldBytes = readFileSync('/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf');
+   402→    font = await pdfDoc.embedFont(fontBytes);
+   403→    fontBold = await pdfDoc.embedFont(fontBoldBytes);
+   404→  } catch {
+   405→    font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+   406→    fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+   407→  }
+   408→
+   409→  const pageWidth = 612;
+   410→  const pageHeight = 792;
+   411→  const margin = { top: 72, bottom: 60, left: 72, right: 72 };
+   412→  const usableWidth = pageWidth - margin.left - margin.right;
+   413→  const fontSize = 10;
+   414→  const lineHeight = fontSize * 1.5;
+   415→
+   416→  const blocks = parseHTMLContent(content);
+   417→  const colorDark = rgb(0.04, 0.09, 0.16);
+   418→  const colorText = rgb(0.13, 0.13, 0.13);
+   419→  const colorMuted = rgb(0.2, 0.2, 0.2);
+   420→  const colorGold = rgb(0.16, 0.65, 0.27);
+   421→  const colorFooter = rgb(0.6, 0.6, 0.6);
+   422→  const defaultBorderColor = rgb(0.75, 0.75, 0.75);
+   423→  const defaultHeaderBg = rgb(0.94, 0.94, 0.94);
+   424→
+   425→  let page = pdfDoc.addPage([pageWidth, pageHeight]);
+   426→  let y = pageHeight - margin.top;
+   427→  let pageNum = 1;
+   428→  const pageStarts: { page: typeof page; num: number }[] = [{ page, num: 1 }];
+   429→
+   430→  function newPage() {
+   431→    pageNum++;
+   432→    page = pdfDoc.addPage([pageWidth, pageHeight]);
+   433→    pageStarts.push({ page, num: pageNum });
+   434→    y = pageHeight - margin.top;
+   435→  }
+   436→
+   437→  function ensureSpace(needed: number) {
+   438→    if (y - needed < margin.bottom) newPage();
+   439→  }
+   440→
+   441→  function drawText(text: string, f: typeof font, size: number, color: typeof colorDark, x: number, maxWidth?: number) {
+   442→    if (!maxWidth) maxWidth = usableWidth;
+   443→    const words = text.split(' ');
+   444→    let currentLine = '';
+   445→    for (const word of words) {
+   446→      const testLine = currentLine ? currentLine + ' ' + word : word;
+   447→      const testWidth = f.widthOfTextAtSize(testLine, size);
+   448→      if (testWidth > maxWidth && currentLine) {
+   449→        ensureSpace(lineHeight);
+   450→        page.drawText(currentLine, { x, y, size, font: f, color });
+   451→        y -= lineHeight;
+   452→        currentLine = word;
+   453→      } else {
+   454→        currentLine = testLine;
+   455→      }
+   456→    }
+   457→    if (currentLine) {
+   458→      ensureSpace(lineHeight);
+   459→      page.drawText(currentLine, { x, y, size, font: f, color });
+   460→      y -= lineHeight;
+   461→    }
+   462→  }
+   463→
+   464→  function drawAlignedText(text: string, f: typeof font, size: number, color: typeof colorDark, align: CellAlign, cellX: number, cellWidth: number) {
+   465→    const textWidth = f.widthOfTextAtSize(text, size);
+   466→    let x = cellX + 4; // default left padding
+   467→    if (align === 'center') x = cellX + (cellWidth - textWidth) / 2;
+   468→    else if (align === 'right') x = cellX + cellWidth - textWidth - 4;
+   469→    if (x < cellX + 2) x = cellX + 2;
+   470→    page.drawText(text, { x, y, size, font: f, color });
+   471→  }
+   472→
+   473→  // ---- Header ----
+   474→  const headerImgData = decodeMediaImage(headerContent);
+   475→  if (headerImgData) {
+   476→    try {
+   477→      if (headerImgData.mimeType === 'image/png') {
+   478→        var headerImg = await pdfDoc.embedPng(headerImgData.buffer);
+   479→      } else if (headerImgData.mimeType === 'image/jpeg' || headerImgData.mimeType === 'image/jpg') {
+   480→        var headerImg = await pdfDoc.embedJpg(headerImgData.buffer);
+   481→      }
+   482→      if (headerImg) {
+   483→        const dims = headerImg.scale(1);
+   484→        let imgW = dims.width;
+   485→        let imgH = dims.height;
+   486→        const scale = pageWidth / imgW;
+   487→        imgW = pageWidth;
+   488→        imgH *= scale;
+   489→        page.drawImage(headerImg, { x: 0, y: pageHeight - imgH, width: imgW, height: imgH });
+   490→        y = pageHeight - imgH - 8;
+   491→      }
+   492→    } catch (e) {
+   493→      console.warn('Failed to embed header image:', e);
+   494→    }
+   495→  } else {
+   496→    const headerTxt = isMediaText(headerContent);
+   497→    if (headerTxt) {
+   498→      drawText(headerTxt, font, 8, colorMuted, margin.left);
+   499→      y -= 4;
+   500→    }
+   501→  }
+   502→
+   503→  // Title
+   504→  const titleWidth = fontBold.widthOfTextAtSize(title.toUpperCase(), 16);
+   505→  const titleX = margin.left + (usableWidth - titleWidth) / 2;
+   506→  page.drawText(title.toUpperCase(), { x: titleX > margin.left ? titleX : margin.left, y, size: 16, font: fontBold, color: colorDark });
+   507→  y -= lineHeight * 2;
+   508→
+   509→  page.drawLine({
+   510→    start: { x: margin.left, y: y + 4 },
+   511→    end: { x: pageWidth - margin.right, y: y + 4 },
+   512→    thickness: 1.5,
+   513→    color: colorGold,
+   514→  });
+   515→  y -= lineHeight;
+   516→
+   517→  // ---- Body: render blocks ----
+   518→  for (const block of blocks) {
+   519→    if (block.type === 'text') {
+   520→      const { text, isHeading, isBold, isSignature } = block;
+   521→      if (!text) {
+   522→        y -= lineHeight * 0.5;
+   523→        continue;
+   524→      }
+   525→      if (isSignature) {
+   526→        drawText(text, font, fontSize, colorMuted, margin.left);
+   527→        continue;
+   528→      }
+   529→      if (isHeading) {
+   530→        y -= lineHeight * 0.3;
+   531→        drawText(text, isBold ? fontBold : font, 11, colorDark, margin.left);
+   532→        y -= lineHeight * 0.2;
+   533→      } else {
+   534→        const f = isBold ? fontBold : font;
+   535→        drawText(text, f, fontSize, colorText, margin.left);
+   536→        y -= 2;
+   537→      }
+   538→    } else if (block.type === 'table') {
+   539→      // Render table as PDF
+   540→      const { rows } = block;
+   541→      if (rows.length === 0) continue;
+   542→
+   543→      const numCols = Math.max(...rows.map(r => r.reduce((sum, c) => sum + c.colspan, 0)));
+   544→      const colWidth = usableWidth / numCols;
+   545→      const cellPadding = 4;
+   546→      const cellLineHeight = fontSize * 1.4;
+   547→      const rowHeaderHeight = cellLineHeight + cellPadding * 2;
+   548→
+   549→      for (let ri = 0; ri < rows.length; ri++) {
+   550→        const row = rows[ri];
+   551→
+   552→        // Calculate row height (max cell height)
+   553→        let maxCellHeight = rowHeaderHeight;
+   554→        for (const cell of row) {
+   555→          const f = cell.bold ? fontBold : font;
+   556→          const words = cell.text.split(' ');
+   557→          let lines = 1;
+   558→          let currentLine = '';
+   559→          const availableWidth = colWidth * cell.colspan - cellPadding * 2;
+   560→          for (const word of words) {
+   561→            const testLine = currentLine ? currentLine + ' ' + word : word;
+   562→            if (f.widthOfTextAtSize(testLine, fontSize) > availableWidth && currentLine) {
+   563→              lines++;
+   564→              currentLine = word;
+   565→            } else {
+   566→              currentLine = testLine;
+   567→            }
+   568→          }
+   569→          const cellHeight = lines * cellLineHeight + cellPadding * 2;
+   570→          if (cellHeight > maxCellHeight) maxCellHeight = cellHeight;
+   571→        }
+   572→
+   573→        // Check page break
+   574→        if (y - maxCellHeight < margin.bottom) newPage();
+   575→
+   576→        const cellTop = y;
+   577→        const cellBottom = y - maxCellHeight;
+   578→        let colIndex = 0;
+   579→
+   580→        for (let ci = 0; ci < row.length; ci++) {
+   581→          const cell = row[ci];
+   582→          const cellX = margin.left + colIndex * colWidth;
+   583→          const cellW = colWidth * cell.colspan;
+   584→
+   585→          // Resolve colors
+   586→          const borderC = cell.borderColor ? hexToRgb(cell.borderColor) : null;
+   587→          const bgC = cell.bgColor ? hexToRgb(cell.bgColor) : null;
+   588→          const borderColor = borderC ? rgb(borderC.r, borderC.g, borderC.b) : defaultBorderColor;
+   589→          const headerBg = bgC ? rgb(bgC.r, bgC.g, bgC.b) : (cell.bold ? defaultHeaderBg : null);
+   590→
+   591→          // Draw cell background
+   592→          if (headerBg) {
+   593→            page.drawRectangle({
+   594→              x: cellX, y: cellBottom, width: cellW, height: maxCellHeight,
+   595→              color: headerBg,
+   596→            });
+   597→          }
+   598→
+   599→          // Draw cell border
+   600→          page.drawRectangle({
+   601→            x: cellX, y: cellBottom, width: cellW, height: maxCellHeight,
+   602→            borderColor: borderColor,
+   603→            borderWidth: 0.75,
+   604→          });
+   605→
+   606→          // Draw cell text
+   607→          if (cell.text) {
+   608→            const f = cell.bold ? fontBold : font;
+   609→            const textY = cellTop - cellPadding - fontSize;
+   610→            // Word wrap within cell
+   611→            const words = cell.text.split(' ');
+   612→            let currentLine = '';
+   613→            let lineY = textY;
+   614→            const availableWidth = cellW - cellPadding * 2;
+   615→            for (const word of words) {
+   616→              const testLine = currentLine ? currentLine + ' ' + word : word;
+   617→              const testWidth = f.widthOfTextAtSize(testLine, fontSize);
+   618→              if (testWidth > availableWidth && currentLine) {
+   619→                drawAlignedText(currentLine, f, fontSize, colorText, cell.align, cellX, cellW);
+   620→                lineY -= cellLineHeight;
+   621→                currentLine = word;
+   622→              } else {
+   623→                currentLine = testLine;
+   624→              }
+   625→            }
+   626→            if (currentLine) {
+   627→              // Draw the last line at lineY position
+   628→              const textWidth = f.widthOfTextAtSize(currentLine, fontSize);
+   629→              let tx = cellX + cellPadding;
+   630→              if (cell.align === 'center') tx = cellX + (cellW - textWidth) / 2;
+   631→              else if (cell.align === 'right') tx = cellX + cellW - textWidth - cellPadding;
+   632→              page.drawText(currentLine, { x: tx, y: lineY, size: fontSize, font: f, color: colorText });
+   633→            }
+   634→          }
+   635→
+   636→          colIndex += cell.colspan;
+   637→        }
+   638→
+   639→        y = cellBottom - 4;
+   640→      }
+   641→
+   642→      y -= 4; // space after table
+   643→    }
+   644→  }
+   645→
+   646→  // ---- Footers ----
+   647→  const footerImgData = decodeMediaImage(footerContent);
+   648→  let footerImgEmbedded: Awaited<ReturnType<typeof pdfDoc.embedPng>> | null = null;
+   649→  let footerImgW = 0;
+   650→  let footerImgH = 0;
+   651→  if (footerImgData) {
+   652→    try {
+   653→      if (footerImgData.mimeType === 'image/png') {
+   654→        footerImgEmbedded = await pdfDoc.embedPng(footerImgData.buffer);
+   655→      } else if (footerImgData.mimeType === 'image/jpeg' || footerImgData.mimeType === 'image/jpg') {
+   656→        footerImgEmbedded = await pdfDoc.embedJpg(footerImgData.buffer);
+   657→      }
+   658→      if (footerImgEmbedded) {
+   659→        const dims = footerImgEmbedded.scale(1);
+   660→        let imgW = dims.width;
+   661→        let imgH = dims.height;
+   662→        const scale = pageWidth / imgW;
+   663→        imgW = pageWidth;
+   664→        imgH *= scale;
+   665→        footerImgW = imgW;
+   666→        footerImgH = imgH;
+   667→      }
+   668→    } catch (e) {
+   669→      console.warn('Failed to embed footer image:', e);
+   670→    }
+   671→  }
+   672→
+   673→  const footerTxt = isMediaText(footerContent);
+   674→
+   675→  for (const { page: p, num } of pageStarts) {
+   676→    if (footerImgEmbedded) {
+   677→      p.drawImage(footerImgEmbedded, { x: 0, y: 0, width: footerImgW, height: footerImgH });
+   678→    } else if (footerTxt) {
+   679→      const fw = font.widthOfTextAtSize(footerTxt, 7);
+   680→      const fx = margin.left + (usableWidth - fw) / 2;
+   681→      p.drawText(footerTxt, {
+   682→        x: fx > margin.left ? fx : margin.left,
+   683→        y: margin.bottom - 10,
+   684→        size: 7,
+   685→        font,
+   686→        color: colorFooter,
+   687→      });
+   688→    }
+   689→    const hasCustomFooter = footerImgEmbedded || footerTxt;
+   690→    const pnText = hasCustomFooter
+   691→      ? `Pagina ${num} de ${pageNum}`
+   692→      : `Generado por CopyDocs · Pagina ${num} de ${pageNum}`;
+   693→    const pnW = font.widthOfTextAtSize(pnText, 7);
+   694→    const pnX = margin.left + (usableWidth - pnW) / 2;
+   695→    p.drawText(pnText, {
+   696→      x: pnX > margin.left ? pnX : margin.left,
+   697→      y: footerImgEmbedded ? footerImgH + 4 : margin.bottom - 22,
+   698→      size: 7,
+   699→      font,
+   700→      color: colorFooter,
+   701→    });
+   702→  }
+   703→
+   704→  pdfDoc.setTitle(title);
+   705→  pdfDoc.setAuthor('CopyDocs - Generacion Inteligente de Documentos');
+   706→  pdfDoc.setSubject('Documento Legal Colombiano');
+   707→  pdfDoc.setCreator('CopyDocs');
+   708→
+   709→  const pdfBytes = await pdfDoc.save();
+   710→
+   711→  return new NextResponse(Buffer.from(pdfBytes), {
+   712→    status: 200,
+   713→    headers: {
+   714→      'Content-Type': 'application/pdf',
+   715→      'Content-Disposition': `attachment; filename="${encodeURIComponent(title)}.pdf"`,
+   716→      'Content-Length': pdfBytes.length.toString(),
+   717→    },
+   718→  });
+   719→}
+   720→
+   721→/* ========================================================================== */
+   722→/*  DOCX Generation with HTML Table Support                                    */
+   723→/* ========================================================================== */
+   724→
+   725→async function generateDOCX(content: string, title: string, headerContent: string | null, footerContent: string | null): Promise<NextResponse> {
+   726→  const blocks = parseHTMLContent(content);
+   727→
+   728→  const children: (Paragraph | DocxTable)[] = [
+   729→    // Header
+   730→    (() => {
+   731→      const imgData = decodeMediaImage(headerContent);
+   732→      if (imgData) {
+   733→        return new Paragraph({
+   734→          children: [new ImageRun({ data: imgData.buffer, transformation: { width: imgData.width || 468, height: imgData.height || 60 } })],
+   735→          alignment: AlignmentType.CENTER,
+   736→          spacing: { after: 200 },
+   737→        });
+   738→      }
+   739→      const txt = isMediaText(headerContent);
+   740→      if (txt) {
+   741→        return new Paragraph({
+   742→          children: [new TextRun({ text: txt, size: 18, color: '999999', font: 'Times New Roman' })],
+   743→          alignment: AlignmentType.CENTER,
+   744→          spacing: { after: 200 },
+   745→        });
+   746→      }
+   747→      return new Paragraph({ children: [], spacing: { after: 200 } });
+   748→    })(),
+   749→
+   750→    new Paragraph({
+   751→      children: [new TextRun({ text: title.toUpperCase(), bold: true, size: 32, color: '0A1628', font: 'Times New Roman' })],
+   752→      alignment: AlignmentType.CENTER,
+   753→      spacing: { after: 200 },
+   754→    }),
+   755→    new Paragraph({
+   756→      children: [new TextRun({ text: '________________________________________', color: '28A745', size: 16, font: 'Times New Roman' })],
+   757→      alignment: AlignmentType.CENTER,
+   758→      spacing: { after: 400 },
+   759→    }),
+   760→  ];
+   761→
+   762→  for (const block of blocks) {
+   763→    if (block.type === 'table') {
+   764→      // Convert to DOCX table
+   765→      const docxRows: DocxTableRow[] = block.rows.map(row =>
+   766→        new DocxTableRow({
+   767→          children: row.map(cell => {
+   768→            const bgColor = toDocxColor(cell.bgColor, cell.bold ? 'F0F0F0' : 'FFFFFF');
+   769→            const borderColor = toDocxColor(cell.borderColor, 'BBBBBB');
+   770→            const align = cell.align === 'center' ? AlignmentType.CENTER
+   771→              : cell.align === 'right' ? AlignmentType.RIGHT
+   772→              : AlignmentType.LEFT;
+   773→            return new DocxTableCell({
+   774→              children: [
+   775→                new Paragraph({
+   776→                  children: [new TextRun({
+   777→                    text: cell.text,
+   778→                    bold: cell.bold,
+   779→                    size: 20,
+   780→                    color: '222222',
+   781→                    font: 'Times New Roman',
+   782→                  })],
+   783→                  alignment: align,
+   784→                  spacing: { before: 40, after: 40 },
+   785→                }),
+   786→              ],
+   787→              width: { size: Math.floor(9000 / Math.max(...block.rows.map(r => r.length))), type: WidthType.DXA },
+   788→              columnSpan: cell.colspan > 1 ? cell.colspan : undefined,
+   789→              shading: { type: 'clear', fill: bgColor },
+   790→              borders: {
+   791→                top: { style: BorderStyle.SINGLE, size: 1, color: borderColor },
+   792→                bottom: { style: BorderStyle.SINGLE, size: 1, color: borderColor },
+   793→                left: { style: BorderStyle.SINGLE, size: 1, color: borderColor },
+   794→                right: { style: BorderStyle.SINGLE, size: 1, color: borderColor },
+   795→              },
+   796→            });
+   797→          }),
+   798→        })
+   799→      );
+   800→      if (docxRows.length > 0) {
+   801→        children.push(new DocxTable({ rows: docxRows, width: { size: 9000, type: WidthType.DXA } }));
+   802→        children.push(new Paragraph({ children: [], spacing: { after: 200 } }));
+   803→      }
+   804→    } else {
+   805→      const { text, isHeading, isBold, isSignature } = block;
+   806→      if (!text) {
+   807→        children.push(new Paragraph({ children: [], spacing: { after: 100 } }));
+   808→        continue;
+   809→      }
+   810→      if (isHeading) {
+   811→        children.push(new Paragraph({
+   812→          children: [new TextRun({ text, bold: true, size: 22, color: '0A1628', font: 'Times New Roman' })],
+   813→          heading: /^(CLÁSULA|ARTÍCULO)/i.test(text) ? HeadingLevel.HEADING_3 : HeadingLevel.HEADING_2,
+   814→          spacing: { before: 200, after: 100 },
+   815→        }));
+   816→      } else if (isSignature) {
+   817→        children.push(new Paragraph({
+   818→          children: [new TextRun({ text, size: 20, color: '333333', font: 'Times New Roman' })],
+   819→          spacing: { after: 80 },
+   820→        }));
+   821→      } else {
+   822→        children.push(new Paragraph({
+   823→          children: [new TextRun({
+   824→            text,
+   825→            bold: isBold,
+   826→            italics: block.isItalic,
+   827→            size: 22,
+   828→            color: '222222',
+   829→            font: 'Times New Roman',
+   830→          })],
+   831→          alignment: AlignmentType.JUSTIFIED,
+   832→          spacing: { after: 80, line: 276 },
+   833→        }));
+   834→      }
+   835→    }
+   836→  }
+   837→
+   838→  // Footer
+   839→  const footerImgData = decodeMediaImage(footerContent);
+   840→  if (footerImgData) {
+   841→    children.push(new Paragraph({
+   842→      children: [new ImageRun({ data: footerImgData.buffer, transformation: { width: footerImgData.width || 468, height: footerImgData.height || 40 } })],
+   843→      alignment: AlignmentType.CENTER,
+   844→      spacing: { before: 400 },
+   845→    }));
+   846→  } else {
+   847→    const footerTxt = isMediaText(footerContent);
+   848→    if (footerTxt) {
+   849→      children.push(new Paragraph({
+   850→        children: [new TextRun({ text: footerTxt, size: 16, color: '999999', font: 'Times New Roman', italics: true })],
+   851→        alignment: AlignmentType.CENTER,
+   852→        spacing: { before: 400 },
+   853→      }));
+   854→    } else {
+   855→      children.push(new Paragraph({
+   856→        children: [new TextRun({
+   857→          text: 'Generado por CopyDocs - Generacion Inteligente de Documentos',
+   858→          size: 14,
+   859→          color: '999999',
+   860→          font: 'Times New Roman',
+   861→          italics: true,
+   862→        })],
+   863→        alignment: AlignmentType.CENTER,
+   864→        spacing: { before: 400 },
+   865→      }));
+   866→    }
+   867→  }
+   868→
+   869→  const docx = new DocxDocument({
+   870→    sections: [{
+   871→      properties: {
+   872→        page: { margin: { top: 1200, right: 1300, bottom: 1200, left: 1300 } },
+   873→      },
+   874→      children,
+   875→    }],
+   876→  });
+   877→
+   878→  const buffer = await Packer.toBuffer(docx);
+   879→
+   880→  return new NextResponse(buffer, {
+   881→    status: 200,
+   882→    headers: {
+   883→      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+   884→      'Content-Disposition': `attachment; filename="${encodeURIComponent(title)}.docx"`,
+   885→      'Content-Length': buffer.length.toString(),
+   886→    },
+   887→  });
+   888→}
+   889→
