@@ -295,3 +295,89 @@
     animation: fade-in-up 0.4s ease-out forwards;
   }
 }
+
+/* ========================================================================== */
+/*  Tiptap Editor — Dark Mode Overrides                                        */
+/* ========================================================================== */
+
+/* The editor wrapper uses bg-[#1a1a2e]. We need Tiptap's internal elements
+   to be readable on that dark background. */
+.tiptap-editor-dark .tiptap {
+  color: #d1d5db;
+  caret-color: #e5e7eb;
+}
+.tiptap-editor-dark .tiptap p,
+.tiptap-editor-dark .tiptap li {
+  color: #d1d5db;
+}
+.tiptap-editor-dark .tiptap h1,
+.tiptap-editor-dark .tiptap h2,
+.tiptap-editor-dark .tiptap h3 {
+  color: #f3f4f6;
+}
+.tiptap-editor-dark .tiptap strong {
+  color: #f9fafb;
+}
+.tiptap-editor-dark .tiptap em {
+  color: #d1d5db;
+}
+.tiptap-editor-dark .tiptap a {
+  color: #60a5fa;
+}
+.tiptap-editor-dark .tiptap blockquote {
+  border-left-color: rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.6);
+}
+.tiptap-editor-dark .tiptap ul,
+.tiptap-editor-dark .tiptap ol {
+  list-style-position: outside;
+  padding-left: 1.5em;
+}
+.tiptap-editor-dark .tiptap li::marker {
+  color: rgba(255,255,255,0.4);
+}
+.tiptap-editor-dark .tiptap hr {
+  border-color: rgba(255,255,255,0.15);
+}
+.tiptap-editor-dark .tiptap p.is-editor-empty:first-child::before {
+  color: rgba(255,255,255,0.25);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+/* Table cells in dark editor */
+.tiptap-editor-dark .tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.tiptap-editor-dark .tiptap td,
+.tiptap-editor-dark .tiptap th {
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 6px 10px;
+  color: #d1d5db;
+  vertical-align: top;
+}
+.tiptap-editor-dark .tiptap th {
+  background: rgba(255,255,255,0.06);
+  font-weight: 600;
+  color: #e5e7eb;
+}
+.tiptap-editor-dark .tiptap td {
+  background: transparent;
+}
+/* Selected cell */
+.tiptap-editor-dark .tiptap td.selectedCell,
+.tiptap-editor-dark .tiptap th.selectedCell {
+  background: rgba(201,169,78,0.15);
+}
+/* Table resize handle */
+.tiptap-editor-dark .tiptap .column-resize-handle {
+  background-color: #C9A94E;
+}
+.tiptap-editor-dark .tiptap .tableWrapper {
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.tiptap-editor-dark .tiptap .resize-cursor {
+  cursor: col-resize;
+}

@@ -27,7 +27,7 @@ interface Publication {
 function SafeHtml({ html }: { html: string }) {
   return (
     <div
-      className="prose prose-sm max-w-none dark:prose-invert [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-primary/80 [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-semibold [&_th]:text-foreground/80 [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1.5 [&_td]:text-foreground/70"
+      className="not-prose text-sm text-foreground/80 max-w-none [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-primary/80 [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1.5 [&_td]:text-foreground/70 [&_figure]:my-3 [&_figure_img]:w-full [&_figure_img]:h-auto [&_figure_img]:rounded-lg [&_figure_img]:border [&_figure_img]:border-border/50 [&_figure_figcaption]:text-xs [&_figure_figcaption]:text-muted-foreground [&_p_img]:inline-block [&_p_img]:max-w-full [&_p_img]:h-auto"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )

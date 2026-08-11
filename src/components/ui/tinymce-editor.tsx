@@ -279,8 +279,8 @@ export default function TinyMCEEditor({
     editorProps: {
       attributes: {
         class: darkMode
-          ? 'prose prose-sm max-w-none focus:outline-none min-h-full [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-white/15 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-white/15 [&_th]:bg-white/5 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_a]:text-blue-400 [&_a]:underline [&_img]:max-w-full [&_img]:rounded [&_blockquote]:border-l-2 [&_blockquote]:border-white/20 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-white/60'
-          : 'prose prose-sm max-w-none focus:outline-none min-h-full [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_a]:text-primary [&_a]:underline [&_img]:max-w-full [&_img]:rounded',
+          ? 'focus:outline-none min-h-full'
+          : 'focus:outline-none min-h-full [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_a]:text-primary [&_a]:underline [&_img]:max-w-full [&_img]:rounded',
       },
     },
   })
@@ -347,7 +347,7 @@ export default function TinyMCEEditor({
   return (
     <div className={`relative flex flex-col ${darkMode ? 'bg-[#1a1a2e]' : 'bg-background'}`} style={{ minHeight: height }}>
       {/* ---- Toolbar ---- */}
-      <div className={`flex flex-wrap items-center gap-0.5 border-b px-1.5 py-1 ${darkMode ? 'border-white/10' : 'border-border'}`}>
+      <div className={`flex flex-wrap items-center gap-0.5 border-b px-1.5 py-1.5 ${darkMode ? 'border-white/10 bg-[#141428]' : 'border-border bg-card'}`}>
         {/* Undo / Redo */}
         <TBtn title="Deshacer" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>{Icons.undo}</TBtn>
         <TBtn title="Rehacer" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}>{Icons.redo}</TBtn>
@@ -458,8 +458,8 @@ export default function TinyMCEEditor({
 
       {/* ---- Editor Area ---- */}
       <div
-        className={`flex-1 overflow-y-auto px-4 py-3 ${darkMode ? 'text-white/90' : 'text-foreground'}`}
-        style={{ minHeight: height - 42 }}
+        className={`flex-1 overflow-y-auto px-4 py-3 ${darkMode ? 'tiptap-editor-dark text-white/90' : 'text-foreground'}`}
+        style={{ minHeight: Math.max(height - 42, 100) }}
       >
         <EditorContent editor={editor} />
       </div>
