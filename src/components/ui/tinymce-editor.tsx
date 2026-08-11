@@ -302,11 +302,13 @@ export default function TinyMCEEditor({
         formData.append('file', file)
         const res = await fetch(imagesUploadUrl, { method: 'POST', body: formData })
         const data = await res.json()
-        if (data.url) {
+        if (res.ok && data.url) {
           editor.chain().focus().setImage({ src: data.url }).run()
+        } else {
+          alert(data.error || 'Error al subir imagen')
         }
-      } catch (err) {
-        console.error('Image upload error:', err)
+      } catch {
+        alert('Error de conexion al subir imagen')
       }
     } else {
       /* Base64 fallback */

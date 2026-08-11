@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto'
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
 const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
+const UPLOAD_DIR = join(process.cwd(), 'uploads')
 
 export async function POST(request: Request) {
   try {
@@ -26,11 +27,11 @@ export async function POST(request: Request) {
     const bytes = await file.arrayBuffer()
     const ext = file.name.split('.').pop() || 'png'
     const filename = `${randomUUID()}.${ext}`
-    const filepath = join(process.cwd(), 'public', 'uploads', filename)
+    const filepath = join(UPLOAD_DIR, filename)
 
     await writeFile(filepath, Buffer.from(bytes))
 
-    return NextResponse.json({ url: `/uploads/${filename}` })
+    return NextResponse.json({ url: `/api/uploads/${filename}` })
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json({ error: 'Error al subir archivo' }, { status: 500 })

@@ -2716,13 +2716,18 @@ export default function AdminPage() {
                             <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
                               const file = e.target.files?.[0]
                               if (!file) return
+                              if (file.size > 5 * 1024 * 1024) { toast.error('La imagen no debe superar 5 MB'); return }
                               const formData = new FormData()
                               formData.append('file', file)
                               try {
                                 const res = await fetch('/api/upload', { method: 'POST', body: formData })
                                 const data = await res.json()
-                                if (data.url) setPubForm((f) => ({ ...f, imageUrl: data.url }))
-                              } catch { toast.error('Error al subir imagen') }
+                                if (res.ok && data.url) {
+                                  setPubForm((f) => ({ ...f, imageUrl: data.url }))
+                                } else {
+                                  toast.error(data.error || 'Error al subir imagen')
+                                }
+                              } catch { toast.error('Error de conexion al subir imagen') }
                             }} />
                           </label>
                           {pubForm.imageUrl && (
