@@ -1113,7 +1113,7 @@ export default function AdminPage() {
   const fetchKB = useCallback(async () => {
     setLoadingKB(true)
     try {
-      const res = await fetch('/api/admin/knowledge')
+      const res = await fetch('/api/admin/knowledge', { headers: { 'x-admin-export': 'copyexpress-admin-export' } })
       const data = await res.json()
       setKbEntries(Array.isArray(data) ? data : [])
     } catch { setKbEntries([]) }
@@ -1143,7 +1143,7 @@ export default function AdminPage() {
     try {
       const method = editingKB ? 'PUT' : 'POST'
       const body = { ...kbForm, ...(editingKB ? { id: editingKB.id } : {}) }
-      const res = await fetch('/api/admin/knowledge', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const res = await fetch('/api/admin/knowledge', { method, headers: { 'Content-Type': 'application/json', 'x-admin-export': 'copyexpress-admin-export' }, body: JSON.stringify(body) })
       if (!res.ok) throw new Error()
       toast.success(editingKB ? 'Entrada actualizada' : 'Entrada creada')
       setKbDialogOpen(false)
@@ -1153,7 +1153,7 @@ export default function AdminPage() {
 
   const handleDeleteKB = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/knowledge?id=${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/admin/knowledge?id=${id}`, { method: 'DELETE', headers: { 'x-admin-export': 'copyexpress-admin-export' } })
       if (!res.ok) throw new Error()
       toast.success('Entrada eliminada')
       fetchKB()
@@ -1165,7 +1165,7 @@ export default function AdminPage() {
     try {
       await fetch('/api/admin/knowledge', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-admin-export': 'copyexpress-admin-export' },
         body: JSON.stringify({ id: entry.id, active: !entry.active }),
       })
       fetchKB()

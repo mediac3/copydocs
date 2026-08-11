@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→import { useEffect, useState, useCallback, useRef } from 'react'
+     4→import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+     5→import {
+     6→  Users,
+     7→  FileText,
+     8→  BookOpen,
+     9→  Layout,
+    10→  Settings,
+    11→  Coins,
+    12→  MessageSquare,
+    13→  Check,
+    14→  X,
+    15→  Edit,
+    16→  Trash2,
+    17→  Plus,
+    18→  BarChart3,
+    19→  TrendingUp,
+    20→  Eye,
+    21→  MoreVertical,
+    22→  AlertCircle,
+    23→  Download,
+    24→  Upload,
+    25→  GripVertical,
+    26→  ChevronDown,
+    27→  ChevronRight,
+    28→  Trash2 as TrashIcon,
+    29→  CalendarDays,
+    30→  Hash,
+    31→  Type,
+    32→  AlignLeft,
+    33→  List,
+    34→  ToggleLeft,
+    35→  Newspaper,
+    36→  ImageOff,
+    37→  Brain,
+    38→  ImageIcon,
+    39→} from 'lucide-react'
+    40→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    41→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    42→import { Button } from '@/components/ui/button'
+    43→import { Badge } from '@/components/ui/badge'
+    44→import {
+    45→  Table,
+    46→  TableBody,
+    47→  TableCell,
+    48→  TableHead,
+    49→  TableHeader,
+    50→  TableRow,
+    51→} from '@/components/ui/table'
+    52→import {
+    53→  Dialog,
+    54→  DialogContent,
+    55→  DialogHeader,
+    56→  DialogTitle,
+    57→  DialogFooter,
+    58→} from '@/components/ui/dialog'
+    59→import { Input } from '@/components/ui/input'
+    60→import { Label } from '@/components/ui/label'
+    61→import { Textarea } from '@/components/ui/textarea'
+    62→import {
+    63→  Select,
+    64→  SelectTrigger,
+    65→  SelectValue,
+    66→  SelectContent,
+    67→  SelectItem,
+    68→} from '@/components/ui/select'
+    69→import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
+    70→import {
+    71→  DropdownMenu,
+    72→  DropdownMenuContent,
+    73→  DropdownMenuItem,
+    74→  DropdownMenuTrigger,
+    75→} from '@/components/ui/dropdown-menu'
+    76→import { toast } from 'sonner'
+    77→import { useAppStore, type Page } from '@/store/app-store'
+    78→import dynamic from 'next/dynamic'
+    79→
+    80→const TinyMCEEditor = dynamic(() => import('@/components/ui/tinymce-editor'), { ssr: false })
+    81→
+    82→/* -------------------------------------------------------------------------- */
+    83→/*  Types                                                                    */
+    84→/* -------------------------------------------------------------------------- */
+    85→
+    86→interface AdminStats {
+    87→  totalUsers: number
+    88→  totalDocuments: number
+    89→  activeTemplates: number
+    90→  totalRevenue: number
+    91→  documentsByMonth: Array<{ month: string; count: number }>
+    92→  topTemplates: Array<{ id: string; name: string; category: string; count: number }>
+    93→}
+    94→
+    95→interface Template {
+    96→  id: string
+    97→  name: string
+    98→  category: string
+    99→  legalArea: string
+   100→  status: string
+   101→  price: number
+   102→  documentCount: number
+   103→  description?: string
+   104→  audience?: string
+   105→  baseContent?: string
+   106→  headerContent?: string
+   107→  footerContent?: string
+   108→  wizardConfig?: string
+   109→}
+   110→
+   111→interface Clause {
+   112→  id: string
+   113→  title: string
+   114→  content: string
+   115→  legalArea: string
+   116→}
+   117→
+   118→interface AdminUser {
+   119→  id: string
+   120→  name: string
+   121→  username: string
+   122→  email: string
+   123→  role: string
+   124→  status: string
+   125→  credits: number
+   126→  documentCount: number
+   127→  lastAccess: string
+   128→}
+   129→
+   130→interface DocumentRequest {
+   131→  id: string
+   132→  title: string
+   133→  description: string
+   134→  user: string
+   135→  date: string
+   136→  status: 'pendiente' | 'aprobada' | 'rechazada' | 'en_desarrollo'
+   137→  notes?: string
+   138→}
+   139→
+   140→interface VisitorDocument {
+   141→  id: string
+   142→  title: string
+   143→  visitorPhone: string | null
+   144→  visitorName: string | null
+   145→  status: string
+   146→  createdAt: string
+   147→  template?: { name: string; category: string }
+   148→}
+   149→
+   150→interface CreditUser {
+   151→  id: string
+   152→  name: string
+   153→  username: string
+   154→  email: string
+   155→  phone: string
+   156→  status: string
+   157→  credits: number
+   158→}
+   159→
+   160→interface CreditTransaction {
+   161→  id: string
+   162→  amount: number
+   163→  type: string
+   164→  description: string | null
+   165→  createdAt: string
+   166→}
+   167→
+   168→/* ---- Media helper: stores type + dimensions alongside base64 data ---- */
+   169→interface MediaContent {
+   170→  type: 'text' | 'image'
+   171→  text?: string
+   172→  dataUrl?: string
+   173→  width?: number
+   174→  height?: number
+   175→}
+   176→
+   177→function parseMedia(raw: string | null | undefined): MediaContent {
+   178→  if (!raw) return { type: 'text', text: '' }
+   179→  if (raw.startsWith('data:image')) {
+   180→    try {
+   181→      const parsed = JSON.parse(raw)
+   182→      if (parsed && parsed.type === 'image' && parsed.dataUrl) return parsed
+   183→    } catch { /* not JSON, treat as raw base64 */ }
+   184→    return { type: 'image', dataUrl: raw, width: 468, height: 60 }
+   185→  }
+   186→  return { type: 'text', text: raw }
+   187→}
+   188→
+   189→function encodeMedia(m: MediaContent): string {
+   190→  if (m.type === 'text') return m.text || ''
+   191→  return JSON.stringify({ type: 'image', dataUrl: m.dataUrl, width: m.width, height: m.height })
+   192→}
+   193→
+   194→function isMediaImage(m: MediaContent): boolean {
+   195→  return m.type === 'image' && !!m.dataUrl
+   196→}
+   197→
+   198→interface WizardFieldDef {
+   199→  key: string
+   200→  label: string
+   201→  type: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'boolean'
+   202→  options?: string[]
+   203→  tooltip?: string
+   204→  condition?: { field: string; value: boolean | string | number }
+   205→}
+   206→
+   207→interface WizardStepDef {
+   208→  title: string
+   209→  fields: WizardFieldDef[]
+   210→}
+   211→
+   212→interface NewTemplateForm {
+   213→  name: string
+   214→  description: string
+   215→  category: string
+   216→  legalArea: string
+   217→  audience: string
+   218→  price: string
+   219→  baseContent: string
+   220→  headerContent: string
+   221→  footerContent: string
+   222→  status: string
+   223→  wizardConfig: WizardStepDef[]
+   224→}
+   225→
+   226→interface NewClauseForm {
+   227→  title: string
+   228→  content: string
+   229→  legalArea: string
+   230→}
+   231→
+   232→/* -------------------------------------------------------------------------- */
+   233→/*  Helpers                                                                  */
+   234→/* -------------------------------------------------------------------------- */
+   235→
+   236→function formatCurrency(value: number): string {
+   237→  return new Intl.NumberFormat('es-CO', {
+   238→    style: 'currency',
+   239→    currency: 'COP',
+   240→    minimumFractionDigits: 0,
+   241→  }).format(value)
+   242→}
+   243→
+   244→function formatDate(dateStr: string): string {
+   245→  return new Date(dateStr).toLocaleDateString('es-CO', {
+   246→    day: '2-digit',
+   247→    month: 'short',
+   248→    year: 'numeric',
+   249→  })
+   250→}
+   251→
+   252→function formatDateTime(dateStr: string): string {
+   253→  return new Date(dateStr).toLocaleDateString('es-CO', {
+   254→    day: '2-digit',
+   255→    month: 'short',
+   256→    year: 'numeric',
+   257→    hour: '2-digit',
+   258→    minute: '2-digit',
+   259→  })
+   260→}
+   261→
+   262→/* -------------------------------------------------------------------------- */
+   263→/*  Status Badges                                                            */
+   264→/* -------------------------------------------------------------------------- */
+   265→
+   266→const TEMPLATE_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+   267→  draft: { label: 'Borrador', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
+   268→  in_review: { label: 'En revisión', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
+   269→  published: { label: 'Publicado', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
+   270→  disabled: { label: 'Desactivado', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
+   271→}
+   272→
+   273→const REQUEST_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+   274→  pendiente: { label: 'Pendiente', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' },
+   275→  aprobada: { label: 'Aprobada', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
+   276→  rechazada: { label: 'Rechazada', className: 'bg-red-500/15 text-red-400 border-red-500/25' },
+   277→  en_desarrollo: { label: 'En desarrollo', className: 'bg-blue-500/15 text-blue-400 border-blue-500/25' },
+   278→}
+   279→
+   280→const ROLE_BADGE_CONFIG: Record<string, string> = {
+   281→  admin: 'bg-[#C9A94E]/15 text-[#C9A94E] border-[#C9A94E]/25',
+   282→  user: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+   283→  editor: 'bg-purple-500/15 text-purple-400 border-purple-500/25',
+   284→}
+   285→
+   286→const USER_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+   287→  active: { label: 'Activo', className: 'bg-green-500/15 text-green-400 border-green-500/25' },
+   288→  suspended: { label: 'Suspendido', className: 'bg-red-500/15 text-red-400 border-red-500/25' },
+   289→  inactive: { label: 'Inactivo', className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' },
+   290→}
+   291→
+   292→function StatusBadge({ status, config }: { status: string; config: Record<string, { label: string; className: string }> }) {
+   293→  const c = config[status] || { label: status, className: 'bg-gray-500/15 text-gray-400 border-gray-500/25' }
+   294→  return (
+   295→    <Badge variant="outline" className={`${c.className} hover:${c.className}`}>
+   296→      {c.label}
+   297→    </Badge>
+   298→  )
+   299→}
+   300→
+   301→/* -------------------------------------------------------------------------- */
+   302→/*  Chart Tooltip                                                            */
+   303→/* -------------------------------------------------------------------------- */
+   304→
+   305→function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
+   306→  if (!active || !payload?.length) return null
+   307→  return (
+   308→    <div className="rounded-lg border border-[#C9A94E]/20 bg-[#0A1628]/95 px-3 py-2 shadow-xl backdrop-blur-sm">
+   309→      <p className="mb-1 text-xs font-semibold text-white/80 capitalize">{label}</p>
+   310→      {payload.map((p, i) => (
+   311→        <div key={i} className="flex items-center gap-2 text-xs">
+   312→          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
+   313→          <span className="text-white/60">{p.name}:</span>
+   314→          <span className="font-medium text-white">{p.value}</span>
+   315→        </div>
+   316→      ))}
+   317→    </div>
+   318→  )
+   319→}
+   320→
+   321→/* -------------------------------------------------------------------------- */
+   322→/*  Empty state                                                              */
+   323→/* -------------------------------------------------------------------------- */
+   324→
+   325→function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message: string }) {
+   326→  return (
+   327→    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+   328→      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/5">
+   329→        <Icon className="h-6 w-6 text-white/25" />
+   330→      </div>
+   331→      <p className="text-sm text-white/40">{message}</p>
+   332→    </div>
+   333→  )
+   334→}
+   335→
+   336→/* -------------------------------------------------------------------------- */
+   337→/*  Stat Card                                                                */
+   338→/* -------------------------------------------------------------------------- */
+   339→
+   340→function AdminStatCard({ label, value, icon, accentBg, accentText, accentBorder, sub }: {
+   341→  label: string
+   342→  value: string | number
+   343→  icon: React.ReactNode
+   344→  accentBg: string
+   345→  accentText: string
+   346→  accentBorder: string
+   347→  sub?: string
+   348→}) {
+   349→  return (
+   350→    <Card className={`border ${accentBorder} bg-[#0F1D32]/80 backdrop-blur-sm transition-shadow hover:shadow-lg hover:shadow-[#C9A94E]/5`}>
+   351→      <CardContent className="flex items-center gap-4 p-5">
+   352→        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${accentBg} ${accentText}`}>
+   353→          {icon}
+   354→        </div>
+   355→        <div className="min-w-0 flex-1">
+   356→          <p className="text-2xl font-bold tabular-nums text-white">{value}</p>
+   357→          <p className="truncate text-xs text-white/50">{label}</p>
+   358→        </div>
+   359→        {sub && <p className="text-xs text-white/30">{sub}</p>}
+   360→      </CardContent>
+   361→    </Card>
+   362→  )
+   363→}
+   364→
+   365→/* -------------------------------------------------------------------------- */
+   366→/*  AdminPage                                                                */
+   367→/* -------------------------------------------------------------------------- */
+   368→
+   369→/* -------------------------------------------------------------------------- */
+   370→/*  Media Field Editor (Header / Footer with Image+Dimensions)                 */
+   371→/* -------------------------------------------------------------------------- */
+   372→
+   373→function MediaFieldEditor({
+   374→  label, rawValue, onChange, defaultW, defaultH, maxH, hint
+   375→}: {
+   376→  label: string
+   377→  rawValue: string
+   378→  onChange: (encoded: string) => void
+   379→  defaultW: number
+   380→  defaultH: number
+   381→  maxH: number
+   382→  hint: string
+   383→}) {
+   384→  const [mode, setMode] = useState<'text' | 'image'>(() => {
+   385→    if (!rawValue) return 'text'
+   386→    if (rawValue.startsWith('data:image')) return 'image'
+   387→    try { const p = JSON.parse(rawValue); if (p?.type === 'image') return 'image' } catch {}
+   388→    return 'text'
+   389→  })
+   390→  const [imgData, setImgData] = useState<string>('')
+   391→  const [imgW, setImgW] = useState(defaultW)
+   392→  const [imgH, setImgH] = useState(defaultH)
+   393→  const [textVal, setTextVal] = useState('')
+   394→  const initialized = useRef(false)
+   395→
+   396→  // Init from rawValue on mount
+   397→  useEffect(() => {
+   398→    if (initialized.current) return
+   399→    initialized.current = true
+   400→    if (!rawValue) return
+   401→    if (rawValue.startsWith('data:image')) {
+   402→      setImgData(rawValue)
+   403→    } else {
+   404→      try {
+   405→        const p = JSON.parse(rawValue)
+   406→        if (p?.type === 'image') {
+   407→          setImgData(p.dataUrl || '')
+   408→          if (p.width) setImgW(p.width)
+   409→          if (p.height) setImgH(p.height)
+   410→        } else {
+   411→          setTextVal(typeof p?.text === 'string' ? p.text : rawValue)
+   412→        }
+   413→      } catch {
+   414→        setTextVal(rawValue)
+   415→      }
+   416→    }
+   417→  }, [])
+   418→
+   419→  const switchMode = (t: 'text' | 'image') => {
+   420→    setMode(t)
+   421→    if (t === 'text') {
+   422→      setTextVal('')
+   423→      onChange('')
+   424→    } else {
+   425→      setImgData('')
+   426→      setImgW(defaultW)
+   427→      setImgH(defaultH)
+   428→      onChange(JSON.stringify({ type: 'image', dataUrl: '', width: defaultW, height: defaultH }))
+   429→    }
+   430→  }
+   431→
+   432→  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+   433→    const file = e.target.files?.[0]
+   434→    if (!file) return
+   435→    if (file.size > 2 * 1024 * 1024) { toast.error('La imagen no puede superar 2 MB'); return }
+   436→    const reader = new FileReader()
+   437→    reader.onload = () => {
+   438→      const dataUrl = reader.result as string
+   439→      const img = new window.Image()
+   440→      img.onload = () => {
+   441→        const ratio = img.width / img.height
+   442→        let h = maxH
+   443→        let w = Math.round(h * ratio)
+   444→        if (w > 468) { w = 468; h = Math.round(w / ratio) }
+   445→        setImgData(dataUrl)
+   446→        setImgW(w)
+   447→        setImgH(h)
+   448→        onChange(JSON.stringify({ type: 'image', dataUrl, width: w, height: h }))
+   449→      }
+   450→      img.onerror = () => {
+   451→        setImgData(dataUrl)
+   452→        setImgW(defaultW)
+   453→        setImgH(defaultH)
+   454→        onChange(JSON.stringify({ type: 'image', dataUrl, width: defaultW, height: defaultH }))
+   455→      }
+   456→      img.src = dataUrl
+   457→    }
+   458→    reader.readAsDataURL(file)
+   459→    e.target.value = ''
+   460→  }
+   461→
+   462→  const removeImage = () => {
+   463→    setImgData('')
+   464→    setImgW(defaultW)
+   465→    setImgH(defaultH)
+   466→    onChange(JSON.stringify({ type: 'image', dataUrl: '', width: defaultW, height: defaultH }))
+   467→  }
+   468→
+   469→  return (
+   470→    <div className="grid gap-2">
+   471→      <Label className="text-white/70">{label}</Label>
+   472→      <div className="flex gap-1 mb-1">
+   473→        {(['text', 'image'] as const).map(t => (
+   474→          <button
+   475→            key={t}
+   476→            type="button"
+   477→            onClick={() => switchMode(t)}
+   478→            className={`flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
+   479→              mode === t
+   480→                ? 'bg-[#28A745]/20 text-[#28A745] border border-[#28A745]/30'
+   481→                : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+   482→            }`}
+   483→          >
+   484→            {t === 'text' ? 'Texto' : 'Imagen'}
+   485→          </button>
+   486→        ))}
+   487→      </div>
+   488→      {mode === 'text' ? (
+   489→        <Textarea
+   490→          value={textVal}
+   491→          onChange={(e) => { setTextVal(e.target.value); onChange(e.target.value) }}
+   492→          placeholder={`Texto del ${label.toLowerCase()}...`}
+   493→          rows={3}
+   494→          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+   495→        />
+   496→      ) : (
+   497→        <div className="space-y-2">
+   498→          {imgData && (
+   499→            <div className="flex items-center justify-center rounded-lg border border-dashed border-white/15 bg-white/[0.02] p-3">
+   500→              <img src={imgData} alt="Preview" className="max-h-24 max-w-full object-contain rounded" />
+   501→            </div>
+   502→          )}
+   503→          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-white/50 hover:bg-white/10 hover:text-white/70 transition-colors">
+   504→            <Upload className="h-3.5 w-3.5" />
+   505→            {imgData ? 'Cambiar imagen' : 'Subir imagen (PNG, JPG, WebP)'}
+   506→            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleFile} />
+   507→          </label>
+   508→          <div className="grid grid-cols-2 gap-2">
+   509→            <div className="grid gap-1">
+   510→              <span className="text-[9px] uppercase tracking-wider text-white/25">Ancho (px)</span>
+   511→              <Input
+   512→                type="number"
+   513→                value={imgW}
+   514→                onChange={(e) => {
+   515→                  const w = parseInt(e.target.value) || defaultW
+   516→                  setImgW(w)
+   517→                  onChange(JSON.stringify({ type: 'image', dataUrl: imgData, width: w, height: imgH }))
+   518→                }}
+   519→                className="h-7 border-white/10 bg-white/5 text-white text-xs"
+   520→              />
+   521→            </div>
+   522→            <div className="grid gap-1">
+   523→              <span className="text-[9px] uppercase tracking-wider text-white/25">Alto (px)</span>
+   524→              <Input
+   525→                type="number"
+   526→                value={imgH}
+   527→                onChange={(e) => {
+   528→                  const h = parseInt(e.target.value) || defaultH
+   529→                  setImgH(h)
+   530→                  onChange(JSON.stringify({ type: 'image', dataUrl: imgData, width: imgW, height: h }))
+   531→                }}
+   532→                className="h-7 border-white/10 bg-white/5 text-white text-xs"
+   533→              />
+   534→            </div>
+   535→          </div>
+   536→          <p className="text-[10px] text-white/25 text-center">{hint}. Max 2 MB.</p>
+   537→          {imgData && (
+   538→            <button
+   539→              type="button"
+   540→              onClick={removeImage}
+   541→              className="w-full text-center text-[11px] text-red-400/60 hover:text-red-400 transition-colors"
+   542→            >
+   543→              Eliminar imagen
+   544→            </button>
+   545→          )}
+   546→        </div>
+   547→      )}
+   548→    </div>
+   549→  )
+   550→}
+   551→
+   552→/* -------------------------------------------------------------------------- */
+   553→/*  Wizard Step Editor Component                                                */
+   554→/* -------------------------------------------------------------------------- */
+   555→
+   556→const FIELD_TYPE_OPTIONS: Array<{ value: WizardFieldDef['type']; label: string; icon: React.ElementType }> = [
+   557→  { value: 'text', label: 'Texto', icon: Type },
+   558→  { value: 'number', label: 'Número', icon: Hash },
+   559→  { value: 'date', label: 'Fecha', icon: CalendarDays },
+   560→  { value: 'textarea', label: 'Área de texto', icon: AlignLeft },
+   561→  { value: 'select', label: 'Selección', icon: List },
+   562→  { value: 'boolean', label: 'Sí/No', icon: ToggleLeft },
+   563→]
+   564→
+   565→function WizardStepEditor({
+   566→  step, stepIndex, allSteps, onChange, onRemove
+   567→}: {
+   568→  step: WizardStepDef
+   569→  stepIndex: number
+   570→  allSteps: WizardStepDef[]
+   571→  onChange: (updated: WizardStepDef) => void
+   572→  onRemove: () => void
+   573→}) {
+   574→  const [expanded, setExpanded] = useState(true)
+   575→
+   576→  const updateField = (fi: number, patch: Partial<WizardFieldDef>) => {
+   577→    const fields = step.fields.map((f, i) => i === fi ? { ...f, ...patch } : f)
+   578→    onChange({ ...step, fields })
+   579→  }
+   580→
+   581→  const removeField = (fi: number) => {
+   582→    onChange({ ...step, fields: step.fields.filter((_, i) => i !== fi) })
+   583→  }
+   584→
+   585→  const addField = () => {
+   586→    onChange({
+   587→      ...step,
+   588→      fields: [...step.fields, { key: '', label: '', type: 'text' }]
+   589→    })
+   590→  }
+   591→
+   592→  /* Collect boolean fields for condition dropdown */
+   593→  const booleanFields = allSteps.flatMap((s, si) =>
+   594→    s.fields.filter(f => f.type === 'boolean').map(f => ({ key: f.key, label: `[Paso ${si + 1}] ${f.label}`, value: true }))
+   595→  )
+   596→
+   597→  return (
+   598→    <div className="rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden">
+   599→      <div
+   600→        className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-white/[0.03] transition-colors"
+   601→        onClick={() => setExpanded(!expanded)}
+   602→      >
+   603→        {expanded ? <ChevronDown className="h-3.5 w-3.5 text-white/30" /> : <ChevronRight className="h-3.5 w-3.5 text-white/30" />}
+   604→        <Input
+   605→          value={step.title}
+   606→          onChange={(e) => onChange({ ...step, title: e.target.value })}
+   607→          onClick={(e) => e.stopPropagation()}
+   608→          className="h-6 border-0 bg-transparent p-0 text-sm font-medium text-white focus-visible:ring-0"
+   609→          placeholder={`Paso ${stepIndex + 1}`}
+   610→        />
+   611→        <Badge variant="outline" className="ml-auto border-white/10 text-white/30 text-[10px]">
+   612→          {step.fields.length} campo{step.fields.length !== 1 ? 's' : ''}
+   613→        </Badge>
+   614→        <Button
+   615→          type="button"
+   616→          variant="ghost"
+   617→          size="sm"
+   618→          className="h-6 w-6 p-0 text-white/20 hover:text-red-400 hover:bg-red-400/10"
+   619→          onClick={(e) => { e.stopPropagation(); onRemove() }}
+   620→        >
+   621→          <X className="h-3.5 w-3.5" />
+   622→        </Button>
+   623→      </div>
+   624→
+   625→      {expanded && (
+   626→        <div className="border-t border-white/5 p-3 space-y-2">
+   627→          {step.fields.length === 0 && (
+   628→            <p className="text-center text-[11px] text-white/20 py-3">Sin campos. Haz clic en &quot;Agregar campo&quot;.</p>
+   629→          )}
+   630→          {step.fields.map((field, fi) => (
+   631→            <div key={fi} className="grid gap-2 rounded-md border border-white/5 bg-white/[0.02] p-2.5 sm:grid-cols-[1fr_1fr_auto_auto_auto]">
+   632→              <div className="flex flex-col gap-1">
+   633→                <span className="text-[9px] uppercase tracking-wider text-white/20">Variable (key)</span>
+   634→                <Input
+   635→                  value={field.key}
+   636→                  onChange={(e) => updateField(fi, { key: e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() })}
+   637→                  placeholder="nombre_variable"
+   638→                  className="h-7 border-white/10 bg-white/5 text-white text-xs placeholder:text-white/20"
+   639→                />
+   640→              </div>
+   641→              <div className="flex flex-col gap-1">
+   642→                <span className="text-[9px] uppercase tracking-wider text-white/20">Etiqueta</span>
+   643→                <Input
+   644→                  value={field.label}
+   645→                  onChange={(e) => updateField(fi, { label: e.target.value })}
+   646→                  placeholder="Texto visible"
+   647→                  className="h-7 border-white/10 bg-white/5 text-white text-xs placeholder:text-white/20"
+   648→                />
+   649→              </div>
+   650→              <div className="flex flex-col gap-1">
+   651→                <span className="text-[9px] uppercase tracking-wider text-white/20">Tipo</span>
+   652→                <Select
+   653→                  value={field.type}
+   654→                  onValueChange={(v) => updateField(fi, { type: v as WizardFieldDef['type'], options: v === 'select' ? field.options || [''] : undefined })}
+   655→                >
+   656→                  <SelectTrigger className="h-7 w-[110px] border-white/10 bg-white/5 text-white text-xs">
+   657→                    <SelectValue />
+   658→                  </SelectTrigger>
+   659→                  <SelectContent className="border-white/10 bg-[#0F1D32]">
+   660→                    {FIELD_TYPE_OPTIONS.map(ft => (
+   661→                      <SelectItem key={ft.value} value={ft.value} className="text-white focus:bg-white/5 focus:text-white text-xs">
+   662→                        {ft.label}
+   663→                      </SelectItem>
+   664→                    ))}
+   665→                  </SelectContent>
+   666→                </Select>
+   667→              </div>
+   668→              <div className="flex flex-col gap-1">
+   669→                <span className="text-[9px] uppercase tracking-wider text-white/20">Cond.</span>
+   670→                <Select
+   671→                  value={field.condition?.field || '_none'}
+   672→                  onValueChange={(v) => {
+   673→                    if (v === '_none') {
+   674→                      const { condition, ...rest } = field
+   675→                      const cleaned = { ...rest } as WizardFieldDef
+   676→                      const fields = step.fields.map((f, i) => i === fi ? cleaned : f)
+   677→                      onChange({ ...step, fields })
+   678→                    } else {
+   679→                      const bf = booleanFields.find(b => b.key === v)
+   680→                      updateField(fi, { condition: { field: v, value: bf?.value ?? true } })
+   681→                    }
+   682→                  }}
+   683→                >
+   684→                  <SelectTrigger className="h-7 w-[110px] border-white/10 bg-white/5 text-white/20 text-xs">
+   685→                    <SelectValue placeholder="Ninguna" />
+   686→                  </SelectTrigger>
+   687→                  <SelectContent className="border-white/10 bg-[#0F1D32]">
+   688→                    <SelectItem value="_none" className="text-white/50 text-xs">Ninguna</SelectItem>
+   689→                    {booleanFields.map(bf => (
+   690→                      <SelectItem key={bf.key} value={bf.key} className="text-white focus:bg-white/5 focus:text-white text-xs">
+   691→                        {bf.label}
+   692→                      </SelectItem>
+   693→                    ))}
+   694→                  </SelectContent>
+   695→                </Select>
+   696→              </div>
+   697→              <div className="flex items-end pb-0.5">
+   698→                <Button
+   699→                  type="button"
+   700→                  variant="ghost"
+   701→                  size="sm"
+   702→                  className="h-7 w-7 p-0 text-white/20 hover:text-red-400 hover:bg-red-400/10"
+   703→                  onClick={() => removeField(fi)}
+   704→                >
+   705→                  <TrashIcon className="h-3.5 w-3.5" />
+   706→                </Button>
+   707→              </div>
+   708→              {/* Options editor for select type */}
+   709→              {field.type === 'select' && (
+   710→                <div className="sm:col-span-5 mt-1">
+   711→                  <span className="text-[9px] uppercase tracking-wider text-white/20">Opciones (separadas por coma)</span>
+   712→                  <Input
+   713→                    value={(field.options || []).join(', ')}
+   714→                    onChange={(e) => updateField(fi, { options: e.target.value.split(',').map(o => o.trim()).filter(Boolean) })}
+   715→                    placeholder="Opción 1, Opción 2, Opción 3"
+   716→                    className="h-7 mt-0.5 border-white/10 bg-white/5 text-white text-xs placeholder:text-white/20"
+   717→                  />
+   718→                </div>
+   719→              )}
+   720→              {/* Tooltip */}
+   721→              <div className="sm:col-span-5">
+   722→                <Input
+   723→                  value={field.tooltip || ''}
+   724→                  onChange={(e) => updateField(fi, { tooltip: e.target.value || undefined })}
+   725→                  placeholder="Tooltip o ayuda (opcional)"
+   726→                  className="h-6 border-0 bg-transparent text-white/30 text-[11px] placeholder:text-white/15 focus-visible:ring-0"
+   727→                />
+   728→              </div>
+   729→            </div>
+   730→          ))}
+   731→          <Button
+   732→            type="button"
+   733→            variant="outline"
+   734→            size="sm"
+   735→            className="w-full border-dashed border-white/10 bg-transparent text-white/40 hover:bg-white/5 hover:text-white/70 text-xs"
+   736→            onClick={addField}
+   737→          >
+   738→            <Plus className="mr-1 h-3 w-3" />
+   739→            Agregar campo
+   740→          </Button>
+   741→        </div>
+   742→      )}
+   743→    </div>
+   744→  )
+   745→}
+   746→
+   747→/* ========================================================================== */
+   748→/*  Terms Tab Component                                                     */
+   749→/* ========================================================================== */
+   750→
+   751→function InlineTerms() {
+   752→  const { authHeaders } = useAppStore() as { authHeaders: () => Record<string, string> }
+   753→  const [terms, setTerms] = useState('')
+   754→  const [loading, setLoading] = useState(true)
+   755→  const [saving, setSaving] = useState(false)
+   756→
+   757→  useEffect(() => {
+   758→    setLoading(true)
+   759→    fetch('/api/settings').then(r => r.json()).then(data => {
+   760→      setTerms(data.terms_and_conditions || '')
+   761→    }).catch(() => {}).finally(() => setLoading(false))
+   762→  }, [])
+   763→
+   764→  const handleSave = async () => {
+   765→    setSaving(true)
+   766→    try {
+   767→      const res = await fetch('/api/settings', {
+   768→        method: 'PUT',
+   769→        headers: authHeaders(),
+   770→        body: JSON.stringify({ terms_and_conditions: terms }),
+   771→      })
+   772→      if (res.ok) toast.success('Términos y condiciones actualizados')
+   773→      else toast.error('Error al guardar')
+   774→    } catch { toast.error('Error de conexión') }
+   775→    finally { setSaving(false) }
+   776→  }
+   777→
+   778→  return (
+   779→    <div className="space-y-6">
+   780→      <div>
+   781→        <h2 className="text-lg font-semibold text-white">Términos y Condiciones</h2>
+   782→        <p className="text-xs text-white/40">Configura los términos que los visitantes deben aceptar antes de generar un documento.</p>
+   783→      </div>
+   784→      <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+   785→        <CardContent className="p-6">
+   786→          {loading ? (
+   787→            <div className="h-64 animate-pulse rounded-lg bg-white/[0.04]" />
+   788→          ) : (
+   789→            <>
+   790→              <div className="grid gap-2 mb-4">
+   791→                <Label className="text-white/70">Contenido de Términos y Condiciones</Label>
+   792→                <p className="text-xs text-white/30">Este texto se mostrará a los visitantes antes de iniciar un documento. Usa texto plano.</p>
+   793→              </div>
+   794→              <Textarea
+   795→                value={terms}
+   796→                onChange={(e) => setTerms(e.target.value)}
+   797→                placeholder="Escribe aquí los términos y condiciones del servicio..."
+   798→                rows={16}
+   799→                className="border-white/10 bg-white/5 text-white placeholder:text-white/30 text-sm leading-relaxed"
+   800→              />
+   801→            </>
+   802→          )}
+   803→        </CardContent>
+   804→      </Card>
+   805→      <div className="flex justify-end">
+   806→        <Button onClick={handleSave} disabled={saving} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965] font-semibold min-w-[120px]">
+   807→          {saving ? 'Guardando...' : 'Guardar Términos'}
+   808→        </Button>
+   809→      </div>
+   810→    </div>
+   811→  )
+   812→}
+   813→
+   814→const PAGE_TO_TAB: Record<string, string> = {
+   815→  admin: 'resumen',
+   816→  'admin-templates': 'plantillas',
+   817→  'admin-clauses': 'clausulas',
+   818→  'admin-users': 'usuarios',
+   819→  'admin-requests': 'solicitudes',
+   820→  'admin-pricing': 'precios',
+   821→  'admin-terminos': 'terminos',
+   822→  'admin-publications': 'publicaciones',
+   823→}
+   824→
+   825→export default function AdminPage() {
+   826→  const { user, currentPage, setCurrentPage } = useAppStore()
+   827→  const [activeTab, setActiveTab] = useState(PAGE_TO_TAB[currentPage] || 'resumen')
+   828→
+   829→  // Sync sidebar navigation with internal tabs
+   830→  useEffect(() => {
+   831→    const mapped = PAGE_TO_TAB[currentPage]
+   832→    if (mapped && mapped !== activeTab) {
+   833→      setActiveTab(mapped)
+   834→    }
+   835→  }, [currentPage])
+   836→
+   837→  // Update store page when tab changes
+   838→  const handleTabChange = (value: string) => {
+   839→    setActiveTab(value)
+   840→    const pageMap: Record<string, string> = { resumen: 'admin', plantillas: 'admin-templates', clausulas: 'admin-clauses', usuarios: 'admin-users', solicitudes: 'admin-requests', precios: 'admin-pricing', terminos: 'admin-terminos', publicaciones: 'admin-publications' }
+   841→    const page = pageMap[value]
+   842→    if (page && page !== currentPage) setCurrentPage(page as Page)
+   843→  }
+   844→
+   845→  /* ---- Resumen state ---- */
+   846→  const [stats, setStats] = useState<AdminStats | null>(null)
+   847→  const [loadingStats, setLoadingStats] = useState(true)
+   848→
+   849→  /* ---- Templates state ---- */
+   850→  const [templates, setTemplates] = useState<Template[]>([])
+   851→  const [loadingTemplates, setLoadingTemplates] = useState(true)
+   852→  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+   853→  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
+   854→  const [templateForm, setTemplateForm] = useState<NewTemplateForm>({
+   855→    name: '', description: '', category: '', legalArea: '', audience: '',
+   856→    price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft',
+   857→    wizardConfig: [],
+   858→  })
+   859→  const [savingTemplate, setSavingTemplate] = useState(false)
+   860→
+   861→  /* ---- Clauses state ---- */
+   862→  const [clauses, setClauses] = useState<Clause[]>([])
+   863→  const [loadingClauses, setLoadingClauses] = useState(true)
+   864→  const [clauseDialogOpen, setClauseDialogOpen] = useState(false)
+   865→  const [editingClause, setEditingClause] = useState<Clause | null>(null)
+   866→  const [clauseForm, setClauseForm] = useState<NewClauseForm>({ title: '', content: '', legalArea: '' })
+   867→  const [savingClause, setSavingClause] = useState(false)
+   868→  const [deleteClauseId, setDeleteClauseId] = useState<string | null>(null)
+   869→
+   870→  /* ---- Users state ---- */
+   871→  const [users, setUsers] = useState<AdminUser[]>([])
+   872→  const [loadingUsers, setLoadingUsers] = useState(true)
+   873→
+   874→  /* ---- Requests state ---- */
+   875→  const [requests, setRequests] = useState<DocumentRequest[]>([])
+   876→  const [loadingRequests, setLoadingRequests] = useState(true)
+   877→  const [requestNotesId, setRequestNotesId] = useState<string | null>(null)
+   878→  const [requestNotes, setRequestNotes] = useState('')
+   879→
+   880→  /* ---- Visitor documents state ---- */
+   881→  const [visitorDocs, setVisitorDocs] = useState<VisitorDocument[]>([])
+   882→  const [loadingVisitorDocs, setLoadingVisitorDocs] = useState(true)
+   883→
+   884→  /* ---- Credits state ---- */
+   885→  const [creditUsers, setCreditUsers] = useState<CreditUser[]>([])
+   886→  const [loadingCreditUsers, setLoadingCreditUsers] = useState(true)
+   887→  const [selectedCreditUser, setSelectedCreditUser] = useState<CreditUser | null>(null)
+   888→  const [creditTransactions, setCreditTransactions] = useState<CreditTransaction[]>([])
+   889→  const [loadingCreditTx, setLoadingCreditTx] = useState(false)
+   890→  const [addCreditsAmount, setAddCreditsAmount] = useState('')
+   891→  const [addCreditsDesc, setAddCreditsDesc] = useState('')
+   892→  const [addingCredits, setAddingCredits] = useState(false)
+   893→  const [creditDialogOpen, setCreditDialogOpen] = useState(false)
+   894→
+   895→  /* ---- Auth header helper ---- */
+   896→  const authHeaders = useCallback(() => ({
+   897→    'Content-Type': 'application/json',
+   898→    'x-user-id': user?.id || '',
+   899→  }), [user?.id])
+   900→
+   901→  /* ========================================================================== */
+   902→  /*  DATA FETCHING                                                             */
+   903→  /* ========================================================================== */
+   904→
+   905→  const fetchStats = useCallback(async () => {
+   906→    setLoadingStats(true)
+   907→    try {
+   908→      const res = await fetch('/api/admin', { headers: authHeaders() })
+   909→      if (res.ok) {
+   910→        const data = await res.json()
+   911→        const s = data.stats || data
+   912→        setStats({
+   913→          totalUsers: s.totalUsers ?? 0,
+   914→          totalDocuments: s.totalDocuments ?? 0,
+   915→          activeTemplates: s.totalTemplates ?? 0,
+   916→          totalRevenue: s.totalCredits ?? 0,
+   917→          documentsByMonth: s.monthlyStats ?? [],
+   918→          topTemplates: s.topTemplates ?? [],
+   919→        })
+   920→      }
+   921→    } catch {
+   922→      // keep null state on error
+   923→    } finally {
+   924→      setLoadingStats(false)
+   925→    }
+   926→  }, [authHeaders])
+   927→
+   928→  const fetchTemplates = useCallback(async () => {
+   929→    setLoadingTemplates(true)
+   930→    try {
+   931→      const res = await fetch('/api/admin/templates', { headers: authHeaders() })
+   932→      if (res.ok) {
+   933→        const data = await res.json()
+   934→        setTemplates(Array.isArray(data) ? data : data.templates || [])
+   935→      }
+   936→    } catch {
+   937→      // keep empty on error
+   938→    } finally {
+   939→      setLoadingTemplates(false)
+   940→    }
+   941→  }, [authHeaders])
+   942→
+   943→  const fetchClauses = useCallback(async () => {
+   944→    setLoadingClauses(true)
+   945→    try {
+   946→      const res = await fetch('/api/admin/clauses', { headers: authHeaders() })
+   947→      if (res.ok) {
+   948→        const data = await res.json()
+   949→        setClauses(Array.isArray(data) ? data : data.clauses || [])
+   950→      }
+   951→    } catch {
+   952→      // keep empty on error
+   953→    } finally {
+   954→      setLoadingClauses(false)
+   955→    }
+   956→  }, [authHeaders])
+   957→
+   958→  const fetchUsers = useCallback(async () => {
+   959→    setLoadingUsers(true)
+   960→    try {
+   961→      const res = await fetch('/api/admin/users', { headers: authHeaders() })
+   962→      if (res.ok) {
+   963→        const data = await res.json()
+   964→        setUsers(Array.isArray(data) ? data : data.users || [])
+   965→      }
+   966→    } catch {
+   967→      // keep empty on error
+   968→    } finally {
+   969→      setLoadingUsers(false)
+   970→    }
+   971→  }, [authHeaders])
+   972→
+   973→  const fetchRequests = useCallback(async () => {
+   974→    setLoadingRequests(true)
+   975→    try {
+   976→      const res = await fetch('/api/admin/requests', { headers: authHeaders() })
+   977→      if (res.ok) {
+   978→        const data = await res.json()
+   979→        setRequests(Array.isArray(data) ? data : data.requests || [])
+   980→      }
+   981→    } catch {
+   982→      // keep empty on error
+   983→    } finally {
+   984→      setLoadingRequests(false)
+   985→    }
+   986→  }, [authHeaders])
+   987→
+   988→  const fetchVisitorDocs = useCallback(async () => {
+   989→    setLoadingVisitorDocs(true)
+   990→    try {
+   991→      const res = await fetch('/api/documents/visitor-list')
+   992→      if (res.ok) {
+   993→        const data = await res.json()
+   994→        setVisitorDocs(Array.isArray(data) ? data : data.documents || [])
+   995→      }
+   996→    } catch {
+   997→      // keep empty on error
+   998→    } finally {
+   999→      setLoadingVisitorDocs(false)
+  1000→    }
+  1001→  }, [])
+  1002→
+  1003→  const handleExportVisitor = useCallback(async (docId: string, format: 'pdf' | 'docx') => {
+  1004→    try {
+  1005→      const res = await fetch(`/api/documents/export?id=${docId}&format=${format}`, {
+  1006→        headers: { 'x-admin-export': 'copyexpress-admin-export' },
+  1007→      })
+  1008→      if (!res.ok) {
+  1009→        toast.error('Error al exportar')
+  1010→        return
+  1011→      }
+  1012→      const blob = await res.blob()
+  1013→      const url = URL.createObjectURL(blob)
+  1014→      const a = document.createElement('a')
+  1015→      a.href = url
+  1016→      a.download = `documento.${format}`
+  1017→      a.click()
+  1018→      URL.revokeObjectURL(url)
+  1019→    } catch {
+  1020→      toast.error('Error al exportar')
+  1021→    }
+  1022→  }, [])
+  1023→
+  1024→  const fetchCreditUsers = useCallback(async () => {
+  1025→    setLoadingCreditUsers(true)
+  1026→    try {
+  1027→      const res = await fetch('/api/admin/credits', { headers: authHeaders() })
+  1028→      if (res.ok) {
+  1029→        const data = await res.json()
+  1030→        setCreditUsers(data.users || [])
+  1031→      }
+  1032→    } catch {
+  1033→      // keep empty on error
+  1034→    } finally {
+  1035→      setLoadingCreditUsers(false)
+  1036→    }
+  1037→  }, [authHeaders])
+  1038→
+  1039→  const fetchCreditTransactions = useCallback(async (userId: string) => {
+  1040→    setLoadingCreditTx(true)
+  1041→    try {
+  1042→      const res = await fetch(`/api/admin/credits?userId=${userId}`, { headers: authHeaders() })
+  1043→      if (res.ok) {
+  1044→        const data = await res.json()
+  1045→        setCreditTransactions(data.transactions || [])
+  1046→      }
+  1047→    } catch {
+  1048→      // keep empty on error
+  1049→    } finally {
+  1050→      setLoadingCreditTx(false)
+  1051→    }
+  1052→  }, [authHeaders])
+  1053→
+  1054→  useEffect(() => {
+  1055→    fetchStats()
+  1056→  }, [fetchStats])
+  1057→
+  1058→  useEffect(() => {
+  1059→    if (activeTab === 'plantillas') fetchTemplates()
+  1060→  }, [activeTab, fetchTemplates])
+  1061→
+  1062→  useEffect(() => {
+  1063→    if (activeTab === 'clausulas') fetchClauses()
+  1064→  }, [activeTab, fetchClauses])
+  1065→
+  1066→  useEffect(() => {
+  1067→    if (activeTab === 'usuarios') fetchUsers()
+  1068→  }, [activeTab, fetchUsers])
+  1069→
+  1070→  useEffect(() => {
+  1071→    if (activeTab === 'solicitudes') { fetchRequests(); fetchVisitorDocs() }
+  1072→  }, [activeTab, fetchRequests, fetchVisitorDocs])
+  1073→
+  1074→  useEffect(() => {
+  1075→    if (activeTab === 'precios') fetchCreditUsers()
+  1076→  }, [activeTab, fetchCreditUsers])
+  1077→
+  1078→  /* ---- Publications state ---- */
+  1079→  interface PubItem {
+  1080→    id: string; title: string; description: string; content: string;
+  1081→    imageUrl: string | null; order: number; active: boolean; createdAt: string;
+  1082→  }
+  1083→  const [publications, setPublications] = useState<PubItem[]>([])
+  1084→  const [loadingPubs, setLoadingPubs] = useState(false)
+  1085→  const [pubDialogOpen, setPubDialogOpen] = useState(false)
+  1086→  const [editingPub, setEditingPub] = useState<PubItem | null>(null)
+  1087→  const [pubForm, setPubForm] = useState({ title: '', description: '', content: '', imageUrl: '', active: true })
+  1088→  const [deletingPubId, setDeletingPubId] = useState<string | null>(null)
+  1089→
+  1090→  /* ---- Knowledge Base ---- */
+  1091→  interface KBItem {
+  1092→    id: string; title: string; content: string; category: string; active: boolean; createdAt: string
+  1093→  }
+  1094→  const [kbEntries, setKbEntries] = useState<KBItem[]>([])
+  1095→  const [loadingKB, setLoadingKB] = useState(false)
+  1096→  const [kbDialogOpen, setKbDialogOpen] = useState(false)
+  1097→  const [editingKB, setEditingKB] = useState<KBItem | null>(null)
+  1098→  const [kbForm, setKbForm] = useState({ title: '', content: '', category: 'general', active: true })
+  1099→  const [deletingKBId, setDeletingKBId] = useState<string | null>(null)
+  1100→
+  1101→  const KB_CATEGORIES = [
+  1102→    { value: 'general', label: 'General' },
+  1103→    { value: 'civil', label: 'Derecho Civil' },
+  1104→    { value: 'laboral', label: 'Derecho Laboral' },
+  1105→    { value: 'mercantil', label: 'Derecho Mercantil' },
+  1106→    { value: 'administrativo', label: 'Derecho Administrativo' },
+  1107→    { value: 'penal', label: 'Derecho Penal' },
+  1108→    { value: 'familia', label: 'Derecho de Familia' },
+  1109→    { value: 'inmobiliario', label: 'Derecho Inmobiliario' },
+  1110→    { value: 'procesal', label: 'Derecho Procesal' },
+  1111→  ]
+  1112→
+  1113→  const fetchKB = useCallback(async () => {
+  1114→    setLoadingKB(true)
+  1115→    try {
+  1116→      const res = await fetch('/api/admin/knowledge')
+  1117→      const data = await res.json()
+  1118→      setKbEntries(Array.isArray(data) ? data : [])
+  1119→    } catch { setKbEntries([]) }
+  1120→    finally { setLoadingKB(false) }
+  1121→  }, [])
+  1122→
+  1123→  useEffect(() => {
+  1124→    if (activeTab === 'conocimiento') fetchKB()
+  1125→  }, [activeTab, fetchKB])
+  1126→
+  1127→  const handleOpenKBDialog = (entry?: KBItem) => {
+  1128→    if (entry) {
+  1129→      setEditingKB(entry)
+  1130→      setKbForm({ title: entry.title, content: entry.content, category: entry.category || 'general', active: entry.active })
+  1131→    } else {
+  1132→      setEditingKB(null)
+  1133→      setKbForm({ title: '', content: '', category: 'general', active: true })
+  1134→    }
+  1135→    setKbDialogOpen(true)
+  1136→  }
+  1137→
+  1138→  const handleSaveKB = async () => {
+  1139→    if (!kbForm.title.trim() || !kbForm.content.trim()) {
+  1140→      toast.error('Titulo y contenido son requeridos')
+  1141→      return
+  1142→    }
+  1143→    try {
+  1144→      const method = editingKB ? 'PUT' : 'POST'
+  1145→      const body = { ...kbForm, ...(editingKB ? { id: editingKB.id } : {}) }
+  1146→      const res = await fetch('/api/admin/knowledge', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  1147→      if (!res.ok) throw new Error()
+  1148→      toast.success(editingKB ? 'Entrada actualizada' : 'Entrada creada')
+  1149→      setKbDialogOpen(false)
+  1150→      fetchKB()
+  1151→    } catch { toast.error('Error al guardar entrada') }
+  1152→  }
+  1153→
+  1154→  const handleDeleteKB = async (id: string) => {
+  1155→    try {
+  1156→      const res = await fetch(`/api/admin/knowledge?id=${id}`, { method: 'DELETE' })
+  1157→      if (!res.ok) throw new Error()
+  1158→      toast.success('Entrada eliminada')
+  1159→      fetchKB()
+  1160→    } catch { toast.error('Error al eliminar entrada') }
+  1161→    setDeletingKBId(null)
+  1162→  }
+  1163→
+  1164→  const handleToggleKBActive = async (entry: KBItem) => {
+  1165→    try {
+  1166→      await fetch('/api/admin/knowledge', {
+  1167→        method: 'PUT',
+  1168→        headers: { 'Content-Type': 'application/json' },
+  1169→        body: JSON.stringify({ id: entry.id, active: !entry.active }),
+  1170→      })
+  1171→      fetchKB()
+  1172→    } catch { toast.error('Error al cambiar estado') }
+  1173→  }
+  1174→
+  1175→  const fetchPublications = useCallback(async () => {
+  1176→    setLoadingPubs(true)
+  1177→    try {
+  1178→      const res = await fetch('/api/admin/publications')
+  1179→      const data = await res.json()
+  1180→      setPublications(Array.isArray(data) ? data : [])
+  1181→    } catch { setPublications([]) }
+  1182→    finally { setLoadingPubs(false) }
+  1183→  }, [])
+  1184→
+  1185→  useEffect(() => {
+  1186→    if (activeTab === 'publicaciones') fetchPublications()
+  1187→  }, [activeTab, fetchPublications])
+  1188→
+  1189→  const handleOpenPubDialog = (pub?: PubItem) => {
+  1190→    if (pub) {
+  1191→      setEditingPub(pub)
+  1192→      setPubForm({ title: pub.title, description: pub.description, content: pub.content || '', imageUrl: pub.imageUrl || '', active: pub.active })
+  1193→    } else {
+  1194→      setEditingPub(null)
+  1195→      setPubForm({ title: '', description: '', content: '', imageUrl: '', active: true })
+  1196→    }
+  1197→    setPubDialogOpen(true)
+  1198→  }
+  1199→
+  1200→  const handleSavePub = async () => {
+  1201→    if (!pubForm.title.trim() || !pubForm.description.trim()) {
+  1202→      toast.error('Titulo y descripcion son requeridos')
+  1203→      return
+  1204→    }
+  1205→    try {
+  1206→      const url = editingPub ? '/api/admin/publications' : '/api/admin/publications'
+  1207→      const method = editingPub ? 'PUT' : 'POST'
+  1208→      const body = { ...pubForm, ...(editingPub ? { id: editingPub.id } : {}) }
+  1209→      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  1210→      if (!res.ok) throw new Error()
+  1211→      toast.success(editingPub ? 'Publicacion actualizada' : 'Publicacion creada')
+  1212→      setPubDialogOpen(false)
+  1213→      fetchPublications()
+  1214→    } catch { toast.error('Error al guardar publicacion') }
+  1215→  }
+  1216→
+  1217→  const handleDeletePub = async (id: string) => {
+  1218→    try {
+  1219→      const res = await fetch(`/api/admin/publications?id=${id}`, { method: 'DELETE' })
+  1220→      if (!res.ok) throw new Error()
+  1221→      toast.success('Publicacion eliminada')
+  1222→      fetchPublications()
+  1223→    } catch { toast.error('Error al eliminar publicacion') }
+  1224→    setDeletingPubId(null)
+  1225→  }
+  1226→
+  1227→  const handleTogglePubActive = async (pub: PubItem) => {
+  1228→    try {
+  1229→      await fetch('/api/admin/publications', {
+  1230→        method: 'PUT',
+  1231→        headers: { 'Content-Type': 'application/json' },
+  1232→        body: JSON.stringify({ id: pub.id, active: !pub.active }),
+  1233→      })
+  1234→      fetchPublications()
+  1235→    } catch { toast.error('Error al cambiar estado') }
+  1236→  }
+  1237→
+  1238→  /* ========================================================================== */
+  1239→  /*  ACTION HANDLERS                                                           */
+  1240→  /* ========================================================================== */
+  1241→
+  1242→  /* ---- Template actions ---- */
+  1243→  const handleOpenTemplateDialog = (template?: Template) => {
+  1244→    if (template) {
+  1245→      setEditingTemplate(template)
+  1246→      let parsedWizard: WizardStepDef[] = []
+  1247→      try {
+  1248→        if (template.wizardConfig) {
+  1249→          const raw = typeof template.wizardConfig === 'string'
+  1250→            ? JSON.parse(template.wizardConfig)
+  1251→            : template.wizardConfig
+  1252→          if (Array.isArray(raw)) {
+  1253→            parsedWizard = raw
+  1254→          } else if (raw && Array.isArray(raw.steps)) {
+  1255→            parsedWizard = raw.steps
+  1256→          }
+  1257→        }
+  1258→      } catch { parsedWizard = [] }
+  1259→      setTemplateForm({
+  1260→        name: template.name,
+  1261→        description: template.description || '',
+  1262→        category: template.category,
+  1263→        legalArea: template.legalArea,
+  1264→        audience: template.audience || '',
+  1265→        price: String(template.price),
+  1266→        baseContent: template.baseContent || '',
+  1267→        headerContent: template.headerContent || '',
+  1268→        footerContent: template.footerContent || '',
+  1269→        status: template.status,
+  1270→        wizardConfig: parsedWizard,
+  1271→      })
+  1272→    } else {
+  1273→      setEditingTemplate(null)
+  1274→      setTemplateForm({ name: '', description: '', category: '', legalArea: '', audience: '', price: '', baseContent: '', headerContent: '', footerContent: '', status: 'draft', wizardConfig: [] })
+  1275→    }
+  1276→    setTemplateDialogOpen(true)
+  1277→  }
+  1278→
+  1279→  const handleSaveTemplate = async () => {
+  1280→    if (!templateForm.name.trim()) {
+  1281→      toast.error('El nombre es obligatorio')
+  1282→      return
+  1283→    }
+  1284→    setSavingTemplate(true)
+  1285→    try {
+  1286→      const payload = {
+  1287→        action: editingTemplate ? 'update_template' : 'create_template',
+  1288→        templateId: editingTemplate?.id,
+  1289→        ...templateForm,
+  1290→        price: Number(templateForm.price) || 0,
+  1291→      }
+  1292→      const res = await fetch('/api/admin', {
+  1293→        method: 'POST',
+  1294→        headers: authHeaders(),
+  1295→        body: JSON.stringify(payload),
+  1296→      })
+  1297→      if (res.ok) {
+  1298→        toast.success(editingTemplate ? 'Plantilla actualizada' : 'Plantilla creada')
+  1299→        setTemplateDialogOpen(false)
+  1300→        fetchTemplates()
+  1301→      } else {
+  1302→        toast.error('Error al guardar la plantilla')
+  1303→      }
+  1304→    } catch {
+  1305→      toast.error('Error de conexión')
+  1306→    } finally {
+  1307→      setSavingTemplate(false)
+  1308→    }
+  1309→  }
+  1310→
+  1311→  const handleUpdateTemplateStatus = async (templateId: string, newStatus: string) => {
+  1312→    try {
+  1313→      const res = await fetch('/api/admin', {
+  1314→        method: 'POST',
+  1315→        headers: authHeaders(),
+  1316→        body: JSON.stringify({ action: 'update_template_status', templateId, status: newStatus }),
+  1317→      })
+  1318→      if (res.ok) {
+  1319→        toast.success(`Estado cambiado a ${TEMPLATE_STATUS_CONFIG[newStatus]?.label || newStatus}`)
+  1320→        fetchTemplates()
+  1321→      } else {
+  1322→        toast.error('Error al cambiar estado')
+  1323→      }
+  1324→    } catch {
+  1325→      toast.error('Error de conexión')
+  1326→    }
+  1327→  }
+  1328→
+  1329→  /* ---- Clause actions ---- */
+  1330→  const handleOpenClauseDialog = (clause?: Clause) => {
+  1331→    if (clause) {
+  1332→      setEditingClause(clause)
+  1333→      setClauseForm({ title: clause.title, content: clause.content, legalArea: clause.legalArea })
+  1334→    } else {
+  1335→      setEditingClause(null)
+  1336→      setClauseForm({ title: '', content: '', legalArea: '' })
+  1337→    }
+  1338→    setClauseDialogOpen(true)
+  1339→  }
+  1340→
+  1341→  const handleSaveClause = async () => {
+  1342→    if (!clauseForm.title.trim() || !clauseForm.content.trim()) {
+  1343→      toast.error('Título y contenido son obligatorios')
+  1344→      return
+  1345→    }
+  1346→    setSavingClause(true)
+  1347→    try {
+  1348→      const payload = {
+  1349→        ...clauseForm,
+  1350→        clauseId: editingClause?.id,
+  1351→      }
+  1352→      const res = await fetch('/api/admin/clauses', {
+  1353→        method: 'POST',
+  1354→        headers: authHeaders(),
+  1355→        body: JSON.stringify(payload),
+  1356→      })
+  1357→      if (res.ok) {
+  1358→        toast.success(editingClause ? 'Cláusula actualizada' : 'Cláusula creada')
+  1359→        setClauseDialogOpen(false)
+  1360→        fetchClauses()
+  1361→      } else {
+  1362→        toast.error('Error al guardar la cláusula')
+  1363→      }
+  1364→    } catch {
+  1365→      toast.error('Error de conexión')
+  1366→    } finally {
+  1367→      setSavingClause(false)
+  1368→    }
+  1369→  }
+  1370→
+  1371→  const handleDeleteClause = async () => {
+  1372→    if (!deleteClauseId) return
+  1373→    try {
+  1374→      const res = await fetch('/api/admin/clauses', {
+  1375→        method: 'POST',
+  1376→        headers: authHeaders(),
+  1377→        body: JSON.stringify({ action: 'delete_clause', clauseId: deleteClauseId }),
+  1378→      })
+  1379→      if (res.ok) {
+  1380→        toast.success('Cláusula eliminada')
+  1381→        setDeleteClauseId(null)
+  1382→        fetchClauses()
+  1383→      } else {
+  1384→        toast.error('Error al eliminar la cláusula')
+  1385→      }
+  1386→    } catch {
+  1387→      toast.error('Error de conexión')
+  1388→    }
+  1389→  }
+  1390→
+  1391→  /* ---- User actions ---- */
+  1392→  const handleUpdateUserStatus = async (userId: string, newStatus: string) => {
+  1393→    try {
+  1394→      const res = await fetch('/api/admin', {
+  1395→        method: 'POST',
+  1396→        headers: authHeaders(),
+  1397→        body: JSON.stringify({ action: 'update_user_status', userId, status: newStatus }),
+  1398→      })
+  1399→      if (res.ok) {
+  1400→        toast.success(`Usuario ${newStatus === 'active' ? 'activado' : 'suspendido'}`)
+  1401→        fetchUsers()
+  1402→      } else {
+  1403→        toast.error('Error al actualizar usuario')
+  1404→      }
+  1405→    } catch {
+  1406→      toast.error('Error de conexión')
+  1407→    }
+  1408→  }
+  1409→
+  1410→  const handleChangeUserRole = async (userId: string, newRole: string) => {
+  1411→    try {
+  1412→      const res = await fetch('/api/admin', {
+  1413→        method: 'POST',
+  1414→        headers: authHeaders(),
+  1415→        body: JSON.stringify({ action: 'update_user_status', userId, role: newRole }),
+  1416→      })
+  1417→      if (res.ok) {
+  1418→        toast.success('Rol actualizado')
+  1419→        fetchUsers()
+  1420→      } else {
+  1421→        toast.error('Error al cambiar rol')
+  1422→      }
+  1423→    } catch {
+  1424→      toast.error('Error de conexión')
+  1425→    }
+  1426→  }
+  1427→
+  1428→  /* ---- Request actions ---- */
+  1429→  const handleRequestAction = async (requestId: string, action: 'aprobada' | 'rechazada' | 'en_desarrollo', notes?: string) => {
+  1430→    try {
+  1431→      const res = await fetch('/api/admin', {
+  1432→        method: 'POST',
+  1433→        headers: authHeaders(),
+  1434→        body: JSON.stringify({ action: 'handle_request', requestId, status: action, notes }),
+  1435→      })
+  1436→      if (res.ok) {
+  1437→        toast.success(`Solicitud marcada como ${REQUEST_STATUS_CONFIG[action]?.label || action}`)
+  1438→        setRequestNotesId(null)
+  1439→        setRequestNotes('')
+  1440→        fetchRequests()
+  1441→      } else {
+  1442→        toast.error('Error al procesar solicitud')
+  1443→      }
+  1444→    } catch {
+  1445→      toast.error('Error de conexión')
+  1446→    }
+  1447→  }
+  1448→
+  1449→  /* ---- Credit actions ---- */
+  1450→  const handleOpenCreditDialog = (user: CreditUser) => {
+  1451→    setSelectedCreditUser(user)
+  1452→    setAddCreditsAmount('')
+  1453→    setAddCreditsDesc('')
+  1454→    setCreditDialogOpen(true)
+  1455→  }
+  1456→
+  1457→  const handleViewCreditHistory = (user: CreditUser) => {
+  1458→    setSelectedCreditUser(user)
+  1459→    fetchCreditTransactions(user.id)
+  1460→  }
+  1461→
+  1462→  const handleAddCredits = async () => {
+  1463→    if (!selectedCreditUser || !addCreditsAmount || Number(addCreditsAmount) <= 0) {
+  1464→      toast.error('Ingresa una cantidad válida')
+  1465→      return
+  1466→    }
+  1467→    setAddingCredits(true)
+  1468→    try {
+  1469→      const res = await fetch('/api/admin/credits', {
+  1470→        method: 'POST',
+  1471→        headers: authHeaders(),
+  1472→        body: JSON.stringify({
+  1473→          userId: selectedCreditUser.id,
+  1474→          amount: Number(addCreditsAmount),
+  1475→          description: addCreditsDesc || undefined,
+  1476→        }),
+  1477→      })
+  1478→      if (res.ok) {
+  1479→        const data = await res.json()
+  1480→        toast.success(data.message || 'Créditos agregados')
+  1481→        setCreditDialogOpen(false)
+  1482→        fetchCreditUsers()
+  1483→        if (selectedCreditUser) fetchCreditTransactions(selectedCreditUser.id)
+  1484→      } else {
+  1485→        toast.error('Error al agregar créditos')
+  1486→      }
+  1487→    } catch {
+  1488→      toast.error('Error de conexión')
+  1489→    } finally {
+  1490→      setAddingCredits(false)
+  1491→    }
+  1492→  }
+  1493→
+  1494→  /* ========================================================================== */
+  1495→  /*  SKELETON LOADER                                                           */
+  1496→  /* ========================================================================== */
+  1497→
+  1498→  function TableSkeleton({ rows = 5, cols = 6 }: { rows?: number; cols?: number }) {
+  1499→    return (
+  1500→      <div className="space-y-3 p-4">
+  1501→        {Array.from({ length: rows }).map((_, r) => (
+  1502→          <div key={r} className="flex gap-4">
+  1503→            {Array.from({ length: cols }).map((_, c) => (
+  1504→              <div
+  1505→                key={c}
+  1506→                className="h-5 flex-1 animate-pulse rounded bg-white/[0.04]"
+  1507→              />
+  1508→            ))}
+  1509→          </div>
+  1510→        ))}
+  1511→      </div>
+  1512→    )
+  1513→  }
+  1514→
+  1515→  /* ========================================================================== */
+  1516→  /*  NAV TABS CONFIG                                                          */
+  1517→  /* ========================================================================== */
+  1518→
+  1519→  const adminTabs = [
+  1520→    { value: 'resumen', label: 'Resumen', icon: BarChart3 },
+  1521→    { value: 'plantillas', label: 'Plantillas', icon: Layout },
+  1522→    { value: 'clausulas', label: 'Cláusulas', icon: BookOpen },
+  1523→    { value: 'usuarios', label: 'Usuarios', icon: Users },
+  1524→    { value: 'solicitudes', label: 'Solicitudes', icon: MessageSquare },
+  1525→    { value: 'precios', label: 'Créditos', icon: Coins },
+  1526→    { value: 'terminos', label: 'Términos', icon: FileText },
+  1527→    { value: 'publicaciones', label: 'Publicaciones', icon: Newspaper },
+  1528→    { value: 'conocimiento', label: 'Base de Conocimiento', icon: Brain },
+  1529→  ]
+  1530→
+  1531→  /* ========================================================================== */
+  1532→  /*  RENDER                                                                   */
+  1533→  /* ========================================================================== */
+  1534→
+  1535→  return (
+  1536→    <main className="min-h-screen bg-[#0A1628]">
+  1537→      <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+  1538→        {/* ---------- Header ---------- */}
+  1539→        <div className="mb-8">
+  1540→          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+  1541→            Panel de Administración
+  1542→          </h1>
+  1543→          <p className="mt-1 text-sm text-white/50">
+  1544→            Gestiona plantillas, cláusulas, usuarios y más en CopyExpress.
+  1545→          </p>
+  1546→        </div>
+  1547→
+  1548→        {/* ---------- Tabs Layout ---------- */}
+  1549→        <div className="flex flex-col gap-6 lg:flex-row">
+  1550→          {/* Vertical nav on lg, horizontal on mobile */}
+  1551→          <Tabs value={activeTab} onValueChange={handleTabChange} className="flex w-full flex-col lg:flex-row">
+  1552→            <TabsList className="mb-4 flex h-auto w-full flex-row flex-wrap gap-1 bg-[#0F1D32]/80 p-1 lg:mb-0 lg:w-56 lg:flex-col lg:flex-nowrap lg:overflow-y-auto lg:rounded-xl lg:border lg:border-white/5">
+  1553→              {adminTabs.map((tab) => (
+  1554→                <TabsTrigger
+  1555→                  key={tab.value}
+  1556→                  value={tab.value}
+  1557→                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white/50 data-[state=active]:bg-[#C9A94E]/10 data-[state=active]:text-[#C9A94E] lg:w-full justify-start"
+  1558→                >
+  1559→                  <tab.icon className="h-4 w-4 shrink-0" />
+  1560→                  <span className="hidden sm:inline">{tab.label}</span>
+  1561→                </TabsTrigger>
+  1562→              ))}
+  1563→            </TabsList>
+  1564→
+  1565→            {/* ============================================================ */}
+  1566→            {/*  1. RESUMEN                                                  */}
+  1567→            {/* ============================================================ */}
+  1568→            <TabsContent value="resumen" className="mt-0 flex-1 lg:ml-6">
+  1569→              <div className="space-y-6">
+  1570→                {/* Stat Cards */}
+  1571→                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  1572→                  <AdminStatCard
+  1573→                    label="Total usuarios"
+  1574→                    value={loadingStats ? '…' : (stats?.totalUsers ?? 0)}
+  1575→                    icon={<Users className="h-5 w-5" />}
+  1576→                    accentBg="bg-blue-500/15"
+  1577→                    accentText="text-blue-400"
+  1578→                    accentBorder="border-blue-500/20"
+  1579→                  />
+  1580→                  <AdminStatCard
+  1581→                    label="Total documentos"
+  1582→                    value={loadingStats ? '…' : (stats?.totalDocuments ?? 0)}
+  1583→                    icon={<FileText className="h-5 w-5" />}
+  1584→                    accentBg="bg-[#C9A94E]/15"
+  1585→                    accentText="text-[#C9A94E]"
+  1586→                    accentBorder="border-[#C9A94E]/20"
+  1587→                  />
+  1588→                  <AdminStatCard
+  1589→                    label="Plantillas activas"
+  1590→                    value={loadingStats ? '…' : (stats?.activeTemplates ?? 0)}
+  1591→                    icon={<Layout className="h-5 w-5" />}
+  1592→                    accentBg="bg-green-500/15"
+  1593→                    accentText="text-green-400"
+  1594→                    accentBorder="border-green-500/20"
+  1595→                  />
+  1596→                  <AdminStatCard
+  1597→                    label="Ingresos totales"
+  1598→                    value={loadingStats ? '…' : formatCurrency(stats?.totalRevenue ?? 0)}
+  1599→                    icon={<Coins className="h-5 w-5" />}
+  1600→                    accentBg="bg-purple-500/15"
+  1601→                    accentText="text-purple-400"
+  1602→                    accentBorder="border-purple-500/20"
+  1603→                  />
+  1604→                </div>
+  1605→
+  1606→                {/* Chart */}
+  1607→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1608→                  <CardHeader className="pb-2">
+  1609→                    <CardTitle className="text-base font-semibold text-white">
+  1610→                      Generación de documentos
+  1611→                    </CardTitle>
+  1612→                  </CardHeader>
+  1613→                  <CardContent className="pt-0">
+  1614→                    {loadingStats ? (
+  1615→                      <div className="flex h-[320px] items-center justify-center">
+  1616→                        <div className="h-64 w-full animate-pulse rounded-lg bg-white/[0.04]" />
+  1617→                      </div>
+  1618→                    ) : (stats?.documentsByMonth?.length ?? 0) > 0 ? (
+  1619→                      <div className="h-[320px] w-full">
+  1620→                        <ResponsiveContainer width="100%" height="100%">
+  1621→                          <BarChart data={stats!.documentsByMonth} margin={{ top: 8, right: 8, left: -4, bottom: 0 }}>
+  1622→                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+  1623→                            <XAxis
+  1624→                              dataKey="month"
+  1625→                              tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+  1626→                              axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+  1627→                              tickLine={false}
+  1628→                            />
+  1629→                            <YAxis
+  1630→                              tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+  1631→                              axisLine={false}
+  1632→                              tickLine={false}
+  1633→                              allowDecimals={false}
+  1634→                            />
+  1635→                            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(201,169,78,0.06)' }} />
+  1636→                            <Bar dataKey="count" name="Documentos" fill="#C9A94E" radius={[4, 4, 0, 0]} maxBarSize={48} />
+  1637→                          </BarChart>
+  1638→                        </ResponsiveContainer>
+  1639→                      </div>
+  1640→                    ) : (
+  1641→                      <EmptyState icon={BarChart3} message="No hay datos de generación disponibles" />
+  1642→                    )}
+  1643→                  </CardContent>
+  1644→                </Card>
+  1645→
+  1646→                {/* Top 5 Templates */}
+  1647→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1648→                  <CardHeader className="pb-3">
+  1649→                    <CardTitle className="text-base font-semibold text-white">
+  1650→                      Top 5 plantillas más usadas
+  1651→                    </CardTitle>
+  1652→                  </CardHeader>
+  1653→                  <CardContent className="pt-0">
+  1654→                    {loadingStats ? (
+  1655→                      <TableSkeleton rows={5} cols={3} />
+  1656→                    ) : (stats?.topTemplates?.length ?? 0) > 0 ? (
+  1657→                      <Table>
+  1658→                        <TableHeader>
+  1659→                          <TableRow className="border-white/5 hover:bg-transparent">
+  1660→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">#</TableHead>
+  1661→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+  1662→                            <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Categoría</TableHead>
+  1663→                            <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Documentos</TableHead>
+  1664→                          </TableRow>
+  1665→                        </TableHeader>
+  1666→                        <TableBody className="divide-y divide-white/5">
+  1667→                          {stats!.topTemplates.slice(0, 5).map((tpl, idx) => (
+  1668→                            <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+  1669→                              <TableCell className="font-medium text-[#C9A94E]">{idx + 1}</TableCell>
+  1670→                              <TableCell className="font-medium text-white/80">{tpl.name}</TableCell>
+  1671→                              <TableCell className="text-white/40">{tpl.category}</TableCell>
+  1672→                              <TableCell className="text-right">
+  1673→                                <span className="flex items-center justify-end gap-1.5 font-medium text-white/70">
+  1674→                                  <TrendingUp className="h-3.5 w-3.5 text-[#C9A94E]/70" />
+  1675→                                  {tpl.count}
+  1676→                                </span>
+  1677→                              </TableCell>
+  1678→                            </TableRow>
+  1679→                          ))}
+  1680→                        </TableBody>
+  1681→                      </Table>
+  1682→                    ) : (
+  1683→                      <EmptyState icon={Layout} message="No hay datos de plantillas disponibles" />
+  1684→                    )}
+  1685→                  </CardContent>
+  1686→                </Card>
+  1687→              </div>
+  1688→            </TabsContent>
+  1689→
+  1690→            {/* ============================================================ */}
+  1691→            {/*  2. GESTIÓN DE PLANTILLAS                                    */}
+  1692→            {/* ============================================================ */}
+  1693→            <TabsContent value="plantillas" className="mt-0 flex-1 lg:ml-6">
+  1694→              <div className="space-y-6">
+  1695→                <div className="flex items-center justify-between">
+  1696→                  <div>
+  1697→                    <h2 className="text-lg font-semibold text-white">Gestión de Plantillas</h2>
+  1698→                    <p className="text-xs text-white/40">Administra todas las plantillas del sistema</p>
+  1699→                  </div>
+  1700→                  <Button
+  1701→                    onClick={() => handleOpenTemplateDialog()}
+  1702→                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+  1703→                  >
+  1704→                    <Plus className="mr-2 h-4 w-4" />
+  1705→                    Crear Plantilla
+  1706→                  </Button>
+  1707→                </div>
+  1708→
+  1709→                <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+  1710→                  <CardContent className="p-0">
+  1711→                    {loadingTemplates ? (
+  1712→                      <TableSkeleton rows={6} cols={7} />
+  1713→                    ) : templates.length > 0 ? (
+  1714→                      <div className="overflow-x-auto">
+  1715→                        <Table>
+  1716→                          <TableHeader>
+  1717→                            <TableRow className="border-white/5 hover:bg-transparent">
+  1718→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Nombre</TableHead>
+  1719→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 md:table-cell">Categoría</TableHead>
+  1720→                              <TableHead className="hidden text-xs font-medium uppercase tracking-wider text-white/30 lg:table-cell">Área Legal</TableHead>
+  1721→                              <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
+  1722→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Precio</TableHead>
+  1723→                              <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Docs</TableHead>
+  1724→                              <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
+  1725→                            </TableRow>
+  1726→                          </TableHeader>
+  1727→                          <TableBody className="divide-y divide-white/5">
+  1728→                            {templates.map((tpl) => (
+  1729→                              <TableRow key={tpl.id} className="group border-white/5 transition-colors hover:bg-white/[0.02]">
+  1730→                                <TableCell className="max-w-[200px] truncate font-medium text-white/80">{tpl.name}</TableCell>
+  1731→                                <TableCell className="hidden text-white/40 md:table-cell">{tpl.category}</TableCell>
+  1732→                                <TableCell className="hidden text-white/40 lg:table-cell">{tpl.legalArea}</TableCell>
+  1733→                                <TableCell>
+  1734→                                  <DropdownMenu>
+  1735→                                    <DropdownMenuTrigger asChild>
+  1736→                                      <button className="cursor-pointer">
+  1737→                                        <StatusBadge status={tpl.status} config={TEMPLATE_STATUS_CONFIG} />
+  1738→                                      </button>
+  1739→                                    </DropdownMenuTrigger>
+  1740→                                    <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
+  1741→                                      {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+  1742→                                        <DropdownMenuItem
+  1743→                                          key={key}
+  1744→                                          onClick={() => handleUpdateTemplateStatus(tpl.id, key)}
+  1745→                                          disabled={key === tpl.status}
+  1746→                                          className="focus:bg-white/5 focus:text-white"
+  1747→                                        >
+  1748→                                          {val.label}
+  1749→                                        </DropdownMenuItem>
+  1750→                                      ))}
+  1751→                                    </DropdownMenuContent>
+  1752→                                  </DropdownMenu>
+  1753→                                </TableCell>
+  1754→                                <TableCell className="text-right font-medium text-white/70">{formatCurrency(tpl.price)}</TableCell>
+  1755→                                <TableCell className="hidden text-right text-white/40 sm:table-cell">{tpl.documentCount}</TableCell>
+  1756→                                <TableCell className="text-right">
+  1757→                                  <div className="flex items-center justify-end gap-1">
+  1758→                                    <Button
+  1759→                                      variant="ghost"
+  1760→                                      size="icon"
+  1761→                                      className="h-8 w-8 text-white/40 hover:text-[#C9A94E] hover:bg-[#C9A94E]/10"
+  1762→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+  1763→                                    >
+  1764→                                      <Eye className="h-4 w-4" />
+  1765→                                    </Button>
+  1766→                                    <Button
+  1767→                                      variant="ghost"
+  1768→                                      size="icon"
+  1769→                                      className="h-8 w-8 text-white/40 hover:text-blue-400 hover:bg-blue-400/10"
+  1770→                                      onClick={() => handleOpenTemplateDialog(tpl)}
+  1771→                                    >
+  1772→                                      <Edit className="h-4 w-4" />
+  1773→                                    </Button>
+  1774→                                  </div>
+  1775→                                </TableCell>
+  1776→                              </TableRow>
+  1777→                            ))}
+  1778→                          </TableBody>
+  1779→                        </Table>
+  1780→                      </div>
+  1781→                    ) : (
+  1782→                      <EmptyState icon={Layout} message="No hay plantillas registradas" />
+  1783→                    )}
+  1784→                  </CardContent>
+  1785→                </Card>
+  1786→              </div>
+  1787→
+  1788→              {/* Create/Edit Template Dialog */}
+  1789→              <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+  1790→                <DialogContent className="max-h-[90vh] overflow-y-auto border-white/10 bg-[#0F1D32] sm:max-w-2xl">
+  1791→                  <DialogHeader>
+  1792→                    <DialogTitle className="text-white">
+  1793→                      {editingTemplate ? 'Editar Plantilla' : 'Crear Plantilla'}
+  1794→                    </DialogTitle>
+  1795→                  </DialogHeader>
+  1796→                  <div className="grid gap-4 py-4">
+  1797→                    <div className="grid gap-2">
+  1798→                      <Label className="text-white/70">Nombre *</Label>
+  1799→                      <Input
+  1800→                        value={templateForm.name}
+  1801→                        onChange={(e) => setTemplateForm((f) => ({ ...f, name: e.target.value }))}
+  1802→                        placeholder="Nombre de la plantilla"
+  1803→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1804→                      />
+  1805→                    </div>
+  1806→                    <div className="grid gap-2">
+  1807→                      <Label className="text-white/70">Descripción</Label>
+  1808→                      <Textarea
+  1809→                        value={templateForm.description}
+  1810→                        onChange={(e) => setTemplateForm((f) => ({ ...f, description: e.target.value }))}
+  1811→                        placeholder="Descripción de la plantilla"
+  1812→                        rows={3}
+  1813→                        className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1814→                      />
+  1815→                    </div>
+  1816→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  1817→                      <div className="grid gap-2">
+  1818→                        <Label className="text-white/70">Categoría</Label>
+  1819→                        <Input
+  1820→                          value={templateForm.category}
+  1821→                          onChange={(e) => setTemplateForm((f) => ({ ...f, category: e.target.value }))}
+  1822→                          placeholder="Ej: Contratos"
+  1823→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1824→                        />
+  1825→                      </div>
+  1826→                      <div className="grid gap-2">
+  1827→                        <Label className="text-white/70">Área Legal</Label>
+  1828→                        <Input
+  1829→                          value={templateForm.legalArea}
+  1830→                          onChange={(e) => setTemplateForm((f) => ({ ...f, legalArea: e.target.value }))}
+  1831→                          placeholder="Ej: Derecho Civil"
+  1832→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1833→                        />
+  1834→                      </div>
+  1835→                    </div>
+  1836→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+  1837→                      <div className="grid gap-2">
+  1838→                        <Label className="text-white/70">Audiencia</Label>
+  1839→                        <Input
+  1840→                          value={templateForm.audience}
+  1841→                          onChange={(e) => setTemplateForm((f) => ({ ...f, audience: e.target.value }))}
+  1842→                          placeholder="Ej: Empresas"
+  1843→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1844→                        />
+  1845→                      </div>
+  1846→                      <div className="grid gap-2">
+  1847→                        <Label className="text-white/70">Precio (COP)</Label>
+  1848→                        <Input
+  1849→                          type="number"
+  1850→                          value={templateForm.price}
+  1851→                          onChange={(e) => setTemplateForm((f) => ({ ...f, price: e.target.value }))}
+  1852→                          placeholder="0"
+  1853→                          className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+  1854→                        />
+  1855→                      </div>
+  1856→                      <div className="grid gap-2">
+  1857→                        <Label className="text-white/70">Estado</Label>
+  1858→                        <Select
+  1859→                          value={templateForm.status}
+  1860→                          onValueChange={(v) => setTemplateForm((f) => ({ ...f, status: v }))}
+  1861→                        >
+  1862→                          <SelectTrigger className="border-white/10 bg-white/5 text-white">
+  1863→                            <SelectValue />
+  1864→                          </SelectTrigger>
+  1865→                          <SelectContent className="border-white/10 bg-[#0F1D32]">
+  1866→                            {Object.entries(TEMPLATE_STATUS_CONFIG).map(([key, val]) => (
+  1867→                              <SelectItem key={key} value={key} className="text-white focus:bg-white/5 focus:text-white">
+  1868→                                {val.label}
+  1869→                              </SelectItem>
+  1870→                            ))}
+  1871→                          </SelectContent>
+  1872→                        </Select>
+  1873→                      </div>
+  1874→                    </div>
+  1875→                    <div className="grid gap-2">
+  1876→                      <Label className="text-white/70">Contenido Base</Label>
+  1877→                      <div className="rounded-lg border border-white/10 overflow-hidden">
+  1878→                        <TinyMCEEditor
+  1879→                          value={templateForm.baseContent}
+  1880→                          onValueChange={(val) => setTemplateForm((f) => ({ ...f, baseContent: val }))}
+  1881→                          height={350}
+  1882→                          placeholder="Contenido base de la plantilla con {{variables}}..."
+  1883→                          darkMode={true}
+  1884→                          aiFeatures={true}
+  1885→                        />
+  1886→                      </div>
+  1887→                    </div>
+  1888→
+  1889→                    {/* ===== Wizard Config Editor ===== */}
+  1890→                    <div className="grid gap-3">
+  1891→                      <div className="flex items-center justify-between">
+  1892→                        <div>
+  1893→                          <Label className="text-white/70">Campos del Formulario (Wizard)</Label>
+  1894→                          <p className="text-[11px] text-white/30 mt-0.5">Define los pasos y tipos de campo que el visitante completará. Usa los mismos nombres de variable del contenido base.</p>
+  1895→                        </div>
+  1896→                        <Button
+  1897→                          type="button"
+  1898→                          variant="outline"
+  1899→                          size="sm"
+  1900→                          className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white text-xs"
+  1901→                          onClick={() => {
+  1902→                            const vars = [...new Set((templateForm.baseContent.match(/\{\{([\w_]+)\}\}/g) || []).map(m => m.replace(/\{\{/g, '').replace(/\}\}/g, '')))]
+  1903→                            const existingKeys = new Set(templateForm.wizardConfig.flatMap(s => s.fields.map(f => f.key)))
+  1904→                            const missing = vars.filter(v => !existingKeys.has(v))
+  1905→                            if (missing.length === 0) {
+  1906→                              toast.info('Todas las variables ya tienen campos definidos')
+  1907→                              return
+  1908→                            }
+  1909→                            const newStep: WizardStepDef = {
+  1910→                              title: `Paso ${templateForm.wizardConfig.length + 1}`,
+  1911→                              fields: missing.map(v => ({ key: v, label: v.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), type: 'text' as const }))
+  1912→                            }
+  1913→                            setTemplateForm(f => ({ ...f, wizardConfig: [...f.wizardConfig, newStep] }))
+  1914→                            toast.success(`Se agregaron ${missing.length} campos automáticamente`)
+  1915→                          }}
+  1916→                        >
+  1917→                          <Plus className="mr-1 h-3 w-3" />
+  1918→                          Auto-detectar variables
+  1919→                        </Button>
+  1920→                      </div>
+  1921→
+  1922→                      {templateForm.wizardConfig.length === 0 ? (
+  1923→                        <div className="rounded-lg border border-dashed border-white/10 p-8 text-center">
+  1924→                          <p className="text-xs text-white/30 mb-2">No hay pasos definidos. Puedes:</p>
+  1925→                          <div className="flex items-center justify-center gap-2">
+  1926→                            <Button
+  1927→                              type="button"
+  1928→                              variant="outline"
+  1929→                              size="sm"
+  1930→                              className="border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white text-xs"
+  1931→                              onClick={() => setTemplateForm(f => ({ ...f, wizardConfig: [...f.wizardConfig, { title: `Paso ${f.wizardConfig.length + 1}`, fields: [] }] }))}
+  1932→                            >
+  1933→                              <Plus className="mr-1 h-3 w-3" />
+  1934→                              Agregar paso manualmente
+  1935→                            </Button>
+  1936→                            <span className="text-white/20 text-xs">o escribe el contenido base y usa "Auto-detectar variables"</span>
+  1937→                          </div>
+  1938→                        </div>
+  1939→                      ) : (
+  1940→                        <div className="space-y-3">
+  1941→                          {templateForm.wizardConfig.map((step, si) => (
+  1942→                            <WizardStepEditor
+  1943→                              key={si}
+  1944→                              step={step}
+  1945→                              stepIndex={si}
+  1946→                              allSteps={templateForm.wizardConfig}
+  1947→                              onChange={(updated) => {
+  1948→                                const wc = [...templateForm.wizardConfig]
+  1949→                                wc[si] = updated
+  1950→                                setTemplateForm(f => ({ ...f, wizardConfig: wc }))
+  1951→                              }}
+  1952→                              onRemove={() => setTemplateForm(f => ({ ...f, wizardConfig: f.wizardConfig.filter((_, i) => i !== si) }))}
+  1953→                            />
+  1954→                          ))}
+  1955→                          <Button
+  1956→                            type="button"
+  1957→                            variant="outline"
+  1958→                            size="sm"
+  1959→                            className="w-full border-dashed border-white/10 bg-transparent text-white/40 hover:bg-white/5 hover:text-white/70 text-xs"
+  1960→                            onClick={() => setTemplateForm(f => ({ ...f, wizardConfig: [...f.wizardConfig, { title: `Paso ${f.wizardConfig.length + 1}`, fields: [] }] }))}
+  1961→                          >
+  1962→                            <Plus className="mr-1 h-3 w-3" />
+  1963→                            Agregar otro paso
+  1964→                          </Button>
+  1965→                        </div>
+  1966→                      )}
+  1967→                    </div>
+  1968→
+  1969→                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  1970→                      <MediaFieldEditor
+  1971→                        label="Encabezado (opcional)"
+  1972→                        rawValue={templateForm.headerContent}
+  1973→                        onChange={(v) => setTemplateForm((f) => ({ ...f, headerContent: v }))}
+  1974→                        defaultW={468}
+  1975→                        defaultH={60}
+  1976→                        maxH={80}
+  1977→                        hint="Recomendado: 468 x 60 px"
+  1978→                      />
+  1979→                      <MediaFieldEditor
+  1980→                        label="Pie de Página (opcional)"
+  1981→                        rawValue={templateForm.footerContent}
+  1982→                        onChange={(v) => setTemplateForm((f) => ({ ...f, footerContent: v }))}
+  1983→                        defaultW={468}
+  1984→                        defaultH={40}
+  1985→                        maxH={50}
+  1986→                        hint="Recomendado: 468 x 40 px"
+  1987→                      />
+  1988→                    </div>
+  1989→                  </div>
+  1990→                  <DialogFooter>
+  1991→                    <Button
+  1992→                      variant="ghost"
+  1993→                      onClick={() => setTemplateDialogOpen(false)}
+  1994→                      className="text-white/50 hover:text-white hover:bg-white/5"
+  1995→                    >
+  1996→                      Cancelar
+  1997→                    </Button>
+  1998→                    <Button
+  1999→                      onClick={handleSaveTemplate}
+  2000→                      disabled={savingTemplate}
+
+[showing lines 1-2000 of 2938; use offset=2001 with limit to continue reading]
