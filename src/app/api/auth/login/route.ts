@@ -1,9 +1,13 @@
-import { db } from '@/lib/db';
+import { db, dbReady } from '@/lib/db';
 import { compare } from 'bcryptjs';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
+    // Wait for the first-boot DB initialisation (schema + default users) so a
+    // login right after a cold start doesn't race it.
+    await dbReady;
+
     const { username, password } = await request.json();
 
     if (!username || !password) {
