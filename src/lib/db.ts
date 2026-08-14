@@ -3,6 +3,7 @@
 // Turbopack (Next 16) fails to resolve, breaking every DB-backed route.
 import { PrismaClient } from '@/generated/prisma'
 import { resolve } from 'node:path'
+import { ensureDatabaseInitialised } from '@/lib/init-db'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -34,3 +35,9 @@ export const db =
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+
+// Auto-initialise the schema + seed data on first boot (idempotent, no-op when
+// the DB is already populated). See src/lib/init-db.ts for details.
+void ensureDatabaseInitialised(db).catch((e) => {
+  console.error('[init-db] initialisation failed:', e instanceof Error ? e.message : e);
+})
