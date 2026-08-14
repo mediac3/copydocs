@@ -13,7 +13,7 @@ import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Highlight from '@tiptap/extension-highlight'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 
 /* -------------------------------------------------------------------------- */
@@ -37,7 +37,7 @@ interface TinyMCEEditorProps {
 /* ---- Icon helpers ---- */
 function Icn({ children, title }: { children: React.ReactNode; title: string }) {
   return (
-    <span title={title} className="inline-flex items-center justify-center w-7 h-7 rounded hover:bg-foreground/10 cursor-pointer text-foreground/60 hover:text-foreground transition-colors">
+    <span title={title} className="inline-flex items-center justify-center w-7 h-7 rounded hover:bg-foreground/15 cursor-pointer text-foreground/80 hover:text-foreground transition-colors">
       {children}
     </span>
   )
@@ -64,10 +64,10 @@ function TBtn({
       onClick={onClick}
       className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors text-xs ${
         disabled
-          ? 'text-foreground/20 cursor-not-allowed'
+          ? 'text-foreground/35 cursor-not-allowed'
           : active
-            ? 'bg-primary/20 text-primary cursor-pointer'
-            : 'text-foreground/60 hover:text-foreground hover:bg-foreground/10 cursor-pointer'
+            ? 'bg-primary/25 text-primary ring-1 ring-primary/40 cursor-pointer'
+            : 'text-foreground/80 hover:text-foreground hover:bg-foreground/15 cursor-pointer'
       }`}
       disabled={disabled}
     >
@@ -78,7 +78,7 @@ function TBtn({
 
 /* ---- Separator ---- */
 function Sep() {
-  return <span className="inline-block w-px h-5 bg-foreground/15 mx-1" />
+  return <span className="inline-block w-px h-5 bg-foreground/25 mx-1" />
 }
 
 /* ---- SVG Icons ---- */
@@ -176,7 +176,7 @@ function LinkPopover({
 
   return (
     <div className={`absolute top-full left-0 mt-1 z-50 flex items-center gap-1.5 rounded-lg border px-3 py-2 shadow-lg ${
-      darkMode ? 'bg-[#1a1a2e] border-white/10' : 'bg-white border-border'
+      darkMode ? 'bg-[#1a1a2e] border-white/20' : 'bg-white border-border'
     }`}>
       <input
         ref={inputRef}
@@ -186,7 +186,7 @@ function LinkPopover({
         onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') onClose() }}
         placeholder="https://..."
         autoFocus
-        className={`w-48 text-xs outline-none bg-transparent ${darkMode ? 'text-white placeholder:text-white/30' : 'text-foreground placeholder:text-foreground/30'}`}
+        className={`w-48 text-xs outline-none bg-transparent ${darkMode ? 'text-white placeholder:text-white/45' : 'text-foreground placeholder:text-foreground/45'}`}
       />
       <button onClick={handleSave} className={`text-xs font-medium px-2 py-1 rounded ${darkMode ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'}`}>OK</button>
       <button onClick={handleRemove} className={`text-xs px-1.5 py-1 rounded ${darkMode ? 'text-red-400 hover:bg-red-400/10' : 'text-red-500 hover:bg-red-500/10'}`}>X</button>
@@ -194,46 +194,111 @@ function LinkPopover({
   )
 }
 
-/* ---- AI Prompt popover ---- */
-function AIPopover({
+/* ---- AI Prompt modal (centered) ---- */
+function AIModal({
   onSend,
   onClose,
   darkMode,
+  loading,
+  error,
 }: {
   onSend: (prompt: string) => void
   onClose: () => void
   darkMode: boolean
+  loading: boolean
+  error: string | null
 }) {
   const [prompt, setPrompt] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
+
   const handleSend = () => {
-    if (!prompt.trim()) return
+    if (!prompt.trim() || loading) return
     onSend(prompt.trim())
-    onClose()
   }
 
   return (
-    <div className={`absolute top-full right-0 mt-1 z-50 w-72 rounded-lg border shadow-lg p-3 ${
-      darkMode ? 'bg-[#1a1a2e] border-white/10' : 'bg-white border-border'
-    }`}>
-      <p className={`text-xs font-medium mb-2 ${darkMode ? 'text-white/70' : 'text-foreground/70'}`}>Asistente IA — escribe que necesitas generar</p>
-      <textarea
-        ref={textareaRef}
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-        placeholder="Ej: Redacta una clausula de confidencialidad..."
-        rows={3}
-        className={`w-full text-xs rounded-md border px-2 py-1.5 outline-none resize-none ${
-          darkMode
-            ? 'bg-white/5 border-white/10 text-white placeholder:text-white/30'
-            : 'bg-muted border-border text-foreground placeholder:text-foreground/30'
-        }`}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Asistente IA">
+      {/* Backdrop — click / ESC closes (disabled while generating) */}
+      <div
+        className={`absolute inset-0 backdrop-blur-sm ${darkMode ? 'bg-black/70' : 'bg-black/50'}`}
+        onClick={loading ? undefined : onClose}
       />
-      <div className="flex justify-end mt-2 gap-1.5">
-        <button onClick={onClose} className={`text-xs px-2.5 py-1 rounded ${darkMode ? 'text-white/50 hover:text-white' : 'text-foreground/50 hover:text-foreground'}`}>Cancelar</button>
-        <button onClick={handleSend} className="text-xs px-3 py-1 rounded bg-primary text-primary-foreground font-medium">Generar</button>
+      <div
+        className={`relative w-full max-w-lg rounded-xl border shadow-2xl p-4 ${
+          darkMode ? 'bg-[#1a1a2e] border-white/20' : 'bg-white border-border'
+        }`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <h3 className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-foreground'}`}>
+            Asistente IA
+          </h3>
+          <button
+            type="button"
+            onClick={loading ? undefined : onClose}
+            className={`w-7 h-7 inline-flex items-center justify-center rounded transition-colors ${
+              darkMode ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-foreground/70 hover:text-foreground hover:bg-foreground/10'
+            } ${loading ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+            aria-label="Cerrar"
+          >
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
+        </div>
+        <p className={`text-xs mb-3 ${darkMode ? 'text-white/70' : 'text-foreground/75'}`}>
+          Describe lo que necesitas generar y la IA lo insertará en el documento.
+        </p>
+        <textarea
+          ref={textareaRef}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && !loading) onClose()
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSend() }
+          }}
+          placeholder="Ej: Redacta una cláusula de confidencialidad..."
+          rows={5}
+          disabled={loading}
+          className={`w-full text-sm rounded-md border px-3 py-2 outline-none resize-none transition-colors focus:ring-2 focus:ring-primary/50 ${
+            darkMode
+              ? 'bg-white/10 border-white/20 text-white placeholder:text-white/45 focus:border-primary/60'
+              : 'bg-muted border-border text-foreground placeholder:text-foreground/45 focus:border-primary/60'
+          }`}
+        />
+        {error && (
+          <p className="mt-2 text-xs text-red-500 dark:text-red-400 bg-red-500/10 border border-red-500/25 rounded-md px-3 py-2">
+            {error}
+          </p>
+        )}
+        <div className="flex items-center justify-between mt-3 gap-2">
+          <span className={`text-[11px] ${darkMode ? 'text-white/50' : 'text-foreground/50'}`}>
+            {loading ? 'Generando…' : 'Ctrl+Enter para generar'}
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={loading ? undefined : onClose}
+              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                darkMode
+                  ? 'text-white/80 hover:text-white hover:bg-white/10'
+                  : 'text-foreground/80 hover:text-foreground hover:bg-foreground/10'
+              } ${loading ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={loading || !prompt.trim()}
+              className="text-xs px-4 py-1.5 rounded-md bg-primary text-primary-foreground font-medium inline-flex items-center gap-1.5 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading && <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
+              {loading ? 'Generando…' : 'Generar'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -255,6 +320,7 @@ export default function TinyMCEEditor({
   const [showLink, setShowLink] = useState(false)
   const [showAI, setShowAI] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const editor = useEditor({
@@ -279,7 +345,7 @@ export default function TinyMCEEditor({
     editorProps: {
       attributes: {
         class: darkMode
-          ? 'focus:outline-none min-h-full'
+          ? 'focus:outline-none min-h-full [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-white/30 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-white/30 [&_th]:bg-white/10 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_a]:text-sky-400 [&_a]:underline [&_img]:max-w-full [&_img]:rounded'
           : 'focus:outline-none min-h-full [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_a]:text-primary [&_a]:underline [&_img]:max-w-full [&_img]:rounded',
       },
     },
@@ -321,18 +387,23 @@ export default function TinyMCEEditor({
   const handleAIGenerate = useCallback(async (prompt: string) => {
     if (!editor) return
     setAiLoading(true)
+    setAiError(null)
     try {
       const res = await fetch('/api/assistant/tinymce-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
       })
-      const data = await res.json()
-      if (data.response) {
-        editor.chain().focus().insertContent(data.response).run()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.response) {
+        // Keep the modal open and surface the reason instead of failing silently
+        setAiError(data.error || 'La IA no devolvió resultados. Intenta de nuevo.')
+        return
       }
-    } catch (err) {
-      console.error('AI error:', err)
+      editor.chain().focus().insertContent(data.response).run()
+      setShowAI(false)
+    } catch {
+      setAiError('Error de conexión con el asistente IA. Verifica tu conexión e intenta de nuevo.')
     } finally {
       setAiLoading(false)
     }
@@ -436,27 +507,35 @@ export default function TinyMCEEditor({
         {aiFeatures && (
           <>
             <Sep />
-            <div className="relative">
-              <TBtn
-                title="Asistente IA"
-                active={aiLoading}
-                onClick={() => setShowAI(!showAI)}
-              >
-                {aiLoading ? (
-                  <span className="inline-block w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  Icons.ai
-                )}
-              </TBtn>
-              {showAI && <AIPopover onSend={handleAIGenerate} onClose={() => setShowAI(false)} darkMode={darkMode} />}
-            </div>
+            <TBtn
+              title="Asistente IA"
+              active={aiLoading || showAI}
+              onClick={() => { setShowAI(!showAI); setAiError(null) }}
+            >
+              {aiLoading ? (
+                <span className="inline-block w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                Icons.ai
+              )}
+            </TBtn>
           </>
         )}
       </div>
 
+      {/* AI modal — rendered at root level so it centers on the viewport */}
+      {aiFeatures && showAI && (
+        <AIModal
+          onSend={handleAIGenerate}
+          onClose={() => setShowAI(false)}
+          darkMode={darkMode}
+          loading={aiLoading}
+          error={aiError}
+        />
+      )}
+
       {/* ---- Editor Area ---- */}
       <div
-        className={`flex-1 overflow-y-auto px-4 py-3 ${darkMode ? 'tiptap-editor-dark text-white/90' : 'text-foreground'}`}
+        className={`flex-1 overflow-y-auto px-4 py-3 ${darkMode ? 'tiptap-editor-dark text-white' : 'text-foreground'}`}
         style={{ minHeight: Math.max(height - 42, 100) }}
       >
         <EditorContent editor={editor} />

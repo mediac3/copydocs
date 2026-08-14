@@ -465,13 +465,13 @@ async function generatePDF(content: string, title: string, headerContent: string
     }
   }
 
-  function drawAlignedText(text: string, f: typeof font, size: number, color: typeof colorDark, align: CellAlign, cellX: number, cellWidth: number) {
+  function drawAlignedText(text: string, f: typeof font, size: number, color: typeof colorDark, align: CellAlign, cellX: number, cellWidth: number, yPos: number) {
     const textWidth = f.widthOfTextAtSize(text, size);
     let x = cellX + 4; // default left padding
     if (align === 'center') x = cellX + (cellWidth - textWidth) / 2;
     else if (align === 'right') x = cellX + cellWidth - textWidth - 4;
     if (x < cellX + 2) x = cellX + 2;
-    page.drawText(text, { x, y, size, font: f, color });
+    page.drawText(text, { x, y: yPos, size, font: f, color });
   }
 
   // ---- Header ----
@@ -642,7 +642,7 @@ async function generatePDF(content: string, title: string, headerContent: string
               const testLine = currentLine ? currentLine + ' ' + word : word;
               const testWidth = f.widthOfTextAtSize(testLine, fontSize);
               if (testWidth > availableWidth && currentLine) {
-                drawAlignedText(currentLine, f, fontSize, colorText, cell.align, cellX, cellW);
+                drawAlignedText(currentLine, f, fontSize, colorText, cell.align, cellX, cellW, lineY);
                 lineY -= cellLineHeight;
                 currentLine = word;
               } else {
@@ -660,7 +660,10 @@ async function generatePDF(content: string, title: string, headerContent: string
           colIndex += cell.colspan;
         }
 
-        y = cellBottom - 4;
+        // Rows must be contiguous: the next row's top border sits exactly on
+        // this row's bottom border. Any extra offset here renders as a white
+        // gap between rows, making cells look detached in the PDF.
+        y = cellBottom;
       }
 
       y -= 4; // space after table
