@@ -1,15 +1,6 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
-
-const zaiInstance: { current: null | Awaited<ReturnType<typeof ZAI.create>> } = { current: null };
-
-async function getZAI() {
-  if (!zaiInstance.current) {
-    zaiInstance.current = await ZAI.create();
-  }
-  return zaiInstance.current;
-}
+import { geminiChat, type GeminiMessage } from '@/lib/gemini';
 
 const SYSTEM_PROMPT = `Eres el asistente virtual de CopyDocs, una plataforma de generacion de documentos legales colombianos. Tu nombre es "Copy" y eres amable, profesional y servicial.
 
@@ -69,33 +60,28 @@ export async function POST(request: Request) {
 
     const contextPrompt = `PLANTILLAS DISPONIBLES EN COPYDOCS:\n${templateList}${knowledgeContext}`;
 
-    // Build message history
-    const messages: { role: string; content: string }[] = [
-      { role: 'assistant', content: `${SYSTEM_PROMPT}\n\n${contextPrompt}` },
-    ];
+    const systemPrompt = `${SYSTEM_PROMPT}\n\n${contextPrompt}`;
 
-    // Add conversation history (limit to last 10 messages to save tokens)
+    // Build conversation history for Gemini (last 10 messages to save tokens).
     const recentHistory = history.slice(-10);
-    for (const msg of recentHistory) {
-      messages.push({ role: msg.role === 'assistant' ? 'assistant' : 'user', content: msg.content });
-    }
+    const geminiHistory: GeminiMessage[] = recentHistory.map((msg: { role: string; content: string }) => ({
+      role: msg.role === 'assistant' || msg.role === 'model' ? 'model' : 'user',
+      content: msg.content,
+    }));
 
-    // Add current message
-    messages.push({ role: 'user', content: message });
-
-    const zai = await getZAI();
-    const completion = await zai.chat.completions.create({
-      messages,
-      thinking: { type: 'disabled' },
+    const response = await geminiChat({
+      systemPrompt,
+      history: geminiHistory,
+      message,
     });
 
-    const response = completion.choices[0]?.message?.content || 'Lo siento, no pude generar una respuesta. Intenta de nuevo.';
+    const finalResponse = response || 'Lo siento, no pude generar una respuesta. Intenta de nuevo.';
 
     // Extract template IDs from response [[TEMPLATE_ID]]
-    const templateIds = [...response.matchAll(/\[\[([a-z0-9-]+)\]\]/g)].map((m) => m[1]);
+    const templateIds = [...finalResponse.matchAll(/\[\[([a-z0-9-]+)\]\]/g)].map((m) => m[1]);
 
     // Clean response: remove [[ID]] brackets but keep the text
-    const cleanResponse = response.replace(/\[\[[a-z0-9-]+\]\]/g, '').trim();
+    const cleanResponse = finalResponse.replace(/\[\[[a-z0-9-]+\]\]/g, '').trim();
 
     // Find matching templates for rich cards
     const matchedTemplates = templateIds
@@ -108,6 +94,11 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Assistant error:', error);
+    // Surface a clear message when the API key is missing so it's easy to fix.
+    const msg = error instanceof Error ? error.message : '';
+    if (msg.includes('GEMINI_API_KEY')) {
+      return NextResponse.json({ error: msg }, { status: 503 });
+    }
     return NextResponse.json(
       { error: 'Error al procesar tu consulta. Intenta de nuevo.' },
       { status: 500 }

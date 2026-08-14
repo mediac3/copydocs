@@ -1,5 +1,9 @@
 generator client {
   provider = "prisma-client-js"
+  // Emit the generated client to a stable path under src/.
+  // This avoids the Turbopack resolution bug with the hashed default
+  // output (@prisma/client-<hash>) that broke DB access in dev/build.
+  output   = "../src/generated/prisma"
 }
 
 datasource db {

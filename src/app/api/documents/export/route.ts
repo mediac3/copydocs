@@ -28,7 +28,8 @@ function isBase64Image(value: string | null | undefined): boolean {
   } catch { return false }
 }
 
-function decodeMediaImage(value: string): { buffer: Buffer; mimeType: string; width?: number; height?: number } | null {
+function decodeMediaImage(value: string | null | undefined): { buffer: Buffer; mimeType: string; width?: number; height?: number } | null {
+  if (!value) return null;
   let dataUrl: string;
   let width: number | undefined;
   let height: number | undefined;

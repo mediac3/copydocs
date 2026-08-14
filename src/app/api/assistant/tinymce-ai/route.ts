@@ -1,15 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
-
-const zaiInstance: { current: null | Awaited<ReturnType<typeof ZAI.create>> } = { current: null }
-
-async function getZAI() {
-  if (!zaiInstance.current) {
-    zaiInstance.current = await ZAI.create()
-  }
-  return zaiInstance.current
-}
+import { geminiChat } from '@/lib/gemini'
 
 /**
  * AI endpoint for TinyMCE's aiassistant plugin.
@@ -46,20 +37,17 @@ Usa español colombiano.
 Si el usuario pide mejoras, reescrituras o continuación, hazlo directamente.
 No uses markdown, genera HTML limpio adecuado para un editor de texto.${knowledgeContext}`
 
-    const zai = await getZAI()
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'assistant', content: systemPrompt },
-        { role: 'user', content: prompt },
-      ],
-      thinking: { type: 'disabled' },
-    })
+    const response = await geminiChat({ systemPrompt, message: prompt })
 
-    const response = completion.choices[0]?.message?.content || 'No se pudo generar contenido.'
+    const finalResponse = response || 'No se pudo generar contenido.'
 
-    return NextResponse.json({ response })
+    return NextResponse.json({ response: finalResponse })
   } catch (error) {
     console.error('TinyMCE AI error:', error)
+    const msg = error instanceof Error ? error.message : ''
+    if (msg.includes('GEMINI_API_KEY')) {
+      return NextResponse.json({ error: msg }, { status: 503 })
+    }
     return NextResponse.json(
       { error: 'Error al procesar con IA' },
       { status: 500 }
