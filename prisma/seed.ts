@@ -10,7 +10,9 @@ async function main() {
 
   const admin = await db.user.upsert({
     where: { username: '1038796568' },
-    update: {},
+    // Restore the documented credentials if the user already exists (e.g. a
+    // database carried over from an older deployment with an unknown hash).
+    update: { passwordHash: adminPass },
     create: {
       username: '1038796568',
       passwordHash: adminPass,
@@ -25,7 +27,7 @@ async function main() {
 
   const demo = await db.user.upsert({
     where: { username: 'demo' },
-    update: {},
+    update: { passwordHash: demoPass },
     create: {
       username: 'demo',
       passwordHash: demoPass,
