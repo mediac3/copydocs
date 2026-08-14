@@ -36,8 +36,6 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error('Login error:', error);
-    // TEMPORAL: incluir el detalle del error para diagnosticar el 500 en producción.
-    const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-    return NextResponse.json({ error: 'Error interno del servidor', detail }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }
