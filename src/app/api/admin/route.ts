@@ -103,6 +103,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ template });
     }
 
+    // Toggle the "blur last paragraphs for visitors" paywall hint on a template
+    if (action === 'update_template_blur') {
+      const template = await db.documentTemplate.update({
+        where: { id: body.templateId },
+        data: { blurPreview: !!body.blurPreview }
+      });
+      return NextResponse.json({ template });
+    }
+
     if (action === 'update_user_status') {
       const updatedUser = await db.user.update({
         where: { id: body.userId },

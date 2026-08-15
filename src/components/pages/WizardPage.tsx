@@ -58,6 +58,7 @@ interface Template {
   baseContent: string
   wizardConfig: string
   status: string
+  blurPreview?: boolean
 }
 
 interface Contact {
@@ -879,7 +880,9 @@ export default function WizardPage() {
 
                     {/* Document body */}
                     <div
-                      className="font-serif-doc text-sm leading-relaxed text-[#1a1a1a] [&_p]:mb-3 [&_p]:text-justify"
+                      className={`font-serif-doc text-sm leading-relaxed text-[#1a1a1a] [&_p]:mb-3 [&_p]:text-justify ${
+                        isVisitor && template.blurPreview ? 'blur-preview-tail' : ''
+                      }`}
                       dangerouslySetInnerHTML={{
                         __html: formatPreviewContent(previewContent),
                       }}

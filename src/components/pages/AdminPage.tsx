@@ -41,6 +41,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -106,6 +107,7 @@ interface Template {
   headerContent?: string
   footerContent?: string
   wizardConfig?: string
+  blurPreview?: boolean
 }
 
 interface Clause {
@@ -1326,6 +1328,37 @@ export default function AdminPage() {
     }
   }
 
+  /* Toggle the "blur last paragraphs in visitor preview" paywall hint */
+  const [togglingBlurIds, setTogglingBlurIds] = useState<Set<string>>(new Set())
+  const handleToggleTemplateBlur = async (templateId: string, value: boolean) => {
+    setTogglingBlurIds((s) => new Set(s).add(templateId))
+    // Optimistic update for instant feedback
+    setTemplates((list) => list.map((t) => (t.id === templateId ? { ...t, blurPreview: value } : t)))
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ action: 'update_template_blur', templateId, blurPreview: value }),
+      })
+      if (res.ok) {
+        toast.success(value ? 'Vista previa de visitantes: últimos párrafos borrosos' : 'Vista previa de visitantes: texto completo')
+      } else {
+        // Revert on failure
+        setTemplates((list) => list.map((t) => (t.id === templateId ? { ...t, blurPreview: !value } : t)))
+        toast.error('Error al actualizar la vista previa')
+      }
+    } catch {
+      setTemplates((list) => list.map((t) => (t.id === templateId ? { ...t, blurPreview: !value } : t)))
+      toast.error('Error de conexión')
+    } finally {
+      setTogglingBlurIds((s) => {
+        const next = new Set(s)
+        next.delete(templateId)
+        return next
+      })
+    }
+  }
+
   /* ---- Clause actions ---- */
   const handleOpenClauseDialog = (clause?: Clause) => {
     if (clause) {
@@ -1721,6 +1754,9 @@ export default function AdminPage() {
                               <TableHead className="text-xs font-medium uppercase tracking-wider text-white/30">Estado</TableHead>
                               <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Precio</TableHead>
                               <TableHead className="hidden text-right text-xs font-medium uppercase tracking-wider text-white/30 sm:table-cell">Docs</TableHead>
+                              <TableHead className="text-center text-xs font-medium uppercase tracking-wider text-white/30" title="Difumina los 2 últimos párrafos en la vista previa de visitantes">
+                                Blur Visit.
+                              </TableHead>
                               <TableHead className="text-right text-xs font-medium uppercase tracking-wider text-white/30">Acciones</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -1753,6 +1789,16 @@ export default function AdminPage() {
                                 </TableCell>
                                 <TableCell className="text-right font-medium text-white/70">{formatCurrency(tpl.price)}</TableCell>
                                 <TableCell className="hidden text-right text-white/40 sm:table-cell">{tpl.documentCount}</TableCell>
+                                <TableCell className="text-center">
+                                  <label className="inline-flex cursor-pointer items-center gap-1.5" title="Activar/desactivar desenfoque de los 2 últimos párrafos para visitantes">
+                                    <Checkbox
+                                      checked={!!tpl.blurPreview}
+                                      disabled={togglingBlurIds.has(tpl.id)}
+                                      onCheckedChange={(checked) => handleToggleTemplateBlur(tpl.id, checked === true)}
+                                    />
+                                    <span className="sr-only">Desenfoque para visitantes</span>
+                                  </label>
+                                </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex items-center justify-end gap-1">
                                     <Button

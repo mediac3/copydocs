@@ -107,15 +107,20 @@ interface ParsedBlock {
 
 type ContentBlock = ParsedBlock | ParsedTable;
 
-/** Strip HTML tags and decode entities */
-function stripHtml(html: string): string {
+/** Remove HTML tags, converting block boundaries to newlines. */
+function stripTagsPass(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<\/h[1-6]>/gi, '\n')
     .replace(/<\/li>/gi, '\n')
     .replace(/<li[^>]*>/gi, '  - ')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<[^>]+>/g, '');
+}
+
+/** Decode HTML entities to their characters. */
+function decodeEntities(html: string): string {
+  return html
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -131,8 +136,21 @@ function stripHtml(html: string): string {
     .replace(/&Ntilde;/g, 'Ñ')
     .replace(/&iquest;/g, '¿')
     .replace(/&iexcl;/g, '¡')
-    .replace(/\u00a0/g, ' ')
-    .trim();
+    .replace(/\u00a0/g, ' ');
+}
+
+/**
+ * Strip HTML tags and decode entities.
+ *
+ * Two passes: tags are removed first, entities are decoded, and tags are
+ * removed AGAIN. Editors sometimes leave HTML-escaped tags in the base
+ * content (e.g. &lt;p&gt; in empty placeholders); decoding them after a
+ * single strip pass rendered literal "<p>"/"<h1>" text in the exported PDF.
+ * The second pass removes those while leaving legitimate text like "5 < 10"
+ * (no closing '>') untouched.
+ */
+function stripHtml(html: string): string {
+  return stripTagsPass(decodeEntities(stripTagsPass(html))).trim();
 }
 
 /** Parse inline style string to extract background-color, text-align, border-color */
@@ -210,8 +228,11 @@ function parseHTMLContent(html: string): ContentBlock[] {
 
 /** Parse non-table HTML into text blocks */
 function parseTextBlocks(html: string, blocks: ContentBlock[]) {
-  // Split by block-level elements
-  const parts = html.split(/<\/(p|h[1-6]|div|blockquote|li)>/i);
+  // Split by block-level elements.
+  // NOTE: the group MUST be non-capturing — with a capturing group,
+  // String.split() injects the matched tag names ('p', 'h2', ...) as extra
+  // array items, which then rendered as stray "p"/"h1" text lines in the PDF.
+  const parts = html.split(/<\/(?:p|h[1-6]|div|blockquote|li)>/i);
   for (const part of parts) {
     // Check for headings
     const hMatch = part.match(/<h([1-3])[^>]*>([\s\S]*?)<\/h[1-3]>/i);

@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS "DocumentTemplate" (
     "headerContent" TEXT,
     "footerContent" TEXT,
     "wizardConfig" TEXT NOT NULL,
+    "blurPreview" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -199,6 +200,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS "User_username_key" ON "User"("username");
 CREATE UNIQUE INDEX IF NOT EXISTS "SiteSetting_key_key" ON "SiteSetting"("key");
 `;
 
+/**
+ * Idempotent column additions for databases created before a schema field
+ * existed (SQLite has no "ADD COLUMN IF NOT EXISTS", so duplicate-column
+ * errors are simply swallowed).
+ */
+const COLUMN_MIGRATIONS: string[] = [
+  `ALTER TABLE "DocumentTemplate" ADD COLUMN "blurPreview" BOOLEAN NOT NULL DEFAULT false`,
+];
+
 export async function ensureDatabaseInitialised(prisma: MinimalPrisma): Promise<void> {
   if (g.__dbInitialised) return;
   g.__dbInitialised = true;
@@ -223,6 +233,17 @@ export async function ensureDatabaseInitialised(prisma: MinimalPrisma): Promise<
     } catch (e) {
       console.error('[init-db] schema creation failed:', e instanceof Error ? e.message : e);
       return;
+    }
+  }
+
+  // Apply pending column migrations on existing databases (no-op when the
+  // column is already present).
+  for (const sql of COLUMN_MIGRATIONS) {
+    try {
+      await prisma.$executeRawUnsafe(sql);
+      console.log('[init-db] migration applied:', sql.slice(0, 60), '...');
+    } catch {
+      // column already exists — expected on every boot after the first
     }
   }
 

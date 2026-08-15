@@ -151,6 +151,7 @@ exports.Prisma.DocumentTemplateScalarFieldEnum = {
   headerContent: 'headerContent',
   footerContent: 'footerContent',
   wizardConfig: 'wizardConfig',
+  blurPreview: 'blurPreview',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };

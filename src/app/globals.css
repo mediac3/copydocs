@@ -381,3 +381,16 @@
 .tiptap-editor-dark .tiptap .resize-cursor {
   cursor: col-resize;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Visitor preview paywall hint: blur the last two paragraphs         */
+/*  (activated per-template by the admin via the "Blur Visit." column) */
+/* ------------------------------------------------------------------ */
+.blur-preview-tail > p:nth-last-of-type(-n+2) {
+  filter: blur(5px);
+  user-select: none;
+  transition: filter 0.25s ease;
+}
+.blur-preview-tail > p:nth-last-of-type(-n+2)::selection {
+  background: transparent;
+}

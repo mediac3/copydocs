@@ -48,6 +48,7 @@ model DocumentTemplate {
   headerContent   String?
   footerContent   String?
   wizardConfig    String
+  blurPreview     Boolean   @default(false)
   clauses         TemplateClause[]
   normativity     TemplateNormativity[]
   documents       UserDocument[]

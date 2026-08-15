@@ -3401,6 +3401,7 @@ export namespace Prisma {
     headerContent: string | null
     footerContent: string | null
     wizardConfig: string | null
+    blurPreview: boolean | null
     createdAt: Date | null
     updatedAt: Date | null
   }
@@ -3424,6 +3425,7 @@ export namespace Prisma {
     headerContent: string | null
     footerContent: string | null
     wizardConfig: string | null
+    blurPreview: boolean | null
     createdAt: Date | null
     updatedAt: Date | null
   }
@@ -3447,6 +3449,7 @@ export namespace Prisma {
     headerContent: number
     footerContent: number
     wizardConfig: number
+    blurPreview: number
     createdAt: number
     updatedAt: number
     _all: number
@@ -3488,6 +3491,7 @@ export namespace Prisma {
     headerContent?: true
     footerContent?: true
     wizardConfig?: true
+    blurPreview?: true
     createdAt?: true
     updatedAt?: true
   }
@@ -3511,6 +3515,7 @@ export namespace Prisma {
     headerContent?: true
     footerContent?: true
     wizardConfig?: true
+    blurPreview?: true
     createdAt?: true
     updatedAt?: true
   }
@@ -3534,6 +3539,7 @@ export namespace Prisma {
     headerContent?: true
     footerContent?: true
     wizardConfig?: true
+    blurPreview?: true
     createdAt?: true
     updatedAt?: true
     _all?: true
@@ -3644,6 +3650,7 @@ export namespace Prisma {
     headerContent: string | null
     footerContent: string | null
     wizardConfig: string
+    blurPreview: boolean
     createdAt: Date
     updatedAt: Date
     _count: DocumentTemplateCountAggregateOutputType | null
@@ -3686,6 +3693,7 @@ export namespace Prisma {
     headerContent?: boolean
     footerContent?: boolean
     wizardConfig?: boolean
+    blurPreview?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     clauses?: boolean | DocumentTemplate$clausesArgs<ExtArgs>
@@ -3713,6 +3721,7 @@ export namespace Prisma {
     headerContent?: boolean
     footerContent?: boolean
     wizardConfig?: boolean
+    blurPreview?: boolean
     createdAt?: boolean
     updatedAt?: boolean
   }, ExtArgs["result"]["documentTemplate"]>
@@ -3736,6 +3745,7 @@ export namespace Prisma {
     headerContent?: boolean
     footerContent?: boolean
     wizardConfig?: boolean
+    blurPreview?: boolean
     createdAt?: boolean
     updatedAt?: boolean
   }, ExtArgs["result"]["documentTemplate"]>
@@ -3759,11 +3769,12 @@ export namespace Prisma {
     headerContent?: boolean
     footerContent?: boolean
     wizardConfig?: boolean
+    blurPreview?: boolean
     createdAt?: boolean
     updatedAt?: boolean
   }
 
-  export type DocumentTemplateOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "description" | "category" | "subcategory" | "legalArea" | "audience" | "status" | "price" | "estimatedQuestions" | "estimatedMinutes" | "rating" | "ratingCount" | "thumbnail" | "baseContent" | "headerContent" | "footerContent" | "wizardConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["documentTemplate"]>
+  export type DocumentTemplateOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "description" | "category" | "subcategory" | "legalArea" | "audience" | "status" | "price" | "estimatedQuestions" | "estimatedMinutes" | "rating" | "ratingCount" | "thumbnail" | "baseContent" | "headerContent" | "footerContent" | "wizardConfig" | "blurPreview" | "createdAt" | "updatedAt", ExtArgs["result"]["documentTemplate"]>
   export type DocumentTemplateInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     clauses?: boolean | DocumentTemplate$clausesArgs<ExtArgs>
     normativity?: boolean | DocumentTemplate$normativityArgs<ExtArgs>
@@ -3799,6 +3810,7 @@ export namespace Prisma {
       headerContent: string | null
       footerContent: string | null
       wizardConfig: string
+      blurPreview: boolean
       createdAt: Date
       updatedAt: Date
     }, ExtArgs["result"]["documentTemplate"]>
@@ -4245,6 +4257,7 @@ export namespace Prisma {
     readonly headerContent: FieldRef<"DocumentTemplate", 'String'>
     readonly footerContent: FieldRef<"DocumentTemplate", 'String'>
     readonly wizardConfig: FieldRef<"DocumentTemplate", 'String'>
+    readonly blurPreview: FieldRef<"DocumentTemplate", 'Boolean'>
     readonly createdAt: FieldRef<"DocumentTemplate", 'DateTime'>
     readonly updatedAt: FieldRef<"DocumentTemplate", 'DateTime'>
   }
@@ -16749,6 +16762,7 @@ export namespace Prisma {
     headerContent: 'headerContent',
     footerContent: 'footerContent',
     wizardConfig: 'wizardConfig',
+    blurPreview: 'blurPreview',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
   };
@@ -17090,6 +17104,7 @@ export namespace Prisma {
     headerContent?: StringNullableFilter<"DocumentTemplate"> | string | null
     footerContent?: StringNullableFilter<"DocumentTemplate"> | string | null
     wizardConfig?: StringFilter<"DocumentTemplate"> | string
+    blurPreview?: BoolFilter<"DocumentTemplate"> | boolean
     createdAt?: DateTimeFilter<"DocumentTemplate"> | Date | string
     updatedAt?: DateTimeFilter<"DocumentTemplate"> | Date | string
     clauses?: TemplateClauseListRelationFilter
@@ -17116,6 +17131,7 @@ export namespace Prisma {
     headerContent?: SortOrderInput | SortOrder
     footerContent?: SortOrderInput | SortOrder
     wizardConfig?: SortOrder
+    blurPreview?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
     clauses?: TemplateClauseOrderByRelationAggregateInput
@@ -17145,6 +17161,7 @@ export namespace Prisma {
     headerContent?: StringNullableFilter<"DocumentTemplate"> | string | null
     footerContent?: StringNullableFilter<"DocumentTemplate"> | string | null
     wizardConfig?: StringFilter<"DocumentTemplate"> | string
+    blurPreview?: BoolFilter<"DocumentTemplate"> | boolean
     createdAt?: DateTimeFilter<"DocumentTemplate"> | Date | string
     updatedAt?: DateTimeFilter<"DocumentTemplate"> | Date | string
     clauses?: TemplateClauseListRelationFilter
@@ -17171,6 +17188,7 @@ export namespace Prisma {
     headerContent?: SortOrderInput | SortOrder
     footerContent?: SortOrderInput | SortOrder
     wizardConfig?: SortOrder
+    blurPreview?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
     _count?: DocumentTemplateCountOrderByAggregateInput
@@ -17202,6 +17220,7 @@ export namespace Prisma {
     headerContent?: StringNullableWithAggregatesFilter<"DocumentTemplate"> | string | null
     footerContent?: StringNullableWithAggregatesFilter<"DocumentTemplate"> | string | null
     wizardConfig?: StringWithAggregatesFilter<"DocumentTemplate"> | string
+    blurPreview?: BoolWithAggregatesFilter<"DocumentTemplate"> | boolean
     createdAt?: DateTimeWithAggregatesFilter<"DocumentTemplate"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"DocumentTemplate"> | Date | string
   }
@@ -18126,6 +18145,7 @@ export namespace Prisma {
     headerContent?: string | null
     footerContent?: string | null
     wizardConfig: string
+    blurPreview?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
     clauses?: TemplateClauseCreateNestedManyWithoutTemplateInput
@@ -18152,6 +18172,7 @@ export namespace Prisma {
     headerContent?: string | null
     footerContent?: string | null
     wizardConfig: string
+    blurPreview?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
     clauses?: TemplateClauseUncheckedCreateNestedManyWithoutTemplateInput
@@ -18178,6 +18199,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     clauses?: TemplateClauseUpdateManyWithoutTemplateNestedInput
@@ -18204,6 +18226,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     clauses?: TemplateClauseUncheckedUpdateManyWithoutTemplateNestedInput
@@ -18230,6 +18253,7 @@ export namespace Prisma {
     headerContent?: string | null
     footerContent?: string | null
     wizardConfig: string
+    blurPreview?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
   }
@@ -18253,6 +18277,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -18276,6 +18301,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -19354,6 +19380,11 @@ export namespace Prisma {
     not?: NestedFloatFilter<$PrismaModel> | number
   }
 
+  export type BoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
   export type TemplateClauseListRelationFilter = {
     every?: TemplateClauseWhereInput
     some?: TemplateClauseWhereInput
@@ -19393,6 +19424,7 @@ export namespace Prisma {
     headerContent?: SortOrder
     footerContent?: SortOrder
     wizardConfig?: SortOrder
+    blurPreview?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
   }
@@ -19424,6 +19456,7 @@ export namespace Prisma {
     headerContent?: SortOrder
     footerContent?: SortOrder
     wizardConfig?: SortOrder
+    blurPreview?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
   }
@@ -19447,6 +19480,7 @@ export namespace Prisma {
     headerContent?: SortOrder
     footerContent?: SortOrder
     wizardConfig?: SortOrder
+    blurPreview?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
   }
@@ -19475,9 +19509,12 @@ export namespace Prisma {
     _max?: NestedFloatFilter<$PrismaModel>
   }
 
-  export type BoolFilter<$PrismaModel = never> = {
+  export type BoolWithAggregatesFilter<$PrismaModel = never> = {
     equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolFilter<$PrismaModel> | boolean
+    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedBoolFilter<$PrismaModel>
+    _max?: NestedBoolFilter<$PrismaModel>
   }
 
   export type ClauseCountOrderByAggregateInput = {
@@ -19511,14 +19548,6 @@ export namespace Prisma {
     isDefault?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
-  }
-
-  export type BoolWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
-    _count?: NestedIntFilter<$PrismaModel>
-    _min?: NestedBoolFilter<$PrismaModel>
-    _max?: NestedBoolFilter<$PrismaModel>
   }
 
   export type DocumentTemplateScalarRelationFilter = {
@@ -20150,6 +20179,10 @@ export namespace Prisma {
     divide?: number
   }
 
+  export type BoolFieldUpdateOperationsInput = {
+    set?: boolean
+  }
+
   export type TemplateClauseUpdateManyWithoutTemplateNestedInput = {
     create?: XOR<TemplateClauseCreateWithoutTemplateInput, TemplateClauseUncheckedCreateWithoutTemplateInput> | TemplateClauseCreateWithoutTemplateInput[] | TemplateClauseUncheckedCreateWithoutTemplateInput[]
     connectOrCreate?: TemplateClauseCreateOrConnectWithoutTemplateInput | TemplateClauseCreateOrConnectWithoutTemplateInput[]
@@ -20246,10 +20279,6 @@ export namespace Prisma {
     connectOrCreate?: TemplateClauseCreateOrConnectWithoutClauseInput | TemplateClauseCreateOrConnectWithoutClauseInput[]
     createMany?: TemplateClauseCreateManyClauseInputEnvelope
     connect?: TemplateClauseWhereUniqueInput | TemplateClauseWhereUniqueInput[]
-  }
-
-  export type BoolFieldUpdateOperationsInput = {
-    set?: boolean
   }
 
   export type TemplateClauseUpdateManyWithoutClauseNestedInput = {
@@ -20532,6 +20561,11 @@ export namespace Prisma {
     _max?: NestedDateTimeFilter<$PrismaModel>
   }
 
+  export type NestedBoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
   export type NestedFloatWithAggregatesFilter<$PrismaModel = never> = {
     equals?: number | FloatFieldRefInput<$PrismaModel>
     in?: number[]
@@ -20546,11 +20580,6 @@ export namespace Prisma {
     _sum?: NestedFloatFilter<$PrismaModel>
     _min?: NestedFloatFilter<$PrismaModel>
     _max?: NestedFloatFilter<$PrismaModel>
-  }
-
-  export type NestedBoolFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolFilter<$PrismaModel> | boolean
   }
 
   export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
@@ -21017,6 +21046,7 @@ export namespace Prisma {
     headerContent?: string | null
     footerContent?: string | null
     wizardConfig: string
+    blurPreview?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
     normativity?: TemplateNormativityCreateNestedManyWithoutTemplateInput
@@ -21042,6 +21072,7 @@ export namespace Prisma {
     headerContent?: string | null
     footerContent?: string | null
     wizardConfig: string
+    blurPreview?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
     normativity?: TemplateNormativityUncheckedCreateNestedManyWithoutTemplateInput
@@ -21110,6 +21141,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     normativity?: TemplateNormativityUpdateManyWithoutTemplateNestedInput
@@ -21135,6 +21167,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     normativity?: TemplateNormativityUncheckedUpdateManyWithoutTemplateNestedInput
@@ -21193,6 +21226,7 @@ export namespace Prisma {
     headerContent?: string | null
     footerContent?: string | null
     wizardConfig: string
+    blurPreview?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
     clauses?: TemplateClauseCreateNestedManyWithoutTemplateInput
@@ -21218,6 +21252,7 @@ export namespace Prisma {
     headerContent?: string | null
     footerContent?: string | null
     wizardConfig: string
+    blurPreview?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
     clauses?: TemplateClauseUncheckedCreateNestedManyWithoutTemplateInput
@@ -21259,6 +21294,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     clauses?: TemplateClauseUpdateManyWithoutTemplateNestedInput
@@ -21284,6 +21320,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     clauses?: TemplateClauseUncheckedUpdateManyWithoutTemplateNestedInput
@@ -21309,6 +21346,7 @@ export namespace Prisma {
     headerContent?: string | null
     footerContent?: string | null
     wizardConfig: string
+    blurPreview?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
     clauses?: TemplateClauseCreateNestedManyWithoutTemplateInput
@@ -21334,6 +21372,7 @@ export namespace Prisma {
     headerContent?: string | null
     footerContent?: string | null
     wizardConfig: string
+    blurPreview?: boolean
     createdAt?: Date | string
     updatedAt?: Date | string
     clauses?: TemplateClauseUncheckedCreateNestedManyWithoutTemplateInput
@@ -21414,6 +21453,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     clauses?: TemplateClauseUpdateManyWithoutTemplateNestedInput
@@ -21439,6 +21479,7 @@ export namespace Prisma {
     headerContent?: NullableStringFieldUpdateOperationsInput | string | null
     footerContent?: NullableStringFieldUpdateOperationsInput | string | null
     wizardConfig?: StringFieldUpdateOperationsInput | string
+    blurPreview?: BoolFieldUpdateOperationsInput | boolean
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     clauses?: TemplateClauseUncheckedUpdateManyWithoutTemplateNestedInput

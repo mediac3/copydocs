@@ -13,8 +13,16 @@ import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Highlight from '@tiptap/extension-highlight'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
+
+/**
+ * The editor is rendered with a fixed dark palette when darkMode=true, but
+ * the site theme may be light — theme tokens like `text-foreground` resolve
+ * to near-black there and become illegible on the dark toolbar. This context
+ * lets the small UI pieces pick explicit high-contrast colors instead.
+ */
+const DarkUI = createContext(false)
 
 /* -------------------------------------------------------------------------- */
 /*  Reusable Rich Text Editor (Tiptap — 100% free, no license needed)         */
@@ -36,8 +44,13 @@ interface TinyMCEEditorProps {
 
 /* ---- Icon helpers ---- */
 function Icn({ children, title }: { children: React.ReactNode; title: string }) {
+  const dark = useContext(DarkUI)
   return (
-    <span title={title} className="inline-flex items-center justify-center w-7 h-7 rounded hover:bg-foreground/15 cursor-pointer text-foreground/80 hover:text-foreground transition-colors">
+    <span title={title} className={`inline-flex items-center justify-center w-7 h-7 rounded cursor-pointer transition-colors ${
+      dark
+        ? 'text-white/90 hover:text-white hover:bg-white/15'
+        : 'text-foreground/85 hover:text-foreground hover:bg-foreground/15'
+    }`}>
       {children}
     </span>
   )
@@ -57,17 +70,24 @@ function TBtn({
   title: string
   children: React.ReactNode
 }) {
+  const dark = useContext(DarkUI)
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
-      className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors text-xs ${
+      className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors text-xs font-medium ${
         disabled
-          ? 'text-foreground/35 cursor-not-allowed'
+          ? dark
+            ? 'text-white/35 cursor-not-allowed'
+            : 'text-foreground/40 cursor-not-allowed'
           : active
-            ? 'bg-primary/25 text-primary ring-1 ring-primary/40 cursor-pointer'
-            : 'text-foreground/80 hover:text-foreground hover:bg-foreground/15 cursor-pointer'
+            ? dark
+              ? 'bg-white/20 text-white ring-1 ring-white/45 cursor-pointer'
+              : 'bg-primary/20 text-primary ring-1 ring-primary/40 cursor-pointer'
+            : dark
+              ? 'text-white/90 hover:text-white hover:bg-white/15 cursor-pointer'
+              : 'text-foreground/85 hover:text-foreground hover:bg-foreground/15 cursor-pointer'
       }`}
       disabled={disabled}
     >
@@ -78,7 +98,8 @@ function TBtn({
 
 /* ---- Separator ---- */
 function Sep() {
-  return <span className="inline-block w-px h-5 bg-foreground/25 mx-1" />
+  const dark = useContext(DarkUI)
+  return <span className={`inline-block w-px h-5 mx-1 ${dark ? 'bg-white/25' : 'bg-foreground/25'}`} />
 }
 
 /* ---- SVG Icons ---- */
@@ -188,7 +209,7 @@ function LinkPopover({
         autoFocus
         className={`w-48 text-xs outline-none bg-transparent ${darkMode ? 'text-white placeholder:text-white/45' : 'text-foreground placeholder:text-foreground/45'}`}
       />
-      <button onClick={handleSave} className={`text-xs font-medium px-2 py-1 rounded ${darkMode ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary'}`}>OK</button>
+      <button onClick={handleSave} className={`text-xs font-medium px-2 py-1 rounded ${darkMode ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}>OK</button>
       <button onClick={handleRemove} className={`text-xs px-1.5 py-1 rounded ${darkMode ? 'text-red-400 hover:bg-red-400/10' : 'text-red-500 hover:bg-red-500/10'}`}>X</button>
     </div>
   )
@@ -414,9 +435,10 @@ export default function TinyMCEEditor({
   const isInTable = editor.isActive('table')
 
   return (
+    <DarkUI.Provider value={darkMode}>
     <div className={`relative flex flex-col ${darkMode ? 'bg-[#1a1a2e]' : 'bg-background'}`} style={{ minHeight: height }}>
       {/* ---- Toolbar ---- */}
-      <div className={`flex flex-wrap items-center gap-0.5 border-b px-1.5 py-1.5 ${darkMode ? 'border-white/10 bg-[#141428]' : 'border-border bg-card'}`}>
+      <div className={`flex flex-wrap items-center gap-0.5 border-b px-1.5 py-1.5 ${darkMode ? 'border-white/15 bg-[#141428]' : 'border-border bg-card'}`}>
         {/* Undo / Redo */}
         <TBtn title="Deshacer" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>{Icons.undo}</TBtn>
         <TBtn title="Rehacer" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}>{Icons.redo}</TBtn>
@@ -541,5 +563,6 @@ export default function TinyMCEEditor({
         <EditorContent editor={editor} />
       </div>
     </div>
+    </DarkUI.Provider>
   )
 }
