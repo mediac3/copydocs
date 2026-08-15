@@ -103,11 +103,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ template });
     }
 
-    // Toggle the "blur last paragraphs for visitors" paywall hint on a template
+    // Set which paragraph numbers (1-based block indices) are blurred for
+    // visitors in the document preview of a template
     if (action === 'update_template_blur') {
+      const raw: unknown = Array.isArray(body.paragraphs)
+        ? body.paragraphs
+        : [];
+      const paragraphs = [...new Set(
+        (raw as unknown[]).filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n > 0)
+      )].sort((a, b) => a - b);
       const template = await db.documentTemplate.update({
         where: { id: body.templateId },
-        data: { blurPreview: !!body.blurPreview }
+        data: { blurParagraphs: JSON.stringify(paragraphs) }
       });
       return NextResponse.json({ template });
     }

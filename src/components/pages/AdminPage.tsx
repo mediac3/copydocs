@@ -36,12 +36,13 @@ import {
   ImageOff,
   Brain,
   ImageIcon,
+  EyeOff,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Table,
   TableBody,
@@ -108,6 +109,131 @@ interface Template {
   footerContent?: string
   wizardConfig?: string
   blurPreview?: boolean
+  blurParagraphs?: number[]
+}
+
+/** Parse blurParagraphs safely (may arrive as JSON string or number[]). */
+function safeParseIndices(v: unknown): number[] {
+  let arr: unknown = v;
+  if (typeof v === 'string') {
+    try { arr = JSON.parse(v); } catch { return []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr.filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n > 0);
+}
+
+/** Count the top-level blocks (paragraph lines) of a template's base content. */
+function countTemplateBlocks(html?: string): number {
+  if (!html || typeof DOMParser === 'undefined') return 0;
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.children.length;
+  } catch {
+    return 0;
+  }
+}
+
+/* ---- Blur-paragraphs selector cell (multi-checkbox per paragraph line) ---- */
+function BlurParagraphsCell({
+  template,
+  onSave,
+}: {
+  template: Template
+  onSave: (templateId: string, paragraphs: number[]) => Promise<void>
+}) {
+  const [selected, setSelected] = useState<Set<number>>(new Set(template.blurParagraphs ?? []))
+  const [saving, setSaving] = useState(false)
+  const total = countTemplateBlocks(template.baseContent)
+
+  useEffect(() => {
+    setSelected(new Set(template.blurParagraphs ?? []))
+  }, [template.id, template.blurParagraphs])
+
+  const toggle = (n: number) => {
+    setSelected((s) => {
+      const next = new Set(s)
+      if (next.has(n)) next.delete(n)
+      else next.add(n)
+      return next
+    })
+  }
+
+  const apply = async () => {
+    setSaving(true)
+    try {
+      await onSave(template.id, [...selected].sort((a, b) => a - b))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const currentCount = template.blurParagraphs?.length ?? 0
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Seleccionar qué párrafos se muestran borrosos al visitante"
+          className={`inline-flex h-7 min-w-[2.25rem] items-center justify-center gap-1 rounded px-1.5 text-[11px] font-medium transition-colors ${
+            currentCount > 0
+              ? 'bg-[#C9A94E]/15 text-[#C9A94E] hover:bg-[#C9A94E]/25'
+              : 'text-white/40 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          <EyeOff className="h-3.5 w-3.5" />
+          {currentCount}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="left" align="center" className="w-60 border-white/10 bg-[#0F1D32] p-2 text-white">
+        <p className="px-1 pb-1.5 text-[11px] leading-snug text-white/40">
+          Párrafos borrosos para el visitante — {total} {total === 1 ? 'línea' : 'líneas'} en esta plantilla
+        </p>
+        {total === 0 ? (
+          <p className="px-1 py-3 text-center text-[11px] text-white/30">La plantilla no tiene contenido base</p>
+        ) : (
+          <div className="grid max-h-52 grid-cols-5 gap-1 overflow-y-auto scrollbar-thin p-0.5">
+            {Array.from({ length: total }, (_, i) => {
+              const n = i + 1
+              const active = selected.has(n)
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => toggle(n)}
+                  className={`flex h-7 items-center justify-center gap-1 rounded border text-[11px] font-medium transition-colors ${
+                    active
+                      ? 'border-[#C9A94E]/60 bg-[#C9A94E]/20 text-[#C9A94E]'
+                      : 'border-white/10 text-white/50 hover:border-white/25 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  {active && <Check className="h-3 w-3" />}
+                  {n}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <div className="flex items-center justify-between pt-2">
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="rounded px-2 py-1 text-[11px] text-white/40 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            Limpiar
+          </button>
+          <button
+            type="button"
+            onClick={apply}
+            disabled={saving}
+            className="rounded bg-[#C9A94E] px-3 py-1 text-[11px] font-semibold text-[#0A1628] transition-colors hover:bg-[#D4B965] disabled:opacity-50"
+          >
+            {saving ? 'Guardando…' : `Aplicar (${selected.size})`}
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 interface Clause {
@@ -751,7 +877,11 @@ function WizardStepEditor({
 /* ========================================================================== */
 
 function InlineTerms() {
-  const { authHeaders } = useAppStore() as { authHeaders: () => Record<string, string> }
+  // NOTE: authHeaders is a local helper inside AdminPage — it does NOT exist
+  // in the store. Destructuring it from useAppStore() made authHeaders()
+  // throw (undefined is not a function) and the save failed with
+  // "Error de conexión". Build the headers from the store user instead.
+  const { user } = useAppStore()
   const [terms, setTerms] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -768,7 +898,10 @@ function InlineTerms() {
     try {
       const res = await fetch('/api/settings', {
         method: 'PUT',
-        headers: authHeaders(),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
+        },
         body: JSON.stringify({ terms_and_conditions: terms }),
       })
       if (res.ok) toast.success('Términos y condiciones actualizados')
@@ -933,7 +1066,9 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/templates', { headers: authHeaders() })
       if (res.ok) {
         const data = await res.json()
-        setTemplates(Array.isArray(data) ? data : data.templates || [])
+        const list: Template[] = Array.isArray(data) ? data : data.templates || []
+        // blurParagraphs llega como JSON string desde SQLite — normalizar a number[]
+        setTemplates(list.map((t) => ({ ...t, blurParagraphs: safeParseIndices(t.blurParagraphs) })))
       }
     } catch {
       // keep empty on error
@@ -1328,34 +1463,30 @@ export default function AdminPage() {
     }
   }
 
-  /* Toggle the "blur last paragraphs in visitor preview" paywall hint */
-  const [togglingBlurIds, setTogglingBlurIds] = useState<Set<string>>(new Set())
-  const handleToggleTemplateBlur = async (templateId: string, value: boolean) => {
-    setTogglingBlurIds((s) => new Set(s).add(templateId))
+  /* Save which paragraph numbers are blurred for visitors in a template */
+  const handleSaveTemplateBlur = async (templateId: string, paragraphs: number[]) => {
+    const previous = templates.find((t) => t.id === templateId)?.blurParagraphs ?? []
     // Optimistic update for instant feedback
-    setTemplates((list) => list.map((t) => (t.id === templateId ? { ...t, blurPreview: value } : t)))
+    setTemplates((list) => list.map((t) => (t.id === templateId ? { ...t, blurParagraphs: paragraphs } : t)))
     try {
       const res = await fetch('/api/admin', {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ action: 'update_template_blur', templateId, blurPreview: value }),
+        body: JSON.stringify({ action: 'update_template_blur', templateId, paragraphs }),
       })
       if (res.ok) {
-        toast.success(value ? 'Vista previa de visitantes: últimos párrafos borrosos' : 'Vista previa de visitantes: texto completo')
+        toast.success(
+          paragraphs.length > 0
+            ? `${paragraphs.length} párrafo${paragraphs.length === 1 ? '' : 's'} borroso${paragraphs.length === 1 ? '' : 's'} para visitantes`
+            : 'Vista previa de visitantes: sin párrafos borrosos'
+        )
       } else {
-        // Revert on failure
-        setTemplates((list) => list.map((t) => (t.id === templateId ? { ...t, blurPreview: !value } : t)))
+        setTemplates((list) => list.map((t) => (t.id === templateId ? { ...t, blurParagraphs: previous } : t)))
         toast.error('Error al actualizar la vista previa')
       }
     } catch {
-      setTemplates((list) => list.map((t) => (t.id === templateId ? { ...t, blurPreview: !value } : t)))
+      setTemplates((list) => list.map((t) => (t.id === templateId ? { ...t, blurParagraphs: previous } : t)))
       toast.error('Error de conexión')
-    } finally {
-      setTogglingBlurIds((s) => {
-        const next = new Set(s)
-        next.delete(templateId)
-        return next
-      })
     }
   }
 
@@ -1790,14 +1921,7 @@ export default function AdminPage() {
                                 <TableCell className="text-right font-medium text-white/70">{formatCurrency(tpl.price)}</TableCell>
                                 <TableCell className="hidden text-right text-white/40 sm:table-cell">{tpl.documentCount}</TableCell>
                                 <TableCell className="text-center">
-                                  <label className="inline-flex cursor-pointer items-center gap-1.5" title="Activar/desactivar desenfoque de los 2 últimos párrafos para visitantes">
-                                    <Checkbox
-                                      checked={!!tpl.blurPreview}
-                                      disabled={togglingBlurIds.has(tpl.id)}
-                                      onCheckedChange={(checked) => handleToggleTemplateBlur(tpl.id, checked === true)}
-                                    />
-                                    <span className="sr-only">Desenfoque para visitantes</span>
-                                  </label>
+                                  <BlurParagraphsCell template={tpl} onSave={handleSaveTemplateBlur} />
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex items-center justify-end gap-1">

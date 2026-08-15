@@ -383,14 +383,38 @@
 }
 
 /* ------------------------------------------------------------------ */
-/*  Visitor preview paywall hint: blur the last two paragraphs         */
-/*  (activated per-template by the admin via the "Blur Visit." column) */
+/*  Visitor preview paywall hint: admin-selected paragraphs are        */
+/*  blurred and reveal a tooltip on hover.                              */
+/*  Structure (built by applyBlurBlocks in WizardPage):                */
+/*    <div class="blur-wrap"> <original block …/> <span class="blur-tip"/> </div> */
 /* ------------------------------------------------------------------ */
-.blur-preview-tail > p:nth-last-of-type(-n+2) {
+.blur-wrap {
+  position: relative;
+}
+.blur-wrap > :first-child {
   filter: blur(5px);
   user-select: none;
+  pointer-events: none;
   transition: filter 0.25s ease;
 }
-.blur-preview-tail > p:nth-last-of-type(-n+2)::selection {
-  background: transparent;
+.blur-tip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(10, 22, 40, 0.94);
+  color: #ffffff;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 5;
+}
+.blur-wrap:hover .blur-tip {
+  opacity: 1;
 }

@@ -49,6 +49,8 @@ model DocumentTemplate {
   footerContent   String?
   wizardConfig    String
   blurPreview     Boolean   @default(false)
+  // JSON array of 1-based block indices blurred for visitors in the preview
+  blurParagraphs  String    @default("[]")
   clauses         TemplateClause[]
   normativity     TemplateNormativity[]
   documents       UserDocument[]

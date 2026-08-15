@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS "DocumentTemplate" (
     "footerContent" TEXT,
     "wizardConfig" TEXT NOT NULL,
     "blurPreview" BOOLEAN NOT NULL DEFAULT false,
+    "blurParagraphs" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -207,6 +208,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "SiteSetting_key_key" ON "SiteSetting"("key");
  */
 const COLUMN_MIGRATIONS: string[] = [
   `ALTER TABLE "DocumentTemplate" ADD COLUMN "blurPreview" BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE "DocumentTemplate" ADD COLUMN "blurParagraphs" TEXT NOT NULL DEFAULT '[]'`,
 ];
 
 export async function ensureDatabaseInitialised(prisma: MinimalPrisma): Promise<void> {

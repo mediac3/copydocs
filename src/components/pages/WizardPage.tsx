@@ -59,6 +59,50 @@ interface Template {
   wizardConfig: string
   status: string
   blurPreview?: boolean
+  blurParagraphs?: number[] | string
+}
+
+/** Blur-tooltip message shown to visitors on blurred paragraphs. */
+const BLUR_TIP_MESSAGE = 'Disponible al completar la impresión.'
+
+/** Parse the template's blurred-paragraph indices (JSON string or array). */
+function parseBlurIndices(v: number[] | string | undefined | null): number[] {
+  let arr: unknown = v
+  if (typeof v === 'string') {
+    try { arr = JSON.parse(v) } catch { return [] }
+  }
+  if (!Array.isArray(arr)) return []
+  return arr.filter((n): n is number => typeof n === 'number' && n > 0)
+}
+
+/**
+ * Wrap the selected top-level blocks (1-based index) in a blur container with
+ * a hover tooltip. Uses DOMParser so it works for any block type (p, table…).
+ */
+function applyBlurBlocks(html: string, indices: number[]): string {
+  if (!indices.length || typeof DOMParser === 'undefined') return html
+  try {
+    const host = new DOMParser().parseFromString(
+      `<div id="blur-root">${html}</div>`,
+      'text/html',
+    )
+    const root = host.getElementById('blur-root')!
+    const selected = new Set(indices)
+    Array.from(root.children).forEach((el, i) => {
+      if (!selected.has(i + 1)) return
+      const wrap = host.createElement('div')
+      wrap.className = 'blur-wrap'
+      el.replaceWith(wrap)
+      wrap.appendChild(el)
+      const tip = host.createElement('span')
+      tip.className = 'blur-tip'
+      tip.textContent = BLUR_TIP_MESSAGE
+      wrap.appendChild(tip)
+    })
+    return root.innerHTML
+  } catch {
+    return html
+  }
 }
 
 interface Contact {
@@ -880,11 +924,13 @@ export default function WizardPage() {
 
                     {/* Document body */}
                     <div
-                      className={`font-serif-doc text-sm leading-relaxed text-[#1a1a1a] [&_p]:mb-3 [&_p]:text-justify ${
-                        isVisitor && template.blurPreview ? 'blur-preview-tail' : ''
-                      }`}
+                      className="font-serif-doc text-sm leading-relaxed text-[#1a1a1a] [&_p]:mb-3 [&_p]:text-justify"
                       dangerouslySetInnerHTML={{
-                        __html: formatPreviewContent(previewContent),
+                        __html: (() => {
+                          const formatted = formatPreviewContent(previewContent)
+                          const blurIdx = isVisitor ? parseBlurIndices(template.blurParagraphs) : []
+                          return blurIdx.length ? applyBlurBlocks(formatted, blurIdx) : formatted
+                        })(),
                       }}
                     />
                   </div>
