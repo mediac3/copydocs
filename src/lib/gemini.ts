@@ -37,13 +37,13 @@ function geminiModels(): string[] {
  * picks a fast/cheap one. Result is cached for 10 minutes per process.
  */
 const gCache = globalThis as unknown as {
-  __geminiModelCache?: { model: string | null; at: number };
+  __geminiModelsCache?: { models: string[]; at: number };
 };
 
-async function discoverModel(apiKey: string): Promise<string | null> {
-  const cached = gCache.__geminiModelCache;
+async function discoverModels(apiKey: string): Promise<string[]> {
+  const cached = gCache.__geminiModelsCache;
   if (cached && Date.now() - cached.at < 10 * 60_000) {
-    return cached.model;
+    return cached.models;
   }
   try {
     const res = await fetch(
@@ -51,8 +51,8 @@ async function discoverModel(apiKey: string): Promise<string | null> {
       { signal: AbortSignal.timeout(15000) },
     );
     if (!res.ok) {
-      gCache.__geminiModelCache = { model: null, at: Date.now() };
-      return null;
+      gCache.__geminiModelsCache = { models: [], at: Date.now() };
+      return [];
     }
     const data = (await res.json()) as {
       models?: { name?: string; supportedGenerationMethods?: string[] }[];
@@ -61,19 +61,23 @@ async function discoverModel(apiKey: string): Promise<string | null> {
       .filter((m) => m.name && (m.supportedGenerationMethods ?? ['generateContent']).includes('generateContent'))
       .map((m) => m.name!.replace(/^models\//, ''));
 
-    const preferences = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash', 'flash'];
-    for (const pref of preferences) {
+    // Preferred aliases first, then any other flash-class model, up to 4
+    // candidates so the request chain can rotate if one is overloaded.
+    const result: string[] = [];
+    for (const pref of ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash']) {
       const found = usable.find((n) => n === pref || n.startsWith(pref));
-      if (found) {
-        gCache.__geminiModelCache = { model: found, at: Date.now() };
-        return found;
-      }
+      if (found && !result.includes(found)) result.push(found);
     }
-    const any = usable[0] ?? null;
-    gCache.__geminiModelCache = { model: any, at: Date.now() };
-    return any;
+    for (const n of usable) {
+      if (n.includes('flash') && !result.includes(n)) result.push(n);
+      if (result.length >= 4) break;
+    }
+    if (result.length === 0 && usable[0]) result.push(usable[0]);
+
+    gCache.__geminiModelsCache = { models: result, at: Date.now() };
+    return result;
   } catch {
-    return cached?.model ?? null;
+    return cached?.models ?? [];
   }
 }
 
@@ -136,50 +140,68 @@ export async function geminiChat({
     },
   };
 
-  // Model chain: explicit override → dynamically discovered current model →
+  // Model chain: explicit override → dynamically discovered current models →
   // static fallbacks. The dynamic discovery self-heals against Google
   // retiring model versions.
-  const discovered = await discoverModel(apiKey);
+  const discovered = await discoverModels(apiKey);
   const chain = [...geminiModels()];
-  if (discovered && !chain.includes(discovered)) chain.unshift(discovered);
+  for (const m of discovered) {
+    if (!chain.includes(m)) chain.unshift(m);
+  }
 
   let lastError: unknown = new Error('No hay modelos de Gemini disponibles');
 
-  // Try each model in the chain; only 404 (model retired/not found) falls
-  // through to the next one. Any other error (bad key, quota, network) is
-  // surfaced immediately.
+  const isTransient = (msg: string) =>
+    /Gemini API error (429|5\d\d) /.test(msg);
+
+  // Per model: retry transient errors (429/5xx = overloaded/rate-limited)
+  // once with a short backoff, then move on to the next model in the chain.
+  // 404 (retired model) moves on immediately. 400/401/403 (bad request/key)
+  // are fatal and surfaced right away.
   for (const model of chain) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(45000),
+        });
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        const error = new Error(`Gemini API error ${res.status} (modelo ${model}): ${errText.slice(0, 300)}`);
-        if (res.status === 404) {
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          const error = new Error(
+            `Gemini API error ${res.status} (modelo ${model}): ${errText.slice(0, 300)}`,
+          );
           lastError = error;
-          continue; // model retired → try the next one
+
+          if (res.status === 404) break; // retired → next model
+          if (isTransient(error.message)) {
+            if (attempt === 0) {
+              await new Promise((r) => setTimeout(r, 900)); // brief backoff, retry
+              continue;
+            }
+            break; // still busy → next model
+          }
+          throw error; // auth/quota/bad-request → fatal
         }
-        throw error;
+
+        const data = await res.json();
+        const text: string | undefined =
+          data?.candidates?.[0]?.content?.parts
+            ?.map((p: { text?: string }) => p.text)
+            .filter(Boolean)
+            .join('\n') || undefined;
+
+        return text || '';
+      } catch (e) {
+        // Network/runtime rejections (connection reset, DNS, timeout) are
+        // treated like transient errors: try the next model in the chain.
+        lastError = e;
+        break;
       }
-
-      const data = await res.json();
-      const text: string | undefined =
-        data?.candidates?.[0]?.content?.parts
-          ?.map((p: { text?: string }) => p.text)
-          .filter(Boolean)
-          .join('\n') || undefined;
-
-      return text || '';
-    } catch (e) {
-      // Network/runtime errors abort the chain
-      if (e instanceof Error && !e.message.includes('Gemini API error 404')) throw e;
-      lastError = e;
     }
   }
 
