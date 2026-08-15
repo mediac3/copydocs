@@ -23,9 +23,58 @@ function geminiApiKey(): string {
 
 function geminiModels(): string[] {
   ensureEnvLoaded();
-  return [process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash'].filter(
+  return [process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'].filter(
     Boolean,
   ) as string[];
+}
+
+/**
+ * Discover a currently-available flash model via ListModels.
+ *
+ * Google keeps retiring model versions (1.5 → 2.0 → 2.5 have all returned
+ * 404 "no longer available" at some point), so hardcoding names breaks the
+ * assistant over time. This asks the API which models exist right now and
+ * picks a fast/cheap one. Result is cached for 10 minutes per process.
+ */
+const gCache = globalThis as unknown as {
+  __geminiModelCache?: { model: string | null; at: number };
+};
+
+async function discoverModel(apiKey: string): Promise<string | null> {
+  const cached = gCache.__geminiModelCache;
+  if (cached && Date.now() - cached.at < 10 * 60_000) {
+    return cached.model;
+  }
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!res.ok) {
+      gCache.__geminiModelCache = { model: null, at: Date.now() };
+      return null;
+    }
+    const data = (await res.json()) as {
+      models?: { name?: string; supportedGenerationMethods?: string[] }[];
+    };
+    const usable = (data.models ?? [])
+      .filter((m) => m.name && (m.supportedGenerationMethods ?? ['generateContent']).includes('generateContent'))
+      .map((m) => m.name!.replace(/^models\//, ''));
+
+    const preferences = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash', 'flash'];
+    for (const pref of preferences) {
+      const found = usable.find((n) => n === pref || n.startsWith(pref));
+      if (found) {
+        gCache.__geminiModelCache = { model: found, at: Date.now() };
+        return found;
+      }
+    }
+    const any = usable[0] ?? null;
+    gCache.__geminiModelCache = { model: any, at: Date.now() };
+    return any;
+  } catch {
+    return cached?.model ?? null;
+  }
 }
 
 export interface GeminiMessage {
@@ -87,12 +136,19 @@ export async function geminiChat({
     },
   };
 
+  // Model chain: explicit override → dynamically discovered current model →
+  // static fallbacks. The dynamic discovery self-heals against Google
+  // retiring model versions.
+  const discovered = await discoverModel(apiKey);
+  const chain = [...geminiModels()];
+  if (discovered && !chain.includes(discovered)) chain.unshift(discovered);
+
   let lastError: unknown = new Error('No hay modelos de Gemini disponibles');
 
   // Try each model in the chain; only 404 (model retired/not found) falls
   // through to the next one. Any other error (bad key, quota, network) is
   // surfaced immediately.
-  for (const model of geminiModels()) {
+  for (const model of chain) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
