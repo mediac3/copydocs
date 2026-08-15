@@ -12,12 +12,21 @@
  * back on 404 "model not found". Override with GEMINI_MODEL if needed.
  */
 
-const GEMINI_MODELS: string[] = [
-  process.env.GEMINI_MODEL,
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-].filter(Boolean) as string[];
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+import { ensureEnvLoaded } from '@/lib/env';
+
+// Read lazily: env vars may be populated by ensureEnvLoaded() at boot, after
+// this module was first imported.
+function geminiApiKey(): string {
+  ensureEnvLoaded();
+  return process.env.GEMINI_API_KEY || '';
+}
+
+function geminiModels(): string[] {
+  ensureEnvLoaded();
+  return [process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash'].filter(
+    Boolean,
+  ) as string[];
+}
 
 export interface GeminiMessage {
   role: 'user' | 'model';
@@ -64,7 +73,8 @@ export async function geminiChat({
   history?: GeminiMessage[];
   message: string;
 }): Promise<string> {
-  if (!GEMINI_API_KEY) {
+  const apiKey = geminiApiKey();
+  if (!apiKey) {
     throw new Error('GEMINI_API_KEY no está configurada. Obtén una clave gratuita en https://aistudio.google.com/apikey');
   }
 
@@ -82,9 +92,9 @@ export async function geminiChat({
   // Try each model in the chain; only 404 (model retired/not found) falls
   // through to the next one. Any other error (bad key, quota, network) is
   // surfaced immediately.
-  for (const model of GEMINI_MODELS) {
+  for (const model of geminiModels()) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
       const res = await fetch(url, {
         method: 'POST',

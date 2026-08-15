@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { geminiChat } from '@/lib/gemini'
 import { pollinationsChat } from '@/lib/pollinations'
+import { ensureEnvLoaded } from '@/lib/env'
 
 /**
  * AI endpoint for the visual editor assistant.
@@ -41,7 +42,8 @@ Usa español colombiano.
 Si el usuario pide mejoras, reescrituras o continuación, hazlo directamente.
 No uses markdown, genera HTML limpio adecuado para un editor de texto.${knowledgeContext}`
 
-    // 1) Gemini (optional, requires key)
+    // 1) Gemini (optional, requires key — may come from .env via ensureEnvLoaded)
+    ensureEnvLoaded()
     if (process.env.GEMINI_API_KEY) {
       try {
         const response = await geminiChat({ systemPrompt, message: prompt })

@@ -6,6 +6,11 @@ import { resolve, dirname } from 'node:path'
 import { mkdirSync, openSync, closeSync, unlinkSync, existsSync, copyFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { ensureDatabaseInitialised } from '@/lib/init-db'
+import { ensureEnvLoaded } from '@/lib/env'
+
+// Populate process.env from the project .env (the standalone server does not
+// load it on its own) BEFORE any env var is read below.
+ensureEnvLoaded()
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
