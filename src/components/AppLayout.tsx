@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppStore, type Page } from '@/store/app-store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ const ADMIN_NAV: { icon: typeof LayoutDashboard; label: string; page: Page }[] =
   { icon: Settings, label: 'Solicitudes', page: 'admin-requests' },
   { icon: Coins, label: 'Créditos', page: 'admin-pricing' },
   { icon: Newspaper, label: 'Publicaciones', page: 'admin-publications' },
+  { icon: Shield, label: 'Permisos', page: 'admin-permisos' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -37,7 +38,47 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { theme, setTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navItems = user?.role === 'admin' ? ADMIN_NAV : CLIENT_NAV;
+  /* ---- Client role permissions (admin-managed via the Permisos tab) ---- */
+  // null = not loaded yet → assume all sections allowed (default)
+  const [clientPermissions, setClientPermissions] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((data: Record<string, string>) => {
+        if (cancelled || typeof data?.client_permissions !== 'string' || !data.client_permissions) return
+        try {
+          const arr = JSON.parse(data.client_permissions)
+          if (Array.isArray(arr) && !cancelled) setClientPermissions(arr.filter((x) => typeof x === 'string'))
+        } catch { /* malformed → keep default (all) */ }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  const isClient = user?.role !== 'admin'
+  const allowedClientNav = useMemo(() => {
+    if (!isClient || !clientPermissions) return CLIENT_NAV
+    return CLIENT_NAV.filter((item) => clientPermissions.includes(item.page))
+  }, [isClient, clientPermissions])
+
+  // Redirect clients away from revoked sections (wizard follows the catalog:
+  // entering a document is allowed only while the catalog is visible)
+  useEffect(() => {
+    if (!isClient || !clientPermissions || clientPermissions.length === 0) return
+    const allowed = new Set(clientPermissions)
+    const clientPages: Page[] = ['dashboard', 'catalog', 'documents', 'contacts', 'payments']
+    if (clientPages.includes(currentPage) && !allowed.has(currentPage)) {
+      const firstAllowed = CLIENT_NAV.find((n) => allowed.has(n.page))?.page
+      if (firstAllowed) {
+        setCurrentPage(firstAllowed)
+        toast.error('No tienes acceso a esa sección')
+      }
+    }
+  }, [isClient, clientPermissions, currentPage, setCurrentPage])
+
+  const navItems = user?.role === 'admin' ? ADMIN_NAV : allowedClientNav;
 
   const handleNav = (page: Page) => {
     setCurrentPage(page);

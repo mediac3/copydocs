@@ -22,7 +22,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
-import { ArrowLeft, ArrowRight, Save, FileText, Check, Info, Eye, Download, MessageCircle, Phone } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Save, FileText, Check, Info, Eye, Download, MessageCircle, Phone, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store/app-store'
 import TermsAcceptance from '@/components/TermsAcceptance'
@@ -34,7 +34,7 @@ import TermsAcceptance from '@/components/TermsAcceptance'
 interface WizardField {
   key: string
   label: string
-  type: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'boolean'
+  type: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'boolean' | 'image'
   options?: string[]
   tooltip?: string
   condition?: { field: string; value: boolean | string | number }
@@ -413,7 +413,13 @@ export default function WizardPage() {
         const placeholder = `{{${field.key}}}`
         const value = answers[field.key]
         if (value !== undefined && value !== '') {
-          result = result.replaceAll(placeholder, String(value))
+          const str = String(value)
+          // Image fields store a base64 data URL — render it as an actual
+          // image in the preview and the generated HTML document.
+          const replacement = str.startsWith('data:image/')
+            ? `<img src="${str}" alt="${field.label.replace(/"/g, '')}" style="max-width:100%;height:auto;border-radius:4px" />`
+            : str
+          result = result.replaceAll(placeholder, replacement)
         }
       }
       if (final) {
@@ -1179,6 +1185,52 @@ function FieldRenderer({
             </Label>
           </div>
         </RadioGroup>
+      )}
+
+      {field.type === 'image' && (
+        <div className="space-y-2">
+          {typeof value === 'string' && value.startsWith('data:image/') ? (
+            <div className="relative inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={value}
+                alt={field.label}
+                className="max-h-32 rounded-lg border border-[#1E3A5F] bg-white/5"
+              />
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                title="Quitar imagen"
+                className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500/90 text-white shadow hover:bg-red-500"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <label className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#1E3A5F] bg-[#0F1F38] transition-colors hover:border-[#C9A94E]/60">
+              <Upload className="h-5 w-5 text-[#475569]" />
+              <span className="text-xs text-[#475569]">Haz clic para subir una imagen (máx. 2 MB)</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (!file) return
+                  if (file.size > 2 * 1024 * 1024) {
+                    toast.error('La imagen supera el límite de 2 MB')
+                    return
+                  }
+                  const reader = new FileReader()
+                  reader.onload = () => onChange(reader.result as string)
+                  reader.onerror = () => toast.error('No se pudo leer la imagen')
+                  reader.readAsDataURL(file)
+                }}
+              />
+            </label>
+          )}
+        </div>
       )}
     </div>
   )

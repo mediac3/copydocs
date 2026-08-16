@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { hash as bcryptHash } from 'bcryptjs';
 
 export async function GET(request: Request) {
   const userId = request.headers.get('x-user-id');
@@ -126,6 +127,56 @@ export async function POST(request: Request) {
       });
       const { passwordHash, ...safe } = updatedUser;
       return NextResponse.json({ user: safe });
+    }
+
+    // ---- User CRUD -----------------------------------------------------
+    if (action === 'create_user') {
+      const username = String(body.username ?? '').trim();
+      const password = String(body.password ?? '');
+      const name = String(body.name ?? '').trim();
+      if (!username || !password || !name) {
+        return NextResponse.json({ error: 'Usuario, contraseña y nombre son obligatorios' }, { status: 400 });
+      }
+      const exists = await db.user.findUnique({ where: { username } });
+      if (exists) {
+        return NextResponse.json({ error: 'Ese nombre de usuario ya existe' }, { status: 409 });
+      }
+      const passwordHash = await bcryptHash(password, 10);
+      const created = await db.user.create({
+        data: {
+          username,
+          passwordHash,
+          name,
+          email: body.email || null,
+          phone: body.phone || null,
+          role: body.role === 'admin' ? 'admin' : 'client',
+          status: 'active',
+          credits: typeof body.credits === 'number' ? body.credits : 10,
+        }
+      });
+      const { passwordHash: _ph, ...safe } = created;
+      return NextResponse.json({ user: safe }, { status: 201 });
+    }
+
+    if (action === 'update_user') {
+      const data: Record<string, unknown> = {
+        name: String(body.name ?? '').trim(),
+        email: body.email || null,
+        phone: body.phone || null,
+        role: body.role === 'admin' ? 'admin' : 'client',
+        status: body.status === 'suspended' ? 'suspended' : 'active',
+        credits: typeof body.credits === 'number' ? body.credits : 0,
+      };
+      const newPass = String(body.password ?? '');
+      if (newPass) data.passwordHash = await bcryptHash(newPass, 10);
+      const updated = await db.user.update({ where: { id: body.userId }, data });
+      const { passwordHash: _ph2, ...safe } = updated;
+      return NextResponse.json({ user: safe });
+    }
+
+    if (action === 'delete_user') {
+      await db.user.delete({ where: { id: body.userId } });
+      return NextResponse.json({ success: true });
     }
 
     if (action === 'handle_request') {

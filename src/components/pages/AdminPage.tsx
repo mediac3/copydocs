@@ -37,6 +37,7 @@ import {
   Brain,
   ImageIcon,
   EyeOff,
+  Shield,
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -326,7 +327,7 @@ function isMediaImage(m: MediaContent): boolean {
 interface WizardFieldDef {
   key: string
   label: string
-  type: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'boolean'
+  type: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'boolean' | 'image'
   options?: string[]
   tooltip?: string
   condition?: { field: string; value: boolean | string | number }
@@ -688,6 +689,7 @@ const FIELD_TYPE_OPTIONS: Array<{ value: WizardFieldDef['type']; label: string; 
   { value: 'textarea', label: 'Área de texto', icon: AlignLeft },
   { value: 'select', label: 'Selección', icon: List },
   { value: 'boolean', label: 'Sí/No', icon: ToggleLeft },
+  { value: 'image', label: 'Imagen', icon: ImageIcon },
 ]
 
 function WizardStepEditor({
@@ -873,6 +875,125 @@ function WizardStepEditor({
 }
 
 /* ========================================================================== */
+/*  Permissions Tab Component (client-role section access)                   */
+/* ========================================================================== */
+
+/** Client-facing sections that can be toggled for the client role. */
+const CLIENT_SECTIONS: Array<{ id: string; label: string; desc: string }> = [
+  { id: 'dashboard', label: 'Dashboard', desc: 'Panel inicial con estadísticas del usuario' },
+  { id: 'catalog', label: 'Catálogo', desc: 'Listado de plantillas y acceso al asistente' },
+  { id: 'documents', label: 'Mis Documentos', desc: 'Documentos generados y descargas' },
+  { id: 'contacts', label: 'Mis Datos', desc: 'Gestión de contactos' },
+  { id: 'payments', label: 'Créditos', desc: 'Compra de créditos e historial' },
+]
+
+function InlinePermissions() {
+  // authHeaders is local to AdminPage — build headers from the store user
+  // (same lesson as InlineTerms).
+  const { user } = useAppStore()
+  const [allowed, setAllowed] = useState<Set<string>>(new Set(CLIENT_SECTIONS.map((s) => s.id)))
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((data: Record<string, string>) => {
+        const raw = data.client_permissions
+        if (typeof raw === 'string' && raw) {
+          try {
+            const arr = JSON.parse(raw)
+            if (Array.isArray(arr) && arr.length) {
+              setAllowed(new Set(arr.filter((x) => typeof x === 'string')))
+            }
+          } catch { /* keep default: all */ }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true))
+  }, [])
+
+  const toggle = (id: string) => {
+    setAllowed((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        body: JSON.stringify({ client_permissions: JSON.stringify([...allowed]) }),
+      })
+      if (res.ok) toast.success('Permisos de clientes actualizados')
+      else toast.error('Error al guardar permisos')
+    } catch {
+      toast.error('Error de conexión')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-white">Permisos de Clientes</h2>
+        <p className="text-xs text-white/40">
+          Define a qué secciones pueden acceder los usuarios con rol <span className="text-[#C9A94E]">cliente</span>. Los cambios aplican la próxima vez que el cliente cargue la aplicación.
+        </p>
+      </div>
+      <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
+        <CardContent className="p-6 space-y-3">
+          {!loaded ? (
+            <div className="h-40 animate-pulse rounded-lg bg-white/[0.04]" />
+          ) : (
+            CLIENT_SECTIONS.map((s) => {
+              const on = allowed.has(s.id)
+              return (
+                <label
+                  key={s.id}
+                  className={`flex cursor-pointer items-center justify-between gap-4 rounded-lg border px-4 py-3 transition-colors ${
+                    on ? 'border-[#C9A94E]/30 bg-[#C9A94E]/[0.06]' : 'border-white/10 bg-white/[0.02]'
+                  }`}
+                >
+                  <div>
+                    <p className={`text-sm font-medium ${on ? 'text-white' : 'text-white/50'}`}>{s.label}</p>
+                    <p className="text-xs text-white/35">{s.desc}</p>
+                  </div>
+                  <div
+                    onClick={(e) => { e.preventDefault(); toggle(s.id) }}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                      on ? 'bg-[#C9A94E]' : 'bg-white/15'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        on ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </div>
+                </label>
+              )
+            })
+          )}
+        </CardContent>
+      </Card>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-white/30">{allowed.size} de {CLIENT_SECTIONS.length} secciones habilitadas</p>
+        <Button onClick={handleSave} disabled={saving || !loaded} className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965] font-semibold min-w-[140px]">
+          {saving ? 'Guardando...' : 'Guardar Permisos'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/* ========================================================================== */
 /*  Terms Tab Component                                                     */
 /* ========================================================================== */
 
@@ -955,6 +1076,7 @@ const PAGE_TO_TAB: Record<string, string> = {
   'admin-pricing': 'precios',
   'admin-terminos': 'terminos',
   'admin-publications': 'publicaciones',
+  'admin-permisos': 'permisos',
 }
 
 export default function AdminPage() {
@@ -972,7 +1094,7 @@ export default function AdminPage() {
   // Update store page when tab changes
   const handleTabChange = (value: string) => {
     setActiveTab(value)
-    const pageMap: Record<string, string> = { resumen: 'admin', plantillas: 'admin-templates', clausulas: 'admin-clauses', usuarios: 'admin-users', solicitudes: 'admin-requests', precios: 'admin-pricing', terminos: 'admin-terminos', publicaciones: 'admin-publications' }
+    const pageMap: Record<string, string> = { resumen: 'admin', plantillas: 'admin-templates', clausulas: 'admin-clauses', usuarios: 'admin-users', solicitudes: 'admin-requests', precios: 'admin-pricing', terminos: 'admin-terminos', publicaciones: 'admin-publications', permisos: 'admin-permisos' }
     const page = pageMap[value]
     if (page && page !== currentPage) setCurrentPage(page as Page)
   }
@@ -1589,6 +1711,81 @@ export default function AdminPage() {
     }
   }
 
+  /* ---- User CRUD ---- */
+  const [userDialogOpen, setUserDialogOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
+  const [savingUser, setSavingUser] = useState(false)
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
+  const [userForm, setUserForm] = useState({
+    username: '', password: '', name: '', email: '', phone: '',
+    role: 'client' as 'admin' | 'client', credits: 10, status: 'active' as 'active' | 'suspended',
+  })
+
+  const handleOpenUserDialog = (u?: AdminUser) => {
+    if (u) {
+      setEditingUser(u)
+      setUserForm({
+        username: u.username, password: '', name: u.name, email: u.email || '',
+        phone: '', role: u.role === 'admin' ? 'admin' : 'client',
+        credits: u.credits, status: u.status === 'suspended' ? 'suspended' : 'active',
+      })
+    } else {
+      setEditingUser(null)
+      setUserForm({ username: '', password: '', name: '', email: '', phone: '', role: 'client', credits: 10, status: 'active' })
+    }
+    setUserDialogOpen(true)
+  }
+
+  const handleSaveUser = async () => {
+    if (!userForm.name.trim() || !userForm.username.trim() || (!editingUser && !userForm.password)) {
+      toast.error('Nombre, usuario y contraseña son obligatorios')
+      return
+    }
+    setSavingUser(true)
+    try {
+      const payload = editingUser
+        ? { action: 'update_user', userId: editingUser.id, ...userForm }
+        : { action: 'create_user', ...userForm }
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast.success(editingUser ? 'Usuario actualizado' : 'Usuario creado')
+        setUserDialogOpen(false)
+        fetchUsers()
+      } else {
+        toast.error(data.error || 'Error al guardar usuario')
+      }
+    } catch {
+      toast.error('Error de conexión')
+    } finally {
+      setSavingUser(false)
+    }
+  }
+
+  const handleDeleteUser = async () => {
+    if (!deleteUserId) return
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ action: 'delete_user', userId: deleteUserId }),
+      })
+      if (res.ok) {
+        toast.success('Usuario eliminado')
+        setDeleteUserId(null)
+        fetchUsers()
+      } else {
+        toast.error('Error al eliminar usuario')
+      }
+    } catch {
+      toast.error('Error de conexión')
+    }
+  }
+
   /* ---- Request actions ---- */
   const handleRequestAction = async (requestId: string, action: 'aprobada' | 'rechazada' | 'en_desarrollo', notes?: string) => {
     try {
@@ -1688,6 +1885,7 @@ export default function AdminPage() {
     { value: 'solicitudes', label: 'Solicitudes', icon: MessageSquare },
     { value: 'precios', label: 'Créditos', icon: Coins },
     { value: 'terminos', label: 'Términos', icon: FileText },
+    { value: 'permisos', label: 'Permisos', icon: Shield },
     { value: 'publicaciones', label: 'Publicaciones', icon: Newspaper },
     { value: 'conocimiento', label: 'Base de Conocimiento', icon: Brain },
   ]
@@ -2331,9 +2529,18 @@ export default function AdminPage() {
             {/* ============================================================ */}
             <TabsContent value="usuarios" className="mt-0 flex-1 lg:ml-6">
               <div className="space-y-6">
-                <div>
-                  <h2 className="text-lg font-semibold text-white">Gestión de Usuarios</h2>
-                  <p className="text-xs text-white/40">Administra los usuarios registrados en la plataforma</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">Gestión de Usuarios</h2>
+                    <p className="text-xs text-white/40">Administra los usuarios registrados en la plataforma</p>
+                  </div>
+                  <Button
+                    onClick={() => handleOpenUserDialog()}
+                    className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Crear Usuario
+                  </Button>
                 </div>
 
                 <Card className="border-white/5 bg-[#0F1D32]/80 backdrop-blur-sm">
@@ -2372,7 +2579,7 @@ export default function AdminPage() {
                                       </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent className="border-white/10 bg-[#0F1D32] text-white">
-                                      {['admin', 'user', 'editor'].map((role) => (
+                                      {['admin', 'client'].map((role) => (
                                         <DropdownMenuItem
                                           key={role}
                                           onClick={() => handleChangeUserRole(u.id, role)}
@@ -2399,6 +2606,13 @@ export default function AdminPage() {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="border-white/10 bg-[#0F1D32] text-white">
+                                      <DropdownMenuItem
+                                        onClick={() => handleOpenUserDialog(u)}
+                                        className="focus:bg-white/5 focus:text-white"
+                                      >
+                                        <Edit className="mr-2 h-4 w-4" />
+                                        Editar
+                                      </DropdownMenuItem>
                                       {u.status === 'active' ? (
                                         <DropdownMenuItem
                                           onClick={() => handleUpdateUserStatus(u.id, 'suspended')}
@@ -2416,6 +2630,14 @@ export default function AdminPage() {
                                           Activar
                                         </DropdownMenuItem>
                                       )}
+                                      <DropdownMenuItem
+                                        onClick={() => setDeleteUserId(u.id)}
+                                        disabled={u.id === user?.id}
+                                        className="focus:bg-red-500/10 focus:text-red-400 disabled:opacity-40"
+                                      >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Eliminar
+                                      </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </TableCell>
@@ -2430,6 +2652,157 @@ export default function AdminPage() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Create/Edit User Dialog */}
+              <Dialog open={userDialogOpen} onOpenChange={setUserDialogOpen}>
+                <DialogContent className="max-h-[90vh] overflow-y-auto border-white/10 bg-[#0F1D32] sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">
+                      {editingUser ? 'Editar Usuario' : 'Crear Usuario'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-3 py-2">
+                    <div className="grid gap-1.5">
+                      <Label className="text-white/70">Nombre de usuario *</Label>
+                      <Input
+                        value={userForm.username}
+                        disabled={!!editingUser}
+                        onChange={(e) => setUserForm((f) => ({ ...f, username: e.target.value }))}
+                        placeholder="usuario"
+                        className="border-white/10 bg-white/5 text-white placeholder:text-white/25 disabled:opacity-50"
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-white/70">
+                        Contraseña {editingUser ? '(déjala vacía para no cambiarla)' : '*'}
+                      </Label>
+                      <Input
+                        type="password"
+                        value={userForm.password}
+                        onChange={(e) => setUserForm((f) => ({ ...f, password: e.target.value }))}
+                        placeholder="••••••••"
+                        className="border-white/10 bg-white/5 text-white placeholder:text-white/25"
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-white/70">Nombre completo *</Label>
+                      <Input
+                        value={userForm.name}
+                        onChange={(e) => setUserForm((f) => ({ ...f, name: e.target.value }))}
+                        placeholder="Nombre y apellido"
+                        className="border-white/10 bg-white/5 text-white placeholder:text-white/25"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="grid gap-1.5">
+                        <Label className="text-white/70">Email</Label>
+                        <Input
+                          type="email"
+                          value={userForm.email}
+                          onChange={(e) => setUserForm((f) => ({ ...f, email: e.target.value }))}
+                          placeholder="correo@ejemplo.com"
+                          className="border-white/10 bg-white/5 text-white placeholder:text-white/25"
+                        />
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label className="text-white/70">Teléfono</Label>
+                        <Input
+                          value={userForm.phone}
+                          onChange={(e) => setUserForm((f) => ({ ...f, phone: e.target.value }))}
+                          placeholder="3001234567"
+                          className="border-white/10 bg-white/5 text-white placeholder:text-white/25"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="grid gap-1.5">
+                        <Label className="text-white/70">Rol</Label>
+                        <Select
+                          value={userForm.role}
+                          onValueChange={(v) => setUserForm((f) => ({ ...f, role: v as 'admin' | 'client' }))}
+                        >
+                          <SelectTrigger className="h-9 border-white/10 bg-white/5 text-white text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="border-white/10 bg-[#0F1D32]">
+                            <SelectItem value="client" className="text-white focus:bg-white/5 text-xs">Cliente</SelectItem>
+                            <SelectItem value="admin" className="text-white focus:bg-white/5 text-xs">Administrador</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label className="text-white/70">Créditos</Label>
+                        <Input
+                          type="number"
+                          value={userForm.credits}
+                          onChange={(e) => setUserForm((f) => ({ ...f, credits: Number(e.target.value) || 0 }))}
+                          className="border-white/10 bg-white/5 text-white"
+                        />
+                      </div>
+                      {editingUser && (
+                        <div className="grid gap-1.5">
+                          <Label className="text-white/70">Estado</Label>
+                          <Select
+                            value={userForm.status}
+                            onValueChange={(v) => setUserForm((f) => ({ ...f, status: v as 'active' | 'suspended' }))}
+                          >
+                            <SelectTrigger className="h-9 border-white/10 bg-white/5 text-white text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="border-white/10 bg-[#0F1D32]">
+                              <SelectItem value="active" className="text-white focus:bg-white/5 text-xs">Activo</SelectItem>
+                              <SelectItem value="suspended" className="text-white focus:bg-white/5 text-xs">Suspendido</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setUserDialogOpen(false)}
+                      className="text-white/50 hover:text-white hover:bg-white/5"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleSaveUser}
+                      disabled={savingUser}
+                      className="bg-[#C9A94E] text-[#0A1628] hover:bg-[#D4B965]"
+                    >
+                      {savingUser ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Delete User Confirm Dialog */}
+              <Dialog open={!!deleteUserId} onOpenChange={(open) => { if (!open) setDeleteUserId(null) }}>
+                <DialogContent className="border-white/10 bg-[#0F1D32] sm:max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">Eliminar usuario</DialogTitle>
+                  </DialogHeader>
+                  <p className="text-sm text-white/60 py-2">
+                    Se eliminará el usuario y todos sus datos asociados (documentos, contactos y transacciones). Esta acción no se puede deshacer.
+                  </p>
+                  <DialogFooter>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setDeleteUserId(null)}
+                      className="text-white/50 hover:text-white hover:bg-white/5"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleDeleteUser}
+                      className="bg-red-600 text-white hover:bg-red-700"
+                    >
+                      Eliminar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </TabsContent>
 
             {/* ============================================================ */}
@@ -2792,6 +3165,9 @@ export default function AdminPage() {
             <TabsContent value="terminos" className="mt-0 flex-1 lg:ml-6">
               <InlineTerms />
             </TabsContent>
+            <TabsContent value="permisos" className="mt-0 flex-1 lg:ml-6">
+              <InlinePermissions />
+            </TabsContent>
             <TabsContent value="publicaciones" className="mt-0 flex-1 lg:ml-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -2925,6 +3301,7 @@ export default function AdminPage() {
                           placeholder="Escribe el contenido de la publicacion..."
                           darkMode={true}
                           imagesUploadUrl="/api/upload"
+                          aiFeatures={true}
                         />
                       </div>
                     </div>
