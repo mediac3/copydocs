@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
@@ -18,10 +18,20 @@ export const metadata: Metadata = {
   title: "CopyExpress - Generación Inteligente de Documentos",
   description: "Crea contratos, actas, derechos de petición y más con base en la normatividad vigente de Colombia. Wizard guiado paso a paso con asistencia de IA.",
   keywords: ["documentos legales", "Colombia", "contratos", "actas", "derecho de petición", "ley colombiana", "copyexpress"],
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "CopyExpress",
+  },
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0A1628",
 };
 
 export default function RootLayout({

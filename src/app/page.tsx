@@ -13,6 +13,7 @@ const DocumentsPage = dynamic(() => import('@/components/pages/DocumentsPage'), 
 const ContactsPage = dynamic(() => import('@/components/pages/ContactsPage'), { ssr: false });
 const AdminPage = dynamic(() => import('@/components/pages/AdminPage'), { ssr: false });
 const PaymentsPage = dynamic(() => import('@/components/pages/PaymentsPage'), { ssr: false });
+const InstallPWAButton = dynamic(() => import('@/components/InstallPWAButton'), { ssr: false });
 
 export default function Home() {
   const { user, currentPage, focusMode, isVisitor, showLogin, hideLoginPage } = useAppStore();
@@ -36,6 +37,7 @@ export default function Home() {
         <>
           {renderPage()}
           <AssistantChat />
+          <InstallPWAButton />
         </>
       );
     }
@@ -58,6 +60,7 @@ export default function Home() {
       case 'admin-pricing':
       case 'admin-terminos':
       case 'admin-publications':
+      case 'admin-permisos':
         return <AdminPage />;
       default: return <DashboardPage />;
     }

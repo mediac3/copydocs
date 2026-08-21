@@ -167,6 +167,20 @@ export default function WizardPage() {
   const previewRef = useRef<HTMLDivElement>(null)
   const hasLoadedDraft = useRef(false)
 
+  /* ---- Mobile layout: form full-width + preview as overlay ---- */
+  const [isMobile, setIsMobile] = useState(false)
+  const [showMobilePreview, setShowMobilePreview] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const update = () => {
+      setIsMobile(mq.matches)
+      if (!mq.matches) setShowMobilePreview(false)
+    }
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
   // WhatsApp modal state (visitor mode)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
   const [visitorPhone, setVisitorPhone] = useState('')
@@ -609,21 +623,21 @@ export default function WizardPage() {
     <TooltipProvider delayDuration={300}>
       <div className="flex h-full flex-col bg-[#0A1628]">
         {/* ---- Top bar ---- */}
-        <div className="flex items-center justify-between border-b border-[#1E3A5F] px-6 py-3">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-2 border-b border-[#1E3A5F] px-4 py-3 md:px-6">
+          <div className="flex min-w-0 items-center gap-2 md:gap-3">
             <Button
               variant="ghost"
               size="sm"
-              className="text-[#CBD5E1] hover:bg-[#152A4A] hover:text-white"
+              className="shrink-0 text-[#CBD5E1] hover:bg-[#152A4A] hover:text-white"
               onClick={() => setCurrentPage('catalog')}
             >
               <ArrowLeft className="mr-1 h-4 w-4" />
-              Volver
+              <span className="hidden sm:inline">Volver</span>
             </Button>
-            <div className="h-4 w-px bg-[#1E3A5F]" />
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-[#C9A94E]" />
-              <span className="text-sm font-medium text-white">{template.name}</span>
+            <div className="hidden h-4 w-px bg-[#1E3A5F] md:block" />
+            <div className="flex min-w-0 items-center gap-2">
+              <FileText className="h-4 w-4 shrink-0 text-[#C9A94E]" />
+              <span className="truncate text-sm font-medium text-white">{template.name}</span>
             </div>
           </div>
           <Button
@@ -642,11 +656,11 @@ export default function WizardPage() {
         <div className="flex-1 overflow-hidden">
           <ResizablePanelGroup direction="horizontal">
             {/* =============== LEFT PANEL - FORM =============== */}
-            <ResizablePanel defaultSize={55} minSize={35}>
+            <ResizablePanel defaultSize={55} minSize={35} className="max-md:!basis-full">
               <div className="flex h-full flex-col">
                 {/* Progress Stepper */}
-                <div className="border-b border-[#1E3A5F] px-6 py-4">
-                  <div className="flex items-center justify-center">
+                <div className="overflow-x-auto border-b border-[#1E3A5F] px-4 py-3 scrollbar-thin md:px-6 md:py-4">
+                  <div className="flex min-w-max items-center justify-center">
                     {wizardConfig.steps.map((step, idx) => {
                       const isCompleted = idx < completedSteps
                       const isCurrent = idx === currentStep && !isReviewStep
@@ -728,7 +742,7 @@ export default function WizardPage() {
                 </div>
 
                 {/* Step Content / Review */}
-                <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-6">
+                <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-5 pb-24 md:px-6 md:py-6 md:pb-6">
                   {isReviewStep ? (
                     <div className="space-y-6 animate-fade-in-up">
                       <div className="mb-6">
@@ -749,19 +763,32 @@ export default function WizardPage() {
                                 {step.title}
                               </h3>
                               <div className="space-y-2.5">
-                                {visibleFields.map((field) => (
-                                  <div
-                                    key={field.key}
-                                    className="flex items-start justify-between gap-4 rounded-md bg-[#152A4A]/50 px-3 py-2"
-                                  >
-                                    <span className="text-xs text-[#94A3B8]">{field.label}</span>
-                                    <span className="max-w-[60%] truncate text-right text-xs font-medium text-white">
-                                      {answers[field.key] !== undefined && answers[field.key] !== ''
-                                        ? String(answers[field.key])
-                                        : <span className="text-[#C9A94E]/60 italic">Sin respuesta</span>}
-                                    </span>
-                                  </div>
-                                ))}
+                                {visibleFields.map((field) => {
+                                  const raw = answers[field.key]
+                                  const isImage = typeof raw === 'string' && raw.startsWith('data:image/')
+                                  return (
+                                    <div
+                                      key={field.key}
+                                      className="flex items-start justify-between gap-4 rounded-md bg-[#152A4A]/50 px-3 py-2"
+                                    >
+                                      <span className="text-xs text-[#94A3B8]">{field.label}</span>
+                                      {isImage ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={String(raw)}
+                                          alt={field.label}
+                                          className="max-h-24 rounded-md border border-[#1E3A5F]"
+                                        />
+                                      ) : (
+                                        <span className="max-w-[60%] truncate text-right text-xs font-medium text-white">
+                                          {raw !== undefined && raw !== ''
+                                            ? String(raw)
+                                            : <span className="text-[#C9A94E]/60 italic">Sin respuesta</span>}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )
+                                })}
                               </div>
                             </CardContent>
                           </Card>
@@ -884,10 +911,22 @@ export default function WizardPage() {
             </ResizablePanel>
 
             {/* ---- Handle ---- */}
-            <ResizableHandle withHandle className="bg-[#1E3A5F] hover:bg-[#C9A94E]/50 transition-colors" />
+            <ResizableHandle withHandle className="bg-[#1E3A5F] hover:bg-[#C9A94E]/50 transition-colors max-md:!hidden" />
 
             {/* =============== RIGHT PANEL - PREVIEW =============== */}
-            <ResizablePanel defaultSize={45} minSize={25}>
+            {/* On mobile this panel becomes a full-screen overlay toggled by the
+                floating button (see bottom of this component). */}
+            <ResizablePanel
+              defaultSize={45}
+              minSize={25}
+              className={
+                isMobile
+                  ? showMobilePreview
+                    ? '!fixed inset-0 z-50 !basis-full !w-full !h-full'
+                    : '!hidden'
+                  : ''
+              }
+            >
               <div className="flex h-full flex-col bg-[#0F1F38]">
                 {/* Preview header */}
                 <div className="flex items-center justify-between border-b border-[#1E3A5F] px-5 py-3">
@@ -895,9 +934,21 @@ export default function WizardPage() {
                     <Eye className="h-4 w-4 text-[#C9A94E]" />
                     <span className="text-sm font-medium text-[#CBD5E1]">Vista Previa</span>
                   </div>
-                  <Badge variant="outline" className="border-[#1E3A5F] text-[10px] text-[#475569]">
-                    Actualización en tiempo real
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="hidden border-[#1E3A5F] text-[10px] text-[#475569] sm:inline-flex">
+                      Actualización en tiempo real
+                    </Badge>
+                    {isMobile && (
+                      <button
+                        type="button"
+                        onClick={() => setShowMobilePreview(false)}
+                        aria-label="Cerrar vista previa"
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-[#94A3B8] hover:bg-[#152A4A] hover:text-white"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Document preview */}
@@ -946,6 +997,22 @@ export default function WizardPage() {
           </ResizablePanelGroup>
         </div>
       </div>
+
+      {/* ---- Mobile: floating preview toggle ---- */}
+      {isMobile && (
+        <button
+          type="button"
+          onClick={() => setShowMobilePreview((v) => !v)}
+          className={`fixed bottom-5 right-4 z-40 flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold shadow-2xl transition-all ${
+            showMobilePreview
+              ? 'bg-[#152A4A] text-[#CBD5E1]'
+              : 'bg-[#C9A94E] text-[#0A1628] shadow-[#C9A94E]/30'
+          }`}
+        >
+          <Eye className="h-4 w-4" />
+          {showMobilePreview ? 'Ocultar vista previa' : 'Vista previa'}
+        </button>
+      )}
 
       {/* ---- WhatsApp Modal (visitor) ---- */}
       {showWhatsAppModal && (

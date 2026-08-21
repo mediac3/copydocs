@@ -68,7 +68,13 @@ function renderContent(content: string, answers: Record<string, string>): string
   for (const [key, value] of Object.entries(answers)) {
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`\\$?\\{\\{${escaped}\\}\\}`, 'g');
-    rendered = rendered.replace(regex, value || `[${key}]`);
+    // Wizard image fields hold base64 data URLs — substitute them as real
+    // <img> tags so the exporters render the image instead of raw base64 text.
+    const replacement =
+      typeof value === 'string' && value.startsWith('data:image/')
+        ? `<img src="${value}" alt="${key}" />`
+        : value || `[${key}]`;
+    rendered = rendered.replace(regex, replacement);
   }
   rendered = rendered.replace(/\$?\{\{[^}]+\}\}/g, '');
   return rendered;
@@ -105,7 +111,53 @@ interface ParsedBlock {
   isSignature: boolean;
 }
 
-type ContentBlock = ParsedBlock | ParsedTable;
+interface ParsedImage {
+  type: 'image';
+  dataUrl: string;
+}
+
+type ContentBlock = ParsedBlock | ParsedTable | ParsedImage;
+
+/** Match <img> tags carrying a base64 data-URL src (wizard image fields). */
+const IMG_TAG_RE = /<img[^>]+src=["'](data:image\/(png|jpe?g);base64,[^"']+)["'][^>]*>/gi;
+
+/** Read intrinsic pixel dimensions from PNG/JPEG buffers (for DOCX sizing). */
+function imageSize(buf: Buffer, mime: string): { width: number; height: number } {
+  try {
+    if (mime === 'image/png' && buf.length > 24) {
+      return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+    }
+    if (mime === 'image/jpeg' || mime === 'image/jpg') {
+      let off = 2;
+      while (off + 9 < buf.length) {
+        if (buf[off] !== 0xff) { off++; continue; }
+        const marker = buf[off + 1];
+        if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { off += 2; continue; }
+        const len = buf.readUInt16BE(off + 2);
+        if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+          return { height: buf.readUInt16BE(off + 5), width: buf.readUInt16BE(off + 7) };
+        }
+        off += 2 + len;
+      }
+    }
+  } catch { /* fall through to default */ }
+  return { width: 600, height: 400 };
+}
+
+/** Extract inline images from an HTML fragment; returns images + text remainder. */
+function extractImages(html: string): { images: string[]; text: string } {
+  const images: string[] = [];
+  let m: RegExpExecArray | null;
+  const re = new RegExp(IMG_TAG_RE.source, 'gi');
+  let remainder = html;
+  while ((m = re.exec(html)) !== null) {
+    images.push(m[1]);
+  }
+  if (images.length > 0) {
+    remainder = html.replace(new RegExp(IMG_TAG_RE.source, 'gi'), '');
+  }
+  return { images, text: remainder };
+}
 
 /** Remove HTML tags, converting block boundaries to newlines. */
 function stripTagsPass(html: string): string {
@@ -187,14 +239,23 @@ function parseHTMLContent(html: string): ContentBlock[] {
     // Legacy plain-text mode
     const lines = html.split('\n');
     for (const line of lines) {
-      const text = stripHtml(line).trim();
-      if (!text) {
+      const { images, text: remainder } = extractImages(line);
+      for (const dataUrl of images) {
+        blocks.push({ type: 'image', dataUrl });
+      }
+      // stripHtml turns block closers into '\n' — emit one block per segment
+      // so no text block ever carries an internal newline (pdf-lib can't
+      // encode them).
+      const segments = stripHtml(remainder).split('\n').map((s) => s.trim()).filter(Boolean);
+      if (segments.length === 0 && images.length === 0) {
         blocks.push({ type: 'text', text: '', isHeading: false, isBold: false, isItalic: false, isSignature: false });
         continue;
       }
-      const isHeading = /^(CONTRATO|PODER|DEMANDA|DERECHO|ACTA|ESCRITURA|CARTA|CLÁUSULA|ARTÍCULO|PRIMERA|SEGUNDA|TERCERA|CUARTA|QUINTA|SEXTA|SÉPTIMA|OCTAVA|NOVENA|DÉCIMA|I\\.|II\\.|III\\.|IV\\.|V\\.|VI\\.|VII\\.|VIII\\.|IX\\.|X\\.|ANEXOS|PARA CONSTANCIA|Del señor)/i.test(text);
-      const isSignature = /^[\s_\-]+$/.test(text) || /^________________/.test(text);
-      blocks.push({ type: 'text', text, isHeading, isBold: false, isItalic: false, isSignature });
+      for (const seg of segments) {
+        const isHeading = /^(CONTRATO|PODER|DEMANDA|DERECHO|ACTA|ESCRITURA|CARTA|CLÁUSULA|ARTÍCULO|PRIMERA|SEGUNDA|TERCERA|CUARTA|QUINTA|SEXTA|SÉPTIMA|OCTAVA|NOVENA|DÉCIMA|I\\.|II\\.|III\\.|IV\\.|V\\.|VI\\.|VII\\.|VIII\\.|IX\\.|X\\.|ANEXOS|PARA CONSTANCIA|Del señor)/i.test(seg);
+        const isSignature = /^[\s_\-]+$/.test(seg) || /^________________/.test(seg);
+        blocks.push({ type: 'text', text: seg, isHeading, isBold: false, isItalic: false, isSignature });
+      }
     }
     return blocks;
   }
@@ -234,23 +295,30 @@ function parseTextBlocks(html: string, blocks: ContentBlock[]) {
   // array items, which then rendered as stray "p"/"h1" text lines in the PDF.
   const parts = html.split(/<\/(?:p|h[1-6]|div|blockquote|li)>/i);
   for (const part of parts) {
+    // Inline images (wizard image fields) become their own blocks, in order
+    const { images, text: textWithoutImgs } = extractImages(part);
+
     // Check for headings
-    const hMatch = part.match(/<h([1-3])[^>]*>([\s\S]*?)<\/h[1-3]>/i);
+    const hMatch = textWithoutImgs.match(/<h([1-3])[^>]*>([\s\S]*?)<\/h[1-3]>/i);
     if (hMatch) {
       const text = stripHtml(hMatch[2]).trim();
       if (text) {
         blocks.push({ type: 'text', text, isHeading: true, isBold: true, isItalic: false, isSignature: false });
       }
-      continue;
+    } else {
+      // Check for bold/italic paragraphs
+      const isBoldWrap = /<(strong|b)[^>]*>/i.test(textWithoutImgs);
+      const isItalicWrap = /<(em|i)[^>]*>/i.test(textWithoutImgs);
+      const text = stripHtml(textWithoutImgs).trim();
+      if (text) {
+        const isHeading = /^(CONTRATO|PODER|DEMANDA|DERECHO|ACTA|ESCRITURA|CARTA|CLÁUSULA|ARTÍCULO|PRIMERA|SEGUNDA|TERCERA|CUARTA|QUINTA|SEXTA|SÉPTIMA|OCTAVA|NOVENA|DÉCIMA|I\\.|II\\.|III\\.|IV\\.|V\\.|VI\\.|VII\\.|VIII\\.|IX\\.|X\\.|ANEXOS|PARA CONSTANCIA|Del señor)/i.test(text);
+        const isSignature = /^[\s_\-]+$/.test(text) || /^________________/.test(text);
+        blocks.push({ type: 'text', text, isHeading, isBold: isBoldWrap || isHeading, isItalic: isItalicWrap, isSignature });
+      }
     }
-    // Check for bold/italic paragraphs
-    const isBoldWrap = /<(strong|b)[^>]*>/i.test(part);
-    const isItalicWrap = /<(em|i)[^>]*>/i.test(part);
-    const text = stripHtml(part).trim();
-    if (!text) continue;
-    const isHeading = /^(CONTRATO|PODER|DEMANDA|DERECHO|ACTA|ESCRITURA|CARTA|CLÁUSULA|ARTÍCULO|PRIMERA|SEGUNDA|TERCERA|CUARTA|QUINTA|SEXTA|SÉPTIMA|OCTAVA|NOVENA|DÉCIMA|I\\.|II\\.|III\\.|IV\\.|V\\.|VI\\.|VII\\.|VIII\\.|IX\\.|X\\.|ANEXOS|PARA CONSTANCIA|Del señor)/i.test(text);
-    const isSignature = /^[\s_\-]+$/.test(text) || /^________________/.test(text);
-    blocks.push({ type: 'text', text, isHeading, isBold: isBoldWrap || isHeading, isItalic: isItalicWrap, isSignature });
+    for (const dataUrl of images) {
+      blocks.push({ type: 'image', dataUrl });
+    }
   }
 }
 
@@ -465,24 +533,27 @@ async function generatePDF(content: string, title: string, headerContent: string
 
   function drawText(text: string, f: typeof font, size: number, color: typeof colorDark, x: number, maxWidth?: number) {
     if (!maxWidth) maxWidth = usableWidth;
-    const words = text.split(' ');
-    let currentLine = '';
-    for (const word of words) {
-      const testLine = currentLine ? currentLine + ' ' + word : word;
-      const testWidth = f.widthOfTextAtSize(testLine, size);
-      if (testWidth > maxWidth && currentLine) {
+    // pdf-lib cannot encode newlines — split into separate drawn lines
+    for (const seg of text.split('\n')) {
+      const words = seg.split(' ');
+      let currentLine = '';
+      for (const word of words) {
+        const testLine = currentLine ? currentLine + ' ' + word : word;
+        const testWidth = f.widthOfTextAtSize(testLine, size);
+        if (testWidth > maxWidth && currentLine) {
+          ensureSpace(lineHeight);
+          page.drawText(currentLine, { x, y, size, font: f, color });
+          y -= lineHeight;
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) {
         ensureSpace(lineHeight);
         page.drawText(currentLine, { x, y, size, font: f, color });
         y -= lineHeight;
-        currentLine = word;
-      } else {
-        currentLine = testLine;
       }
-    }
-    if (currentLine) {
-      ensureSpace(lineHeight);
-      page.drawText(currentLine, { x, y, size, font: f, color });
-      y -= lineHeight;
     }
   }
 
@@ -559,6 +630,33 @@ async function generatePDF(content: string, title: string, headerContent: string
         const f = isBold ? fontBold : font;
         drawText(text, f, fontSize, colorText, margin.left);
         y -= 2;
+      }
+    } else if (block.type === 'image') {
+      // Inline image from a wizard image field — embed centered, scaled to fit
+      const imgData = decodeMediaImage(block.dataUrl);
+      if (imgData) {
+        try {
+          const embedded =
+            imgData.mimeType === 'image/png'
+              ? await pdfDoc.embedPng(imgData.buffer)
+              : await pdfDoc.embedJpg(imgData.buffer);
+          const dims = embedded.scale(1);
+          let imgW = dims.width;
+          let imgH = dims.height;
+          const scale = Math.min(usableWidth / imgW, 240 / imgH, 1);
+          imgW *= scale;
+          imgH *= scale;
+          ensureSpace(imgH + 12);
+          page.drawImage(embedded, {
+            x: margin.left + (usableWidth - imgW) / 2,
+            y: y - imgH,
+            width: imgW,
+            height: imgH,
+          });
+          y -= imgH + 8;
+        } catch (e) {
+          console.warn('Failed to embed body image:', e);
+        }
       }
     } else if (block.type === 'table') {
       // Render table as PDF — draw backgrounds first, then grid lines (no gaps)
@@ -848,6 +946,25 @@ async function generateDOCX(content: string, title: string, headerContent: strin
       if (docxRows.length > 0) {
         children.push(new DocxTable({ rows: docxRows, width: { size: 9000, type: WidthType.DXA } }));
         children.push(new Paragraph({ children: [], spacing: { after: 200 } }));
+      }
+    } else if (block.type === 'image') {
+      // Inline image from a wizard image field — centered, scaled to fit
+      const imgData = decodeMediaImage(block.dataUrl);
+      if (imgData) {
+        try {
+          const { width: pw, height: ph } = imageSize(imgData.buffer, imgData.mimeType);
+          const scale = Math.min(450 / pw, 320 / ph, 1);
+          children.push(new Paragraph({
+            children: [new ImageRun({
+              data: imgData.buffer,
+              transformation: { width: Math.round(pw * scale), height: Math.round(ph * scale) },
+            })],
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 120, after: 160 },
+          }));
+        } catch (e) {
+          console.warn('Failed to embed body image in DOCX:', e);
+        }
       }
     } else {
       const { text, isHeading, isBold, isSignature } = block;
